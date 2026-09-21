@@ -1,17 +1,19 @@
 import { ReactNode } from 'react';
 import styled from 'styled-components';
-import { Icon } from '@/components';
+import { AuthBrandLogo, useForceLightTheme } from './AuthBranding';
 
 interface AuthContainerProps {
   children: ReactNode;
 }
 
 export function AuthContainer({ children }: AuthContainerProps) {
+  useForceLightTheme();
+
   return (
     <AuthPage>
       <AuthInsider>
         <AuthLogo>
-          <Icon icon="bigcapital" height={37} width={214} />
+          <AuthBrandLogo />
         </AuthLogo>
 
         {children}

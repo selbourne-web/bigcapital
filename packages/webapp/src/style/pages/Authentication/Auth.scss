@@ -26,3 +26,7 @@
     display: none;
   }
 }
+// Light, brand-tinted background for the login / register pages.
+body.authentication {
+  background-color: #f6f0f0;
+}

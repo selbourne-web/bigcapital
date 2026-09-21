@@ -1,5 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { uniq } from 'lodash';
+import '../../../utils/extra-currencies';
 import * as Currencies from 'js-money/lib/currency';
 import { InitialCurrencies } from '../Currencies.constants';
 import { TenantModelProxy } from '../../System/models/TenantBaseModel';

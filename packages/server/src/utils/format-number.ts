@@ -1,5 +1,6 @@
 import { get } from 'lodash';
 import * as accounting from 'accounting';
+import './extra-currencies';
 import * as Currencies from 'js-money/lib/currency';
 
 const getNegativeFormat = (formatName) => {

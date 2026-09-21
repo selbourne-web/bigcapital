@@ -3,6 +3,7 @@ import { Intent } from '@blueprintjs/core';
 import accounting from 'accounting';
 import clsx from 'classnames';
 import jsCookie from 'js-cookie';
+import '../constants/extra-currencies';
 import Currencies from 'js-money/lib/currency';
 import Currency from 'js-money/lib/currency';
 import _ from 'lodash';

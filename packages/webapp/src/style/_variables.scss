@@ -4,7 +4,7 @@
 $ns: bp4;
 
 :root {
-  --color-primary: #8abbff;
+  --color-primary: #800000;
   --color-danger: red;
 
   // Green colors
@@ -323,7 +323,7 @@ $pt-popover-box-shadow:
   0 8px 24px rgba(16, 22, 26, 0.1);
   
 body.bp4-dark  {
-  --color-primary: #8abbff;
+  --color-primary: #d40000;
   --color-danger: rgb(213, 103, 103);
 
   // Green colors (dark mode - lighter variants)
