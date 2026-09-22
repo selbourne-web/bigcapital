@@ -1,0 +1,23 @@
+name: ZAP Full Scan
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_url:
+        description: 'URL (with port) that Bigcapital is running on, reachable from the self-hosted runner'
+        required: true
+        default: 'http://localhost:4000'
+
+jobs:
+  zap_scan:
+    runs-on: [self-hosted, zap-scan]
+    name: ZAP Full Scan
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: ZAP Full Scan
+        uses: zaproxy/action-full-scan@v0.13.0
+        with:
+          target: ${{ inputs.target_url }}
+          token: ${{ secrets.GITHUB_TOKEN }}
