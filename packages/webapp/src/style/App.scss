@@ -108,7 +108,7 @@ body.hide-scrollbar .Pane2 {
 }
 
 .bp4-progress-bar.bp4-intent-primary .bp4-progress-meter {
-  background-color: #0066ff;
+  background-color: var(--color-primary);
 }
 
 .ReactVirtualized__Collection {}
@@ -307,4 +307,8 @@ span.table-tooltip-overview-target {
 
 :root {
   --top-offset: 60px;
+}
+// Light theme: black body text.
+body:not(.bp4-dark) {
+  color: #000;
 }

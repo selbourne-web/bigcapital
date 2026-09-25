@@ -128,12 +128,12 @@ export const WarehousesList = styled.div`
 export const WarehouseBoxRoot = styled.div`
   --x-box-border-color: #c8cad0;
   --x-box-background-color: #fff;
-  --x-box-hover-border-color: #0153cc;
+  --x-box-hover-border-color: var(--color-primary);
 
   .bp4-dark & {
     --x-box-border-color: rgba(255, 255, 255, 0.2);
     --x-box-background-color: var(--color-dark-gray3);
-    --x-box-hover-border-color: #0153cc;
+    --x-box-hover-border-color: var(--color-primary);
   }
   display: flex;
   flex-direction: column;

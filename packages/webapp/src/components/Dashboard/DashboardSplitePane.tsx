@@ -1,11 +1,7 @@
-import * as FF from 'fp-ts/function';
-import { debounce } from 'lodash';
-import React, { useState, useRef } from 'react';
+import React from 'react';
 import SplitPane from 'react-split-pane';
-import { withDashboard } from '@/containers/Dashboard/withDashboard';
 
 interface DashboardSplitPaneProps {
-  sidebarExpended: boolean;
   children?: React.ReactNode;
 }
 
@@ -16,7 +12,6 @@ interface SplitPaneWithChildrenProps {
   maxSize?: number | string;
   defaultSize?: number | string;
   size?: number | string;
-  onChange?: (size: number) => void;
   className?: string;
   children?: React.ReactNode;
 }
@@ -24,41 +19,23 @@ interface SplitPaneWithChildrenProps {
 const SplitPaneComponent =
   SplitPane as unknown as React.ComponentType<SplitPaneWithChildrenProps>;
 
-function DashboardSplitPane({
-  sidebarExpended,
+// Width of the icon rail (keep in sync with `$sidebar-rail-width` in Sidebar.scss).
+const SIDEBAR_RAIL_WIDTH = 84;
+
+export default function DashboardSplitPane({
   children,
 }: DashboardSplitPaneProps) {
-  const initialSize = 220;
-
-  const [defaultSize, setDefaultSize] = useState(
-    parseInt(localStorage.getItem('dashboard-size') || '', 10) || initialSize,
-  );
-  const debounceSaveSize = useRef(
-    debounce((size: number) => {
-      localStorage.setItem('dashboard-size', String(size));
-    }, 500),
-  );
-  const handleChange = (size: number) => {
-    debounceSaveSize.current(size);
-    setDefaultSize(size);
-  };
   return (
     <SplitPaneComponent
-      allowResize={sidebarExpended}
+      allowResize={false}
       split="vertical"
-      minSize={180}
-      maxSize={300}
-      defaultSize={sidebarExpended ? defaultSize : 50}
-      size={sidebarExpended ? defaultSize : 50}
-      onChange={handleChange}
+      minSize={SIDEBAR_RAIL_WIDTH}
+      maxSize={SIDEBAR_RAIL_WIDTH}
+      defaultSize={SIDEBAR_RAIL_WIDTH}
+      size={SIDEBAR_RAIL_WIDTH}
       className="primary"
     >
       {children}
     </SplitPaneComponent>
   );
 }
-
-export default FF.pipe(
-  DashboardSplitPane,
-  withDashboard(({ sidebarExpended }) => ({ sidebarExpended })),
-);

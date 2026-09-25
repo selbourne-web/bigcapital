@@ -64,8 +64,8 @@
             }
 
             &:focus{
-              box-shadow: 0 0 0 1px #116cd0;
-              border-color: #116cd0;
+              box-shadow: 0 0 0 1px var(--color-primary);
+              border-color: var(--color-primary);
             }
           }
         }

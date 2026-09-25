@@ -70,7 +70,7 @@ export function InvoicePaymentPage({
   organizationAddress,
 
   // # Colors
-  primaryColor = 'rgb(0, 82, 204)',
+  primaryColor = '#800000',
 
   // # Customer
   customerName,

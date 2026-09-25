@@ -1,7 +1,7 @@
 
 :root {
   --payment-page-background-color: #fff;
-  --payment-page-primary-button: #0052cc;
+  --payment-page-primary-button: var(--color-primary);
 }
 
 .rootBodyPage {

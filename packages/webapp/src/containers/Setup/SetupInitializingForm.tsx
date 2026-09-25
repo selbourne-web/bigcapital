@@ -93,7 +93,7 @@ function SetupInitializingFailed() {
         <x.p
           w="70%"
           mx="auto"
-          color={isDarkMode ? 'rgba(255, 255, 255, 0.7)' : '#2e4266'}
+          color={isDarkMode ? 'rgba(255, 255, 255, 0.7)' : '#000'}
         >
           <T id={'setup.initializing.please_refresh_the_page'} />
         </x.p>
@@ -119,7 +119,7 @@ function SetupInitializingRunning() {
       margin: 0 auto;
 
       .bp4-progress-meter {
-        background-color: #809cb3;
+        background-color: #727272;
       }
     }
   `;
@@ -143,7 +143,7 @@ function SetupInitializingRunning() {
         <x.p
           w="70%"
           mx="auto"
-          color={isDarkMode ? 'rgba(255, 255, 255, 0.7)' : '#2e4266'}
+          color={isDarkMode ? 'rgba(255, 255, 255, 0.7)' : '#000'}
         >
           <T id={'setup.initializing.description'} />
         </x.p>
@@ -173,7 +173,7 @@ function SetupInitializingCompleted() {
         <x.p
           w="70%"
           mx="auto"
-          color={isDarkMode ? 'rgba(255, 255, 255, 0.7)' : '#2e4266'}
+          color={isDarkMode ? 'rgba(255, 255, 255, 0.7)' : '#000'}
         >
           <T
             id={'setup.initializing.refresh_the_page_if_redirect_not_worked'}

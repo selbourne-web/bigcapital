@@ -26,7 +26,7 @@ import { firstLettersArgs } from '@/utils';
 
 // Popover modifiers.
 const POPOVER_MODIFIERS = {
-  offset: { offset: '28, 8' },
+  offset: { offset: '0, 12' },
 };
 
 // Minimum number of workspaces required to show the search input.
@@ -44,11 +44,11 @@ const DashboardOrganizationMenu = styled(Menu)`
     padding: 8px 10px;
 
     &.is-active {
-      background: rgba(255, 255, 255, 0.08);
+      background: rgba(128, 0, 0, 0.1);
     }
 
     &:hover:not(.is-active):not(.bp4-disabled) {
-      background: rgba(255, 255, 255, 0.05);
+      background: rgba(0, 0, 0, 0.05);
     }
 
     &.bp4-disabled {
@@ -59,48 +59,48 @@ const DashboardOrganizationMenu = styled(Menu)`
 
   .bp4-menu-divider {
     margin: 8px 0;
-    border-top-color: rgba(255, 255, 255, 0.1);
+    border-top-color: rgba(0, 0, 0, 0.1);
   }
 
   .bp4-menu-item {
-    color: rgba(255, 255, 255, 0.9);
-    border-radius: 4px;
+    color: #000;
+    border-radius: 999px;
     line-height: 20px;
 
     &:hover:not(.bp4-disabled) {
-      background: rgba(255, 255, 255, 0.1);
-      color: #fff;
+      background: rgba(128, 0, 0, 0.08);
+      color: #000;
     }
 
     .bp4-icon {
-      color: rgba(255, 255, 255, 0.6);
+      color: #4c4c4c;
     }
   }
 `;
 
 const DashboardSearchInput = styled(InputGroup)`
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 6px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(0, 0, 0, 0.04);
+  border-radius: 999px;
+  border: 1px solid rgba(0, 0, 0, 0.12);
   box-shadow: none;
 
   .bp4-input {
     background: transparent;
-    color: #fff;
+    color: #000;
 
     &::placeholder {
-      color: rgba(255, 255, 255, 0.35);
+      color: rgba(0, 0, 0, 0.5);
     }
   }
 
   .bp4-icon {
-    color: rgba(255, 255, 255, 0.35);
+    color: rgba(0, 0, 0, 0.5);
   }
 
   &:focus-within,
   &.bp4-active {
-    border-color: rgba(17, 131, 218, 0.55);
-    box-shadow: 0 0 0 1px rgba(17, 131, 218, 0.35);
+    border-color: rgba(128, 0, 0, 0.6);
+    box-shadow: 0 0 0 1px rgba(128, 0, 0, 0.35);
   }
 `;
 
@@ -155,8 +155,8 @@ function SidebarHeadJSX({
                 gap={3}
                 py={'8px'}
                 px={'10px'}
-                backgroundColor="rgba(255, 255, 255, 0.05)"
-                borderRadius={4}
+                backgroundColor="rgba(0, 0, 0, 0.04)"
+                borderRadius={16}
               >
                 {metadata?.logoUri ? (
                   <x.img
@@ -173,7 +173,7 @@ function SidebarHeadJSX({
                     w={'60px'}
                     lineHeight="60px"
                     borderRadius={10}
-                    backgroundColor="#CB22E5"
+                    backgroundColor="#800000"
                     textAlign="center"
                     fontWeight={400}
                     fontSize={16}
@@ -182,8 +182,13 @@ function SidebarHeadJSX({
                     {firstLettersArgs(...(metadata?.name || '').split(' '))}
                   </x.div>
                 )}
-                <x.div fontWeight={600} color="#fff">
-                  {metadata?.name}
+                <x.div>
+                  <x.div fontWeight={600} color="#000">
+                    {metadata?.name}
+                  </x.div>
+                  <x.div fontSize={12} color="#4c4c4c" mt="2px">
+                    {user.firstName} {user.lastName}
+                  </x.div>
                 </x.div>
               </x.div>
               <MenuDivider />
@@ -249,7 +254,7 @@ function SidebarHeadJSX({
                               w={'28px'}
                               h={'28px'}
                               borderRadius={'10px'}
-                              backgroundColor="#5c7c99"
+                              backgroundColor="#4c4c4c"
                               display="flex"
                               alignItems="center"
                               justifyContent="center"
@@ -273,7 +278,7 @@ function SidebarHeadJSX({
                             <Icon
                               icon={'tick'}
                               iconSize={14}
-                              color="#48aff0"
+                              color="#800000"
                               style={{ flexShrink: 0 }}
                             />
                           )}
@@ -288,7 +293,7 @@ function SidebarHeadJSX({
                     py={'12px'}
                     px={'10px'}
                     fontSize={13}
-                    color="rgba(255, 255, 255, 0.5)"
+                    color="rgba(0, 0, 0, 0.55)"
                   >
                     {intl.get('workspaces.no_workspaces_found', {
                       fallback: 'No workspaces found.',
@@ -311,28 +316,18 @@ function SidebarHeadJSX({
               />
             </DashboardOrganizationMenu>
           }
-          position={Position.BOTTOM}
+          position={Position.RIGHT_TOP}
           minimal={true}
         >
-          <Button
-            className="title"
-            rightIcon={<Icon icon={'caret-down-16'} size={16} />}
+          <button
+            type="button"
+            className="sidebar__head-mark"
+            aria-label={metadata?.name || 'Workspaces'}
+            title={metadata?.name}
           >
-            {metadata?.name}
-          </Button>
+            <img src="/logo192.png" alt="" width={36} height={36} />
+          </button>
         </Popover>
-        <span className="subtitle">
-          {user.firstName} {user.lastName}
-        </span>
-      </div>
-
-      <div className="sidebar__head-logo">
-        <Icon
-          icon={'mini-bigcapital'}
-          width={28}
-          height={28}
-          className="bigcapital--alt"
-        />
       </div>
     </div>
   );

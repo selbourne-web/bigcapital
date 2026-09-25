@@ -44,7 +44,7 @@ export default function BuildingWorkspaceStep({
       margin: 0 auto;
 
       .bp4-progress-meter {
-        background-color: #809cb3;
+        background-color: #727272;
       }
     }
   `;
@@ -64,7 +64,7 @@ export default function BuildingWorkspaceStep({
         <x.p
           w="70%"
           mx="auto"
-          color={isDarkMode ? 'rgba(255, 255, 255, 0.7)' : '#2e4266'}
+          color={isDarkMode ? 'rgba(255, 255, 255, 0.7)' : '#000'}
         >
           <T id={'create_workspace.building.failed_description'} />
         </x.p>
@@ -91,7 +91,7 @@ export default function BuildingWorkspaceStep({
         <x.p
           w="70%"
           mx="auto"
-          color={isDarkMode ? 'rgba(255, 255, 255, 0.7)' : '#2e4266'}
+          color={isDarkMode ? 'rgba(255, 255, 255, 0.7)' : '#000'}
         >
           <T id={'create_workspace.building.description'} />
         </x.p>

@@ -1,8 +1,5 @@
-const theme =
-  localStorage.getItem('theme') ||
-  (window.matchMedia('(prefers-color-scheme: dark)').matches
-    ? 'dark'
-    : 'light');
+// Light is the default; set localStorage.theme = 'dark' to opt into dark mode.
+const theme = localStorage.getItem('theme') || 'light';
 
 if (theme === 'dark') {
   document.documentElement.classList.add('bp4-dark');

@@ -3,7 +3,11 @@
   height: 100%;
   width: 225px;
   outline: 0;
-  box-shadow: 0 0 2px rgba(0, 0, 0, 0.1);
+  border-radius: 0 24px 24px 0;
+  box-shadow:
+    0 2px 4px rgba(0, 0, 0, 0.06),
+    0 12px 32px rgba(0, 0, 0, 0.12);
+  overflow: hidden;
   z-index: 15;
 
   &__scroll-wrapper {
@@ -50,7 +54,9 @@
     a {
       color: inherit;
       display: block;
-      padding: 10px 22px;
+      margin: 2px 12px;
+      padding: 9px 16px;
+      border-radius: 999px;
       text-decoration: none;
 
       &:hover,

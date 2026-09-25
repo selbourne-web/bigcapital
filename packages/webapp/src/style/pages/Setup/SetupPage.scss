@@ -14,7 +14,7 @@
   }
 
   &__left-section {
-    background-color: #2f3d6f;
+    background-color: #000;
     width: 100%;
 
     .bp4-dark & {
@@ -164,7 +164,7 @@
       }
 
       p.wizard-info {
-        color: #004dd0;
+        color: var(--color-primary);
       }
     }
   }

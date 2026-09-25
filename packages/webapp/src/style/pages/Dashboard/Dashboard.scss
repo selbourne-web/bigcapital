@@ -37,6 +37,11 @@ $dashboard-views-bar-height: 44px;
       display: flex;
     }
 
+    // No sidebar toggle any more, so the title sits directly after the rail.
+    &-left {
+      padding-left: 24px;
+    }
+
     &-actions {
     }
 
@@ -80,17 +85,17 @@ $dashboard-views-bar-height: 44px;
           height: auto;
       }
       .#{$ns}-button {
-        color: #1552c8;
-        font-weight: 5000;
+        color: var(--color-dashboard-navbar-item-text);
+        font-weight: 500;
         font-size: 14px;
 
         &:hover,
         &:focus {
-          background-color: rgba(178, 220, 253, 0.15);
+          background-color: rgba(0, 0, 0, 0.06);
         }
 
         .#{$ns}-icon {
-          color: #1552c8;
+          color: var(--color-dashboard-navbar-item-icon);
         }
       }
 
@@ -100,7 +105,7 @@ $dashboard-views-bar-height: 44px;
 
       .form-group-quick-new-downDrop {
         .bp4-popover-target .bp4-button {
-          color: #1552c8;
+          color: var(--color-dashboard-navbar-item-text);
         }
 
         .bp4-button::after {
@@ -190,7 +195,7 @@ $dashboard-views-bar-height: 44px;
   &__organization-name {
     font-size: 14px;
     font-weight: 400;
-    color: #818ca9;
+    color: #727272;
     margin: 0 0 0 15px;
     display: flex;
     align-items: center;
@@ -276,12 +281,12 @@ $dashboard-views-bar-height: 44px;
           color: #cc7e25;
         }
         &.#{$ns}-minimal.#{$ns}-intent-primary {
-          color: #223fc5;
+          color: var(--color-primary);
 
           &:hover,
           &:focus {
-            color: #223fc5;
-            background: rgba(34, 63, 197, 0.08);
+            color: var(--color-primary);
+            background: rgba(128, 0, 0, 0.08);
           }
         }
 
@@ -295,13 +300,13 @@ $dashboard-views-bar-height: 44px;
         }
 
         &.button--gray-highlight {
-          background-color: rgba(127, 189, 255, 0.1);
+          background-color: rgba(128, 0, 0, 0.1);
         }
       }
 
       .button--table-views {
         .#{$ns}-icon {
-          color: #1183da;
+          color: var(--color-primary);
         }
 
         .#{$ns}-button-text {

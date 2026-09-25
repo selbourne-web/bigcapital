@@ -45,7 +45,7 @@ export function OrganizationsListWorkspaceCell({
           h="28px"
           minWidth="28px"
           minHeight="28px"
-          backgroundColor="#5c7c99"
+          backgroundColor="#727272"
           borderRadius="10px"
           color="#ffffff"
           display="flex"

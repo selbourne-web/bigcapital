@@ -1,7 +1,7 @@
 
 .root{
-  --x-color-amount-text: #343463;
-  --x-color-label-text: #5d6f90;
+  --x-color-amount-text: #000;
+  --x-color-label-text: #4c4c4c;
 
   :global(.bp4-dark) & {
     --x-color-label-text: rgba(255, 255, 255, 0.7);

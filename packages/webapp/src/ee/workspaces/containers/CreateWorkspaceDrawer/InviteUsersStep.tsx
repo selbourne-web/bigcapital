@@ -171,7 +171,7 @@ export default function InviteUsersStep({
           <x.p
             fontSize={14}
             mb={4}
-            color={isDarkMode ? 'rgba(255, 255, 255, 0.7)' : '#2e4266'}
+            color={isDarkMode ? 'rgba(255, 255, 255, 0.7)' : '#000'}
           >
             <T id={'create_workspace.invite.description'} />
           </x.p>

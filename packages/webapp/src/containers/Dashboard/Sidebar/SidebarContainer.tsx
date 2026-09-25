@@ -1,69 +1,24 @@
 // @ts-nocheck
-import classNames from 'classnames';
-import * as FF from 'fp-ts/function';
-import React, { useEffect } from 'react';
+import React from 'react';
 import { Scrollbar } from 'react-scrollbars-custom';
 import { useObserveSidebarExpendedBodyclass } from './hooks';
-import { withDashboard } from '@/containers/Dashboard/withDashboard';
 
 /**
- * Sidebar container/
+ * Sidebar container. The sidebar is a fixed-width icon rail, so it no longer
+ * expands or collapses.
  * @returns {JSX.Element}
  */
-function SidebarContainerJSX({
-  // #ownProps
-  children,
-
-  // #withDashboard
-  sidebarExpended,
-}) {
-  const sidebarScrollerRef = React.useRef();
-
-  // Toggles classname to body once sidebar expend/shrink.
-  useObserveSidebarExpendedBodyclass(sidebarExpended);
-
-  useEffect(() => {
-    if (!sidebarExpended && sidebarScrollerRef.current) {
-      sidebarScrollerRef.current.scrollTo({
-        top: 0,
-        left: 0,
-      });
-    }
-  }, [sidebarExpended]);
-
-  const handleSidebarMouseLeave = () => {
-    if (!sidebarExpended && sidebarScrollerRef.current) {
-      sidebarScrollerRef.current.scrollTo({ top: 0, left: 0 });
-    }
-  };
-
-  const scrollerElementRef = React.useCallback((ref) => {
-    sidebarScrollerRef.current = ref;
-  }, []);
+export function SidebarContainer({ children }) {
+  // The rail is never a "mini" sidebar; clear any stale body class.
+  useObserveSidebarExpendedBodyclass(true);
 
   return (
-    <div
-      className={classNames('sidebar', {
-        'sidebar--mini-sidebar': !sidebarExpended,
-      })}
-      id="sidebar"
-      onMouseLeave={handleSidebarMouseLeave}
-    >
+    <div className="sidebar sidebar--rail" id="sidebar">
       <div className={'sidebar__scroll-wrapper'}>
-        <Scrollbar
-          noDefaultStyles={true}
-          scrollerProps={{ elementRef: scrollerElementRef }}
-        >
+        <Scrollbar noDefaultStyles={true}>
           <div className="sidebar__inner">{children}</div>
         </Scrollbar>
       </div>
     </div>
   );
 }
-
-export const SidebarContainer = FF.pipe(
-  SidebarContainerJSX,
-  withDashboard(({ sidebarExpended }) => ({
-    sidebarExpended,
-  })),
-);

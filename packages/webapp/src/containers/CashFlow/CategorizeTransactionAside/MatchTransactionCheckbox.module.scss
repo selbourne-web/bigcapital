@@ -50,7 +50,7 @@
   :global
   input:checked
   ~ .bp4-control-indicator {
-  box-shadow: 0 0 0 1px #0069ff;
+  box-shadow: 0 0 0 1px var(--color-primary);
 }
 
 .label {

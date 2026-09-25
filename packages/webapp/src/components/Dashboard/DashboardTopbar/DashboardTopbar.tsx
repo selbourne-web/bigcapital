@@ -13,12 +13,8 @@ import {
 import { Popover2 } from '@blueprintjs/popover2';
 import * as FF from 'fp-ts/function';
 import { useHistory } from 'react-router-dom';
-import {
-  DashboardHamburgerButton,
-  DashboardQuickSearchButton,
-} from './_components';
+import { DashboardQuickSearchButton } from './_components';
 import type { WithDashboardProps } from '@/containers/Dashboard/withDashboard';
-import type { WithDashboardActionsProps } from '@/containers/Dashboard/withDashboardActions';
 import type { WithDialogActionsProps } from '@/containers/Dialog/withDialogActions';
 import type { WithUniversalSearchActionsProps } from '@/containers/UniversalSearch/withUniversalSearchActions';
 import { FormattedMessage as T, Icon, Hint, If } from '@/components';
@@ -31,16 +27,14 @@ import {
   DOCS_BIGCAPITAL_LINK,
 } from '@/constants/routes';
 import { withDashboard } from '@/containers/Dashboard/withDashboard';
-import { withDashboardActions } from '@/containers/Dashboard/withDashboardActions';
 import { withDialogActions } from '@/containers/Dialog/withDialogActions';
 import { QuickNewDropdown } from '@/containers/QuickNewDropdown/QuickNewDropdown';
 import { withUniversalSearchActions } from '@/containers/UniversalSearch/withUniversalSearchActions';
 
 type DashboardTopbarProps = Pick<
   WithDashboardProps,
-  'pageTitle' | 'pageHint' | 'editViewId' | 'sidebarExpended'
+  'pageTitle' | 'pageHint' | 'editViewId'
 > &
-  Pick<WithDashboardActionsProps, 'toggleSidebarExpand'> &
   Pick<WithUniversalSearchActionsProps, 'openGlobalSearch'> &
   Pick<WithDialogActionsProps, 'openDialog'>;
 
@@ -52,12 +46,6 @@ function DashboardTopbar({
   pageTitle,
   editViewId,
   pageHint,
-
-  // #withDashboardActions
-  toggleSidebarExpand,
-
-  // #withDashboard
-  sidebarExpended,
 
   // #withGlobalSearch
   openGlobalSearch,
@@ -71,28 +59,9 @@ function DashboardTopbar({
     history.push(`/custom_views/${editViewId}/edit`);
   };
 
-  const handleSidebarToggleBtn = () => {
-    toggleSidebarExpand();
-  };
-
   return (
     <div className="dashboard__topbar" data-testId={'dashboard-topbar'}>
       <div className="dashboard__topbar-left">
-        <div className="dashboard__topbar-sidebar-toggle">
-          <Tooltip
-            content={
-              !sidebarExpended ? (
-                <T id={'open_sidebar'} />
-              ) : (
-                <T id={'close_sidebar'} />
-              )
-            }
-            position={Position.RIGHT}
-          >
-            <DashboardHamburgerButton onClick={handleSidebarToggleBtn} />
-          </Tooltip>
-        </div>
-
         <div className="dashboard__title">
           <h1>{pageTitle}</h1>
 
@@ -175,11 +144,9 @@ function DashboardTopbar({
 export default FF.pipe(
   DashboardTopbar,
   withDialogActions,
-  withDashboardActions,
-  withDashboard(({ pageTitle, pageHint, editViewId, sidebarExpended }) => ({
+  withDashboard(({ pageTitle, pageHint, editViewId }) => ({
     pageTitle,
     editViewId,
-    sidebarExpended,
     pageHint,
   })),
   withUniversalSearchActions,

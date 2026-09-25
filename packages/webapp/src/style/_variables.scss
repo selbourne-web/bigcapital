@@ -87,46 +87,46 @@ $ns: bp4;
   --color-ui-menu-select-item-hover-background: #edeff2;
   --color-ui-menu-select-item-active-background: var(--color-primary);
 
-  --color-app-body: #fff;
+  --color-app-body: #ececec;
 
   // Splash screen.
   --color-splash-screen-background: #fff;
 
   // Main Dashboard.
-  --color-dashboard-insider-background: #fbfbfb;
+  --color-dashboard-insider-background: #ececec;
   --color-dashboard-topbar-background: #fff;
-  --color-dashboard-fallback-loading-background: #fbfbfb;
-  --color-dashboard-topbar-border-color: #c7d5db;
+  --color-dashboard-fallback-loading-background: #ececec;
+  --color-dashboard-topbar-border-color: #dcdcdc;
   --color-dashboard-datatable-background: #fff;
   --color-dashboard-datatable-border: #d2dce2;
 
   // Dashboard error boundary.
-  --color-dashboard-error-boundary-title-text: #2c3a5d;
+  --color-dashboard-error-boundary-title-text: #000;
   --color-dashboard-error-boundary-description-text: #1f3255;
-  --color-dashboard-error-boundary-logo: #a1afca;
+  --color-dashboard-error-boundary-logo: #727272;
 
   // Dashboard - Navbar.
   --color-dashboard-navbar-background: transparent;
-  --color-dashboard-navbar-item-text: #32304a;
-  --color-dashboard-navbar-item-hover-text: #32304a;
+  --color-dashboard-navbar-item-text: #000;
+  --color-dashboard-navbar-item-hover-text: #000;
   --color-dashboard-navbar-item-hover-background: rgba(167, 182, 194, 0.12);
-  --color-dashboard-navbar-item-active-text: #32304a;
+  --color-dashboard-navbar-item-active-text: #000;
   --color-dashboard-navbar-item-active-background: #a7b6c21f;
-  --color-dashboard-navbar-item-icon: #32304a;
-  --color-dashboard-topbar-title-text: #48485c;
+  --color-dashboard-navbar-item-icon: #4c4c4c;
+  --color-dashboard-topbar-title-text: #000;
 
   // Dashboard - Actionsbar.
   --color-dashboard-actionsbar-border: #e1e2e8;
   --color-dashboard-actionsbar-divider: rgb(199, 214, 219);
 
   // Datatable
-  --color-datatable-head-background: #f2f3fb;
-  --color-datatable-head-text: #415060;
+  --color-datatable-head-background: #f4f4f4;
+  --color-datatable-head-text: #4c4c4c;
   --color-datatable-head-border: #d2dce2;
   --color-datatable-cell-hover-background: #f5f6f7;
   --color-datatable-cell-border: #d8d8d8;
-  --color-datatable-cell-focus-border: rgba(0, 82, 204, 0.7);
-  --color-datatable-cell-focus-border: rgba(0, 82, 204, 0.7);
+  --color-datatable-cell-focus-border: rgba(128, 0, 0, 0.7);
+  --color-datatable-cell-focus-border: rgba(128, 0, 0, 0.7);
   --color-datatable-no-results-text: #777;
   --color-datatable-no-results-text: #777;
   --color-datatable-caret: #b5b5b5;
@@ -134,38 +134,38 @@ $ns: bp4;
   --color-datatable-checkbox-border: #C5CBD3;
 
   // Datatable - Empty status
-  --color-datatable-empty-status-title: #2c3a5d;
+  --color-datatable-empty-status-title: #000;
   --color-datatable-empty-status-description: #1f3255;
 
   --color-dashboard-card-background: #fff;
   --color-dashboard-card-border: #d2dce2;
 
   // Sidebar
-  --color-sidebar-toggle: #6b8193;
-  --color-sidebar-background: #01115e;
-  --color-sidebar-text: #fff;
-  --color-sidebar-scrollbars-background: rgba(255, 255, 255, 0.25);
+  --color-sidebar-toggle: #4c4c4c;
+  --color-sidebar-background: #fff;
+  --color-sidebar-text: #000;
+  --color-sidebar-scrollbars-background: rgba(0, 0, 0, 0.2);
   
   // Sidebar - Items  
-  --color-sidebar-menu-item-text: rgb(255, 255, 255);
-  --color-sidebar-menu-item-hover-background: rgba(255, 255, 255, 0.2);
-  --color-sidebar-menu-item-text-hover: rgb(255, 255, 255);
-  --color-sidebar-menu-item-active-background: rgba(255, 255, 255, 0.2);
-  --color-sidebar-menu-item-active-text: rgb(255, 255, 255);
-  --color-sidebar-menu-item-focus-background: #01143e;
-  --color-sidebar-menu-label-color: rgba(255, 255, 255, 0.5);
+  --color-sidebar-menu-item-text: #000;
+  --color-sidebar-menu-item-hover-background: rgba(128, 0, 0, 0.08);
+  --color-sidebar-menu-item-text-hover: #000;
+  --color-sidebar-menu-item-active-background: #800000;
+  --color-sidebar-menu-item-active-text: #fff;
+  --color-sidebar-menu-item-focus-background: rgba(128, 0, 0, 0.14);
+  --color-sidebar-menu-label-color: #727272;
 
   // Sidebar overlay
   --color-sidebar-overlay-background: #fff;
   --color-sidebar-overlay-hover-background: #f3f3f3;
-  --color-sidebar-overlay-item-text: #00102b;
-  --color-sidebar-overlay-item-hover-text: #00102b;
+  --color-sidebar-overlay-item-text: #000;
+  --color-sidebar-overlay-item-hover-text: #000;
   --color-sidebar-overlay-divider-background: #e2e5ec;
-  --color-sidebar-overlay-label-text: #707a85;
+  --color-sidebar-overlay-label-text: #727272;
   --color-sidebar-overlay-label-border: var(
     --color-sidebar-overlay-divider-background
   );
-  --color-sidebar-overlay-backdrop: rgba(0, 10, 30, 0.15);
+  --color-sidebar-overlay-backdrop: rgba(0, 0, 0, 0.12);
 
   --color-financial-report-background: #fff;
 
@@ -185,7 +185,7 @@ $ns: bp4;
   --color-bank-account-card-background: #fff;
   --color-bank-account-card-text: rgb(23, 43, 77);
   --color-bank-account-card-border: #c8cad0;
-  --color-bank-account-card-hover-border: #0153cc;
+  --color-bank-account-card-hover-border: var(--color-primary);
 
   --color-bank-account-card-tag-background: rgb(223, 225, 230);
   --color-bank-account-code-text: rgb(23, 43, 77);
@@ -243,11 +243,11 @@ $ns: bp4;
   --color-transaction-locking-item-enabled-border: #d1dee2;
 
   // Reports items.
-  --color-report-section-title-text: rgb(31, 50, 85);
+  --color-report-section-title-text: #000;
   --color-report-item-background: #fff;
   --color-report-item-border: #d1dee2;
   --color-report-item-top-border: #d1dee2;
-  --color-report-item-text: rgb(31, 50, 85);
+  --color-report-item-text: #4c4c4c;
 
   // Financial report drawer.
   --color-financial-report-drawer-tab-text: #333;
@@ -274,10 +274,10 @@ $ns: bp4;
   // Content tabs
   --color-content-tab-background: #fff;
   --color-content-tab-border: #e1e2e8;
-  --color-content-tab-hover-border: #1552c8;
-  --color-content-tab-active-border: #1552c8;
+  --color-content-tab-hover-border: var(--color-primary);
+  --color-content-tab-active-border: var(--color-primary);
   --color-content-tab-text: #2f343c;
-  --color-content-tab-active-text: #1552c8;
+  --color-content-tab-active-text: var(--color-primary);
 
   // Aside
   --color-aside-background: #fff;
@@ -669,6 +669,8 @@ $blue1: $brand-red-base;
 $blue2: $brand-red-hover;
 $blue3: $brand-red-base;
 
+$pt-text-color: #000;
+$pt-heading-color: #000;
 $pt-link-color: $blue3;
 $pt-dark-link-color: $brand-red-on-dark;
 $pt-intent-primary: $blue1;
@@ -702,8 +704,8 @@ $button-intent-box-shadow: 0 0 0 !default;
 $button-intent-box-shadow-active: 0 0 0 !default;
 
 $button-background-color-disabled: #e9ecef !default;
-$button-background-color: #e6effb !default;
-$button-background-color-hover: #cfdcee !default;
+$button-background-color: #e2e2e2 !default;
+$button-background-color-hover: #d3d3d3 !default;
 
 $app-bg: var(--color-dark-gray1);
 

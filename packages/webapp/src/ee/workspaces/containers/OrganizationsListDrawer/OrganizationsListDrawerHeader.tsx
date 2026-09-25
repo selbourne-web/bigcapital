@@ -11,7 +11,7 @@ const organizationsSwitchLabelBpCss = css`
     margin: 0;
   }
   .bp4-control.bp4-switch input:checked ~ .bp4-control-indicator {
-    background: rgb(0, 82, 204);
+    background: var(--color-primary);
     box-shadow: none;
   }
 `;

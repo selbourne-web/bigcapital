@@ -41,8 +41,8 @@ label.bp4-label {
   }
   &:focus,
   &.bp4-active {
-    box-shadow: 0 0 0 1px #116cd0;
-    border-color: #116cd0;
+    box-shadow: 0 0 0 1px var(--color-primary);
+    border-color: var(--color-primary);
   }
 
   &.bp4-disabled,
@@ -114,8 +114,8 @@ label.bp4-label {
   }
   
   &:focus {
-    box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
-    border-color: #80bdff;
+    box-shadow: 0 0 0 0.2rem rgba(128, 0, 0, 0.25);
+    border-color: rgba(128, 0, 0, 0.5);
   }
 }
 
@@ -217,8 +217,8 @@ label.bp4-label {
       }
 
       &:focus {
-        box-shadow: 0 0 0 1px #116cd0;
-        border-color: #116cd0;
+        box-shadow: 0 0 0 1px var(--color-primary);
+        border-color: var(--color-primary);
       }
     }
   }

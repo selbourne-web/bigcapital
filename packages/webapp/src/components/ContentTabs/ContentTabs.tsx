@@ -31,7 +31,7 @@ const ContentTabItemRoot = styled.button<ContentTabItemRootProps>`
     `
       border-color: var(--color-content-tab-active-border);
       color: var(--color-content-tab-active-text);
-      box-shadow: 0 0 0 0.25px #1552c8;
+      box-shadow: 0 0 0 0.25px var(--color-primary);
 
       ${ContentTabTitle} {
         font-weight: 500;

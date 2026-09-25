@@ -14,18 +14,58 @@
     flex-flow: wrap;
     margin-left: -20px;
   }
+  // Pill-style card: generous radius, no hard border, soft two-layer shadow.
+  // The title link is stretched over the whole card so the entire pill is the target.
   &__item {
+    position: relative;
     width: 250px;
     min-height: 140px;
     margin-bottom: 16px;
     margin-left: 16px;
-    border: 1px solid var(--color-report-item-border);
-    border-top: 3px solid var(--color-report-item-top-border);
+    padding: 22px 26px 24px;
+    border: 0;
+    border-radius: 28px;
     background: var(--color-report-item-background);
-    padding: 18px;
+    box-shadow:
+      0 1px 2px rgba(0, 0, 0, 0.06),
+      0 6px 18px rgba(0, 0, 0, 0.05);
+    transition:
+      transform 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+      box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+
+    &:hover {
+      transform: translateY(-2px);
+      box-shadow:
+        0 2px 4px rgba(0, 0, 0, 0.08),
+        0 12px 28px rgba(0, 0, 0, 0.1);
+    }
 
     .title {
       font-size: 16px;
+      font-weight: 600;
+      color: #000;
+      text-decoration: none;
+
+      &::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        border-radius: inherit;
+      }
+
+      &:hover {
+        color: var(--color-primary);
+        text-decoration: none;
+      }
+
+      &:focus-visible {
+        outline: none;
+
+        &::after {
+          outline: 2px solid var(--color-primary);
+          outline-offset: 2px;
+        }
+      }
     }
 
     .desc {
@@ -33,6 +73,14 @@
       line-height: 1.55;
       margin-top: 8px;
       margin-bottom: 0;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      transition: none;
+
+      &:hover {
+        transform: none;
+      }
     }
   }
 }
