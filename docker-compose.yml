@@ -19,7 +19,8 @@ services:
     expose:
       - '3306'
     ports:
-      - '3306:3306'
+      - '127.0.0.1:3306:3306'
+      - '[::1]:3306:3306'
     deploy:
       restart_policy:
         condition: unless-stopped
@@ -30,7 +31,8 @@ services:
     expose:
       - '6379'
     ports:
-      - '6379:6379'
+      - '127.0.0.1:6379:6379'
+      - '[::1]:6379:6379'
     volumes:
       - redis:/data
     deploy:
@@ -40,7 +42,8 @@ services:
   gotenberg:
     image: gotenberg/gotenberg:7
     ports:
-      - '9000:3000'
+      - '127.0.0.1:9000:3000'
+      - '[::1]:9000:3000'
 
   clickhouse:
     image: clickhouse/clickhouse-server:24.8
@@ -59,7 +62,8 @@ services:
       - '8123'
       - '9000'
     ports:
-      - '8123:8123'
+      - '127.0.0.1:8123:8123'
+      - '[::1]:8123:8123'
     volumes:
       - clickhouse:/var/lib/clickhouse
     deploy:
@@ -78,8 +82,10 @@ services:
       - ./docker/garage/setup.sh:/garage-setup/setup.sh
       - garage:/var/lib/garage
     ports:
-      - '3900:3900'
-      - '3903:3903'
+      - '127.0.0.1:3900:3900'
+      - '[::1]:3900:3900'
+      - '127.0.0.1:3903:3903'
+      - '[::1]:3903:3903'
     expose:
       - '3900'
       - '3903'
