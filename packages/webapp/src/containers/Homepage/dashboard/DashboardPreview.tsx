@@ -5,11 +5,16 @@
  * sign-out) and relies on sample report data. Registered in `App.tsx` under
  * `import.meta.env.DEV`, so it is not part of production builds.
  */
+import { Ability } from '@casl/ability';
 import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { DashboardHome } from './DashboardHome';
+import { AbilityContext } from '@/components/Dashboard/DashboardAbilityProvider';
 import { organizationKeys } from '@/hooks/query/organization';
 import { usersKeys } from '@/hooks/query/users/query-keys';
+
+// Everything permitted, so every shortcut section shows in the preview.
+const PREVIEW_ABILITY = new Ability([{ action: 'manage', subject: 'all' }]);
 
 export default function DashboardPreview() {
   const queryClient = useQueryClient();
@@ -37,13 +42,15 @@ export default function DashboardPreview() {
   });
 
   return (
-    <div
-      style={{
-        minHeight: '100vh',
-        background: 'var(--color-dashboard-insider-background)',
-      }}
-    >
-      <DashboardHome />
-    </div>
+    <AbilityContext.Provider value={PREVIEW_ABILITY}>
+      <div
+        style={{
+          minHeight: '100vh',
+          background: 'var(--color-dashboard-insider-background)',
+        }}
+      >
+        <DashboardHome />
+      </div>
+    </AbilityContext.Provider>
   );
 }

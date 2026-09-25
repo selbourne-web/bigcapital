@@ -1,6 +1,7 @@
 import moment from 'moment';
 import { DashboardRangeSelect } from './DashboardRangeSelect';
 import { QuickActions } from './QuickActions';
+import { ShortcutsColumn } from './ShortcutsColumn';
 import {
   AgingWidget,
   CashFlowWidget,
@@ -56,13 +57,17 @@ export function DashboardHome() {
         </p>
       )}
 
-      <div className="dash__grid">
-        <ProfitLossWidget query={profitLoss} range={range} />
-        <IncomeExpensesWidget query={profitLoss} range={range} />
-        <CashFlowWidget query={cashFlow} range={range} />
-        <ExpensesWidget query={profitLoss} range={range} />
-        <AgingWidget query={receivables} kind="receivable" range={range} />
-        <AgingWidget query={payables} kind="payable" range={range} />
+      <div className="dash__layout">
+        <div className="dash__grid">
+          <ProfitLossWidget query={profitLoss} range={range} />
+          <IncomeExpensesWidget query={profitLoss} range={range} />
+          <CashFlowWidget query={cashFlow} range={range} />
+          <ExpensesWidget query={profitLoss} range={range} />
+          <AgingWidget query={receivables} kind="receivable" range={range} />
+          <AgingWidget query={payables} kind="payable" range={range} />
+        </div>
+
+        <ShortcutsColumn />
       </div>
     </div>
   );

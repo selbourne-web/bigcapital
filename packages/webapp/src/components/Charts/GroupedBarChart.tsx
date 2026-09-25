@@ -5,7 +5,7 @@ import { useMemo, useState } from 'react';
 import type { CSSProperties, KeyboardEvent } from 'react';
 import { ChartTooltip } from './ChartTooltip';
 import { chartCssVars } from './chart-theme';
-import { formatCompact, tickEvery } from './format';
+import { formatCompact, showTickLabel, tickEvery } from './format';
 import type { ChartDatum, ChartSeries } from './AreaLineChart';
 import '@/style/components/Charts.scss';
 
@@ -207,7 +207,7 @@ function Plot({
           </g>
 
           {data.map((d, index) =>
-            index % labelEvery === 0 || index === count - 1 ? (
+            showTickLabel(index, count, labelEvery) ? (
               <text
                 key={index}
                 className="chart__tick"

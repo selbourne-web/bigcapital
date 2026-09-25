@@ -39,19 +39,26 @@ $dash-ease: cubic-bezier(0.16, 1, 0.3, 1);
     font-weight: 600;
   }
 
+  // Report widgets on the left, the shortcuts column on the right.
+  &__layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 300px;
+    align-items: start;
+    gap: 20px;
+
+    @media (max-width: 1100px) {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+
+  // Widgets reflow by the width of this grid, not the viewport, because the
+  // shortcuts column takes part of the row.
   &__grid {
     display: grid;
     grid-template-columns: repeat(12, minmax(0, 1fr));
     gap: 20px;
+    container-type: inline-size;
   }
-}
-
-.financial-reports__heading {
-  margin: 12px 0 4px;
-  font-family: var(--font-display);
-  font-size: 24px;
-  font-weight: 400;
-  letter-spacing: 0.01em;
 }
 
 // --- Pills ------------------------------------------------------------------
@@ -250,7 +257,7 @@ $dash-ease: cubic-bezier(0.16, 1, 0.3, 1);
     }
   }
 
-  @media (max-width: 1100px) {
+  @container (max-width: 780px) {
     &,
     &--wide,
     &--narrow {
@@ -414,4 +421,64 @@ $dash-ease: cubic-bezier(0.16, 1, 0.3, 1);
   .dash-skeleton__block {
     animation: none;
   }
+}
+
+// --- Shortcuts column -----------------------------------------------------------
+
+.dash-shortcuts {
+  position: sticky;
+  top: 16px;
+  padding: 22px 22px 24px;
+  border-radius: 28px;
+  background: var(--color-dashboard-card-background);
+  box-shadow: $dash-card-shadow;
+
+  @media (max-width: 1100px) {
+    position: static;
+  }
+
+  &__title {
+    margin: 0;
+    font-family: var(--font-body);
+    font-size: 15px;
+    font-weight: 700;
+    line-height: 1.3;
+  }
+
+  &__section {
+    margin-top: 18px;
+  }
+
+  &__heading {
+    margin: 0 0 8px;
+    color: var(--chart-axis-text);
+    font-family: var(--font-data);
+    font-size: 12px;
+    font-weight: 700;
+  }
+
+  &__list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+}
+
+// Tooltip showing a shortcut's description; matches the chart tooltips.
+.dash-tooltip.bp4-tooltip2 .bp4-popover2-content {
+  max-width: 260px;
+  padding: 10px 14px;
+  border: 1px solid var(--chart-tooltip-border);
+  border-radius: 16px;
+  background: var(--chart-tooltip-background);
+  color: var(--chart-crosshair);
+  box-shadow:
+    0 2px 4px rgba(0, 0, 0, 0.08),
+    0 12px 28px rgba(0, 0, 0, 0.14);
+  font-family: var(--font-body);
+  font-size: 12px;
+  line-height: 1.5;
 }

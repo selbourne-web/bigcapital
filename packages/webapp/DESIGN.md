@@ -149,7 +149,7 @@ Impact and Aptos Narrow are installed system fonts, not webfonts, so each stack 
 
 ## Layout
 
-A fixed 84px icon rail on the left, a topbar with the page title and quick actions, and a scrolling content area on a light gray desk. The homepage is a 12-column grid with 20px gaps: Profit and loss (5) beside Income and expenses (7), Cash flow (7) beside Expenses (5), then two half-width aging cards; below 1100px viewport width the cards stack. Page padding is 32px; content is capped at 1800px. The layout targets desktop widths (host minimum 850px content); phones are not supported.
+A fixed 84px icon rail on the left, a topbar with the page title and quick actions, and a scrolling content area on a light gray desk. The homepage has two columns: the report widgets on the left and a 300px Shortcuts column on the right (sticky, and stacked below the widgets under 1100px viewport width). The widgets sit on a 12-column grid with 20px gaps: Profit and loss (5) beside Income and expenses (7), Cash flow (7) beside Expenses (5), then two half-width aging cards; the widgets stack when their own grid is narrower than 780px (a container query, since the shortcuts column shares the row). Page padding is 32px; content is capped at 1800px. The layout targets desktop widths (host minimum 850px content); phones are not supported.
 
 ## Elevation & Depth
 
@@ -183,6 +183,9 @@ Rounded is the house form. Pills (`rounded.pill`, 999px) for buttons, chips, sel
 - Fixed 84px, white with a hairline right edge. Each item is a 52x32 pill holding a 20px Blueprint icon, over an 11px label. Hover tints the pill; active fills it maroon with a white icon and a bold label.
 - Only the open flyout's item is active while a flyout is open; otherwise the current page or section is. Group headings become hairlines.
 - The Selbourne mark at the top opens the workspace switcher.
+
+### Shortcuts column
+- A card at the right of the dashboard titled "Shortcuts", with the four section headings (Accounts Receivable, Accounts Payable, Financial Accounting, Products, Services & Inventory). Under each heading, small pill links that wrap. The description that used to fill each shortcut card is a tooltip (same surface as chart tooltips), opened by hover or keyboard focus. Sections follow the user's permissions.
 
 ### Date range
 - A pill-shaped native select, with two date inputs for "Custom range", and the resolved dates beside it.

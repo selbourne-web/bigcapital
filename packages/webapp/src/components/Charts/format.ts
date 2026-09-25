@@ -17,6 +17,18 @@ export const formatPercent = (ratio: number): string => {
   return `${pct >= 10 ? Math.round(pct) : Math.round(pct * 10) / 10}%`;
 };
 
+/**
+ * Whether the tick at `index` gets a label. Labels every `every`-th point and
+ * always the last one, dropping a regular tick that would sit right next to it.
+ */
+export const showTickLabel = (
+  index: number,
+  count: number,
+  every: number,
+): boolean =>
+  index === count - 1 ||
+  (index % every === 0 && count - 1 - index >= Math.ceil(every * 0.75));
+
 /** Every n-th index to label so ticks never overlap (always keeps first/last). */
 export const tickEvery = (count: number, width: number, minGap = 64): number =>
   Math.max(1, Math.ceil(count / Math.max(1, Math.floor(width / minGap))));
