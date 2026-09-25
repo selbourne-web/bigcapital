@@ -34,6 +34,10 @@ const PaymentPortalPage = lazy(() =>
     default: m.PaymentPortalPage,
   })),
 );
+// Development-only design preview (sample data, no sign-in). Not in production builds.
+const DashboardPreview = import.meta.env.DEV
+  ? lazy(() => import('@/containers/Homepage/dashboard/DashboardPreview'))
+  : null;
 
 /**
  * App inner.
@@ -57,6 +61,12 @@ function AppInsider({ history }: { history: History }) {
                 path={'/auth/email_confirmation'}
                 children={<EmailConfirmation />}
               />
+              {DashboardPreview && (
+                <Route
+                  path={'/__preview/dashboard'}
+                  children={<DashboardPreview />}
+                />
+              )}
               <Route path={'/auth'} children={<AuthenticationPage />} />
               <Route
                 path={'/payment/:linkId'}

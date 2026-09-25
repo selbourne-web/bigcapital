@@ -89,6 +89,27 @@ $ns: bp4;
 
   --color-app-body: #ececec;
 
+  // Brand type: Impact for display figures, Tahoma for body copy, Aptos Narrow
+  // for dense data labels. Impact and Aptos Narrow are system fonts, so each
+  // stack ends in installed condensed faces (no webfont is shipped).
+  --font-display: Impact, Haettenschweiler, 'Arial Narrow Bold', 'Arial Narrow', sans-serif;
+  --font-body: Tahoma, Verdana, 'Segoe UI', system-ui, sans-serif;
+  --font-data: 'Aptos Narrow', 'Arial Narrow', 'Roboto Condensed', Tahoma, sans-serif;
+
+  // Charts (bklit-ui style tokens; components only ever read these).
+  --chart-1: #800000;
+  --chart-2: #8a8a8a;
+  --chart-3: #c15a5a;
+  --chart-4: #4c4c4c;
+  --chart-5: #e3b3b3;
+  --chart-grid: #e2e2e2;
+  --chart-axis-text: #4c4c4c;
+  --chart-crosshair: #000;
+  --chart-track: #f0f0f0;
+  --chart-surface: #fff;
+  --chart-tooltip-background: #fff;
+  --chart-tooltip-border: #dcdcdc;
+
   // Splash screen.
   --color-splash-screen-background: #fff;
 
@@ -403,6 +424,19 @@ body.bp4-dark  {
 
   // App
   --color-app-body: var(--color-dark-gray1);
+
+  --chart-1: #f4746b;
+  --chart-2: #b5b5b5;
+  --chart-3: #d94a4a;
+  --chart-4: #7d7d7d;
+  --chart-5: #a86060;
+  --chart-grid: #3a3f47;
+  --chart-axis-text: #c5cbd3;
+  --chart-crosshair: #fff;
+  --chart-track: rgba(255, 255, 255, 0.06);
+  --chart-surface: var(--color-dark-gray2);
+  --chart-tooltip-background: #2f343c;
+  --chart-tooltip-border: #404854;
 
   // Splash screen.
   --color-splash-screen-background: #fff;
