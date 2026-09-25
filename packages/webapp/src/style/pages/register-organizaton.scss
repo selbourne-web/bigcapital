@@ -75,7 +75,7 @@
   }
   .register-org-button {
     .bp4-button {
-      background-color: $blue3;
+      background-color: var(--color-primary);
       width: 174px;
       min-height: 40px;
     }
