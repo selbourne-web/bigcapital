@@ -69,9 +69,9 @@ $ns: bp4;
 
   // Primary alert.
   --color-alert-primary-background: #fff;
-  --color-alert-primary-border: #98a8ee;
-  --color-alert-primary-title-text: #1a3bd4;
-  --color-alert-primary-description-text: #455883;
+  --color-alert-primary-border: #d9a3a3;
+  --color-alert-primary-title-text: #800000;
+  --color-alert-primary-description-text: #5c3a3a;
 
   // Input
   --color-ui-input-border: #ced4da;
@@ -297,7 +297,7 @@ $ns: bp4;
   --color-stepper-step-description-text: #738091;
   --color-stepper-step-description-active-text: var(--color-primary);
   --color-stepper-step-background: #9e9e9e;
-  --color-stepper-step-active-background: rgb(0, 82, 204);
+  --color-stepper-step-active-background: #800000;
   --color-stepper-separator: #c5cbd3;
   --color-stepper-step-text: #fff;  
 
@@ -382,8 +382,8 @@ body.bp4-dark  {
 
   // Primary alert.
   --color-alert-primary-background: transparent;
-  --color-alert-primary-border: #2d72d2;
-  --color-alert-primary-title-text: #8abbff;
+  --color-alert-primary-border: #c04040;
+  --color-alert-primary-title-text: #f4746b;
   --color-alert-primary-description-text: var(--color-light-gray1);
 
   // Input
@@ -657,12 +657,25 @@ $pt-popover-box-shadow:
   0 2px 4px rgba(16, 22, 26, 0.1),
   0 8px 24px rgba(16, 22, 26, 0.1);
 
-$blue1: #0069ff;
-$blue2: #0052ff;
-$blue3: rgb(0, 82, 204);
+// Selbourne brand palette. The legacy $blue1-3 names are kept because Blueprint
+// and the app styles reference them, but they now resolve to brand reds.
+$brand-red-base: #800000;
+$brand-red-hover: #950000;
+// Lighter tint for link text on dark surfaces (#800000/#d40000 lack contrast on
+// the dark UI). Derived from the brand red, not part of the supplied palette.
+$brand-red-on-dark: #f4746b;
+
+$blue1: $brand-red-base;
+$blue2: $brand-red-hover;
+$blue3: $brand-red-base;
 
 $pt-link-color: $blue3;
+$pt-dark-link-color: $brand-red-on-dark;
 $pt-intent-primary: $blue1;
+// Blueprint derives these from the default blue at import time, so restate them.
+$pt-outline-color: rgba($brand-red-base, 0.6);
+$pt-icon-color-selected: $pt-intent-primary;
+$pt-dark-icon-color-selected: $brand-red-on-dark;
 $menu-item-color-hover: $light-gray4;
 $menu-item-color-active: $light-gray3;
 
@@ -716,9 +729,9 @@ $zindex-dashboard-splash-screen: 39;
 $zindex-toast: 40;
 
 // Controls
-$control-checked-background-color: #0069ff !default;
-$control-checked-background-color-hover: #0069ff !default;
-$control-checked-background-color-active: #0069ff !default;
+$control-checked-background-color: $blue1 !default;
+$control-checked-background-color-hover: $blue2 !default;
+$control-checked-background-color-active: $blue1 !default;
 $control-box-shadow: inset 0 0 0 1px #666 !default;
 
 // Drawer
