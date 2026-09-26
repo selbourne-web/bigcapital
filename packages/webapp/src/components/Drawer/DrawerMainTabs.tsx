@@ -18,13 +18,14 @@ export function DrawerMainTabs({ children, ...restProps }) {
 
 const DrawerMainTabsRoot = styled.div`
   .bp4-tabs {
-    --x-tab-list-background: #fff;
-    --x-tab-list-border: #e1e2e8;
-    --x-tab-item-text: #7f8596;
-
     --x-tab-list-background: transparent;
-    --x-tab-list-border: rgba(255, 255, 255, 0.2);
-    --x-tab-item-text: var(--color-light-gray1);
+    --x-tab-list-border: #dcdcdc;
+    --x-tab-item-text: #4c4c4c;
+
+    .bp4-dark & {
+      --x-tab-list-border: rgba(255, 255, 255, 0.2);
+      --x-tab-item-text: var(--color-light-gray1);
+    }
 
     --x-tab-item-height: 36px;
 

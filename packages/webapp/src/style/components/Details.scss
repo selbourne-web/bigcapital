@@ -1,6 +1,9 @@
 .details-menu {
-  --color-detail-item-label: #727983;
-  --color-detail-item-label: rgba(255, 255, 255, 0.65);
+  --color-detail-item-label: #4c4c4c;
+
+  .bp4-dark & {
+    --color-detail-item-label: rgba(255, 255, 255, 0.65);
+  }
 
   &--vertical {
     display: flex;
