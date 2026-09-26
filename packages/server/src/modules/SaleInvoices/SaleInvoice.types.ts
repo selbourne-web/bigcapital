@@ -229,11 +229,14 @@ export interface InvoicePdfLine {
   rate: string;
   quantity: string;
   total: string;
+  tax?: string;
 }
 
 export interface InvoicePdfTax {
   label: string;
   amount: string;
+  /** The net amount the tax applies to, when it is unambiguous. */
+  net?: string;
 }
 
 export interface InvoicePdfTemplateAttributes {
@@ -265,6 +268,9 @@ export interface InvoicePdfTemplateAttributes {
   showCompanyAddress: boolean;
   companyAddress: string;
   billedToLabel: string;
+
+  isPaid?: boolean;
+  footerText?: string;
 
   lineItemLabel: string;
   lineDescriptionLabel: string;

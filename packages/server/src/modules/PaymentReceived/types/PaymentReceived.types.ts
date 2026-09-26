@@ -56,6 +56,10 @@ export interface IPaymentReceivedTransformedEntry {
   invoice: {
     invoiceNo: string;
     totalFormatted: string;
+    // Produced by SaleInvoiceTransformer.
+    invoiceDateFormatted?: string;
+    dueDateFormatted?: string;
+    dueAmountFormatted?: string;
   };
 }
 
@@ -196,7 +200,14 @@ export interface PaymentReceivedPdfTemplateAttributes {
     invoiceNumber: string;
     invoiceAmount: string;
     paidAmount: string;
+    invoiceDate?: string;
+    dueDate?: string;
+    balance?: string;
   }>;
+
+  paymentMethod?: string;
+  referenceNumber?: string;
+  memo?: string;
 
   showPaymentReceivedNumber: boolean;
   paymentReceivedNumberLabel: string;

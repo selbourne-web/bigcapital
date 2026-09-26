@@ -1,12 +1,9 @@
 import isEmpty from 'lodash/isEmpty';
-import { Box } from '../lib/layout/Box';
 import { Text } from '../lib/text/Text';
 import { Stack } from '../lib/layout/Stack';
-import { Group } from '../lib/layout/Group';
 import {
   PaperTemplate,
   PaperTemplateProps,
-  PaperTemplateTotalBorder,
 } from './PaperTemplate';
 import {
   DefaultPdfTemplateTerms,
@@ -16,7 +13,6 @@ import {
   DefaultPdfTemplateAddressBilledTo,
   DefaultPdfTemplateAddressBilledFrom,
 } from './_constants';
-import { theme } from '../constants';
 
 export interface ReceiptPaperTemplateProps extends PaperTemplateProps {
   // # Company logo
@@ -104,6 +100,7 @@ export function ReceiptPaperTemplate({
   // # Company logo
   showCompanyLogo = true,
   companyLogoUri,
+  companyName,
 
   // # Address
   showCustomerAddress = true,
@@ -112,7 +109,7 @@ export function ReceiptPaperTemplate({
   showCompanyAddress = true,
   companyAddress = DefaultPdfTemplateAddressBilledFrom,
 
-  billedToLabel = 'Billed To',
+  billedToLabel = 'Received from',
 
   // # Total
   total = '$1000.00',
@@ -166,7 +163,7 @@ export function ReceiptPaperTemplate({
   lineItemLabel = 'Item',
   lineQuantityLabel = 'Qty',
   lineRateLabel = 'Rate',
-  lineTotalLabel = 'Total',
+  lineTotalLabel = 'Amount',
 
   // # Line Discount
   lineDiscountLabel = 'Discount',
@@ -174,44 +171,29 @@ export function ReceiptPaperTemplate({
 }: ReceiptPaperTemplateProps) {
   return (
     <PaperTemplate primaryColor={primaryColor} secondaryColor={secondaryColor}>
-      <Stack spacing={24}>
-        <Group align={'start'} spacing={10}>
-          <Stack flex={1}>
-            <PaperTemplate.BigTitle title={'Receipt'} />
-
-            <PaperTemplate.TermsList>
-              {showReceiptNumber && (
-                <PaperTemplate.TermsItem label={receiptNumberLabel}>
-                  {receiptNumebr}
-                </PaperTemplate.TermsItem>
-              )}
-              {showReceiptDate && (
-                <PaperTemplate.TermsItem label={receiptDateLabel}>
-                  {receiptDate}
-                </PaperTemplate.TermsItem>
-              )}
-            </PaperTemplate.TermsList>
-          </Stack>
-
-          {companyLogoUri && showCompanyLogo && (
-            <PaperTemplate.Logo logoUri={companyLogoUri} />
+      <Stack spacing={28}>
+        <PaperTemplate.DocumentHead
+          title={'Receipt'}
+          showLogo={showCompanyLogo}
+          logoUri={companyLogoUri}
+          companyName={companyName}
+          showCompanyAddress={showCompanyAddress}
+          companyAddress={companyAddress}
+          showCustomerAddress={showCustomerAddress}
+          customerAddressLabel={billedToLabel}
+          customerAddress={customerAddress}
+        >
+          {showReceiptNumber && (
+            <PaperTemplate.TermsItem label={receiptNumberLabel}>
+              {receiptNumebr}
+            </PaperTemplate.TermsItem>
           )}
-        </Group>
-
-        <PaperTemplate.AddressesGroup>
-          {showCompanyAddress && (
-            <PaperTemplate.Address>
-              <Box dangerouslySetInnerHTML={{ __html: companyAddress }} />
-            </PaperTemplate.Address>
+          {showReceiptDate && (
+            <PaperTemplate.TermsItem label={receiptDateLabel}>
+              {receiptDate}
+            </PaperTemplate.TermsItem>
           )}
-
-          {showCustomerAddress && (
-            <PaperTemplate.Address>
-              <strong>{billedToLabel}</strong>
-              <Box dangerouslySetInnerHTML={{ __html: customerAddress }} />
-            </PaperTemplate.Address>
-          )}
-        </PaperTemplate.AddressesGroup>
+        </PaperTemplate.DocumentHead>
 
         <Stack spacing={0}>
           <PaperTemplate.Table
@@ -219,19 +201,20 @@ export function ReceiptPaperTemplate({
               {
                 label: lineItemLabel,
                 accessor: (data) => (
-                  <Stack spacing={2}>
-                    <Text>{data.item}</Text>
-                    <Text
-                      fontSize={'12px'}
-                      color={theme.colors['cool-gray-500']}
-                    >
-                      {data.description}
-                    </Text>
-                  </Stack>
+                  <Text fontWeight={600}>{data.item}</Text>
                 ),
-                thStyle: { width: '60%' },
+                thStyle: { width: '26%' },
               },
-              { label: lineQuantityLabel, accessor: 'quantity' },
+              {
+                label: 'Description',
+                accessor: (data) => <Text>{data.description}</Text>,
+                thStyle: { width: '34%' },
+              },
+              {
+                label: lineQuantityLabel,
+                accessor: 'quantity',
+                align: 'right',
+              },
               { label: lineRateLabel, accessor: 'rate', align: 'right' },
               {
                 label: lineDiscountLabel,
@@ -243,50 +226,52 @@ export function ReceiptPaperTemplate({
             ]}
             data={lines}
           />
-          <PaperTemplate.Totals>
-            {showSubtotal && (
-              <PaperTemplate.TotalLine
-                label={subtotalLabel}
-                amount={subtotal}
-                border={PaperTemplateTotalBorder.Gray}
-                style={{ fontWeight: 500 }}
-              />
-            )}
-            {showDiscount && discount && (
-              <PaperTemplate.TotalLine
-                label={discountLabel}
-                amount={discount}
-              />
-            )}
-            {showAdjustment && adjustment && (
-              <PaperTemplate.TotalLine
-                label={adjustmentLabel}
-                amount={adjustment}
-              />
-            )}
-            {showTotal && (
-              <PaperTemplate.TotalLine
-                label={totalLabel}
-                amount={total}
-                border={PaperTemplateTotalBorder.Dark}
-                style={{ fontWeight: 500 }}
-              />
-            )}
-          </PaperTemplate.Totals>
-        </Stack>
+          <PaperTemplate.Divider />
 
-        <Stack spacing={0}>
-          {showCustomerNote && !isEmpty(customerNote) && (
-            <PaperTemplate.Statement label={customerNoteLabel}>
-              {customerNote}
-            </PaperTemplate.Statement>
-          )}
-
-          {showTermsConditions && !isEmpty(termsConditions) && (
-            <PaperTemplate.Statement label={termsConditionsLabel}>
-              {termsConditions}
-            </PaperTemplate.Statement>
-          )}
+          <PaperTemplate.Summary
+            notes={
+              <>
+                {showCustomerNote && !isEmpty(customerNote) && (
+                  <PaperTemplate.Statement label={customerNoteLabel}>
+                    {customerNote}
+                  </PaperTemplate.Statement>
+                )}
+                {showTermsConditions && !isEmpty(termsConditions) && (
+                  <PaperTemplate.Statement label={termsConditionsLabel}>
+                    {termsConditions}
+                  </PaperTemplate.Statement>
+                )}
+              </>
+            }
+          >
+            <PaperTemplate.Totals>
+              {showSubtotal && (
+                <PaperTemplate.TotalLine
+                  label={subtotalLabel}
+                  amount={subtotal}
+                />
+              )}
+              {showDiscount && discount && (
+                <PaperTemplate.TotalLine
+                  label={discountLabel}
+                  amount={discount}
+                />
+              )}
+              {showAdjustment && adjustment && (
+                <PaperTemplate.TotalLine
+                  label={adjustmentLabel}
+                  amount={adjustment}
+                />
+              )}
+              {showTotal && (
+                <PaperTemplate.TotalLine
+                  label={totalLabel}
+                  amount={total}
+                  emphasis
+                />
+              )}
+            </PaperTemplate.Totals>
+          </PaperTemplate.Summary>
         </Stack>
       </Stack>
     </PaperTemplate>

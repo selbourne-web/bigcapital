@@ -1,8 +1,6 @@
 import isEmpty from 'lodash/isEmpty';
-import { Box } from '../lib/layout/Box';
 import { Text } from '../lib/text/Text';
 import { Stack } from '../lib/layout/Stack';
-import { Group } from '../lib/layout/Group';
 import {
   DefaultPdfTemplateTerms,
   DefaultPdfTemplateItemDescription,
@@ -14,9 +12,7 @@ import {
 import {
   PaperTemplate,
   PaperTemplateProps,
-  PaperTemplateTotalBorder,
 } from './PaperTemplate';
-import { theme } from '../constants';
 
 export interface EstimatePaperTemplateProps extends PaperTemplateProps {
   // # Company
@@ -105,6 +101,7 @@ export function EstimatePaperTemplate({
   // # Company logo
   showCompanyLogo = true,
   companyLogoUri = '',
+  companyName,
 
   // # Company address
   companyAddress = DefaultPdfTemplateAddressBilledFrom,
@@ -113,7 +110,7 @@ export function EstimatePaperTemplate({
   // # Customer address
   customerAddress = DefaultPdfTemplateAddressBilledTo,
   showCustomerAddress = true,
-  billedToLabel = 'Billed To',
+  billedToLabel = 'Address',
 
   // # Total
   total = '$1000.00',
@@ -174,7 +171,7 @@ export function EstimatePaperTemplate({
   lineItemLabel = 'Item',
   lineQuantityLabel = 'Qty',
   lineRateLabel = 'Rate',
-  lineTotalLabel = 'Total',
+  lineTotalLabel = 'Amount',
 
   // # Line Discount
   lineDiscountLabel = 'Discount',
@@ -182,48 +179,34 @@ export function EstimatePaperTemplate({
 }: EstimatePaperTemplateProps) {
   return (
     <PaperTemplate primaryColor={primaryColor} secondaryColor={secondaryColor}>
-      <Stack spacing={24}>
-        <Group align={'start'} spacing={10}>
-          <Stack flex={1}>
-            <PaperTemplate.BigTitle title={'Estimate'} />
-
-            <PaperTemplate.TermsList>
-              {showEstimateNumber && (
-                <PaperTemplate.TermsItem label={estimateNumberLabel}>
-                  {estimateNumebr}
-                </PaperTemplate.TermsItem>
-              )}
-              {showEstimateDate && (
-                <PaperTemplate.TermsItem label={estimateDateLabel}>
-                  {estimateDate}
-                </PaperTemplate.TermsItem>
-              )}
-              {showExpirationDate && (
-                <PaperTemplate.TermsItem label={expirationDateLabel}>
-                  {expirationDate}
-                </PaperTemplate.TermsItem>
-              )}
-            </PaperTemplate.TermsList>
-          </Stack>
-
-          {companyLogoUri && showCompanyLogo && (
-            <PaperTemplate.Logo logoUri={companyLogoUri} />
+      <Stack spacing={28}>
+        <PaperTemplate.DocumentHead
+          title={'Estimate'}
+          showLogo={showCompanyLogo}
+          logoUri={companyLogoUri}
+          companyName={companyName}
+          showCompanyAddress={showCompanyAddress}
+          companyAddress={companyAddress}
+          showCustomerAddress={showCustomerAddress}
+          customerAddressLabel={billedToLabel}
+          customerAddress={customerAddress}
+        >
+          {showEstimateNumber && (
+            <PaperTemplate.TermsItem label={estimateNumberLabel}>
+              {estimateNumebr}
+            </PaperTemplate.TermsItem>
           )}
-        </Group>
-
-        <PaperTemplate.AddressesGroup>
-          {showCompanyAddress && (
-            <PaperTemplate.Address>
-              <Box dangerouslySetInnerHTML={{ __html: companyAddress }} />
-            </PaperTemplate.Address>
+          {showEstimateDate && (
+            <PaperTemplate.TermsItem label={estimateDateLabel}>
+              {estimateDate}
+            </PaperTemplate.TermsItem>
           )}
-          {showCustomerAddress && (
-            <PaperTemplate.Address>
-              <strong>{billedToLabel}</strong>
-              <Box dangerouslySetInnerHTML={{ __html: customerAddress }} />
-            </PaperTemplate.Address>
+          {showExpirationDate && (
+            <PaperTemplate.TermsItem label={expirationDateLabel}>
+              {expirationDate}
+            </PaperTemplate.TermsItem>
           )}
-        </PaperTemplate.AddressesGroup>
+        </PaperTemplate.DocumentHead>
 
         <Stack spacing={0}>
           <PaperTemplate.Table
@@ -231,19 +214,20 @@ export function EstimatePaperTemplate({
               {
                 label: lineItemLabel,
                 accessor: (data) => (
-                  <Stack spacing={2}>
-                    <Text>{data.item}</Text>
-                    <Text
-                      fontSize={'12px'}
-                      color={theme.colors['cool-gray-500']}
-                    >
-                      {data.description}
-                    </Text>
-                  </Stack>
+                  <Text fontWeight={600}>{data.item}</Text>
                 ),
-                thStyle: { width: '60%' },
+                thStyle: { width: '26%' },
               },
-              { label: lineQuantityLabel, accessor: 'quantity' },
+              {
+                label: 'Description',
+                accessor: (data) => <Text>{data.description}</Text>,
+                thStyle: { width: '34%' },
+              },
+              {
+                label: lineQuantityLabel,
+                accessor: 'quantity',
+                align: 'right',
+              },
               { label: lineRateLabel, accessor: 'rate', align: 'right' },
               {
                 label: lineDiscountLabel,
@@ -255,50 +239,57 @@ export function EstimatePaperTemplate({
             ]}
             data={lines}
           />
-          <PaperTemplate.Totals>
-            {showSubtotal && (
-              <PaperTemplate.TotalLine
-                label={subtotalLabel}
-                amount={subtotal}
-                border={PaperTemplateTotalBorder.Gray}
-                style={{ fontWeight: 500 }}
-              />
-            )}
-            {showDiscount && !isEmpty(discount) && (
-              <PaperTemplate.TotalLine
-                label={discountLabel}
-                amount={discount}
-              />
-            )}
-            {showAdjustment && !isEmpty(adjustment) && (
-              <PaperTemplate.TotalLine
-                label={adjustmentLabel}
-                amount={adjustment}
-              />
-            )}
-            {showTotal && (
-              <PaperTemplate.TotalLine
-                label={totalLabel}
-                amount={total}
-                border={PaperTemplateTotalBorder.Dark}
-                style={{ fontWeight: 500 }}
-              />
-            )}
-          </PaperTemplate.Totals>
+          <PaperTemplate.Divider />
+
+          <PaperTemplate.Summary
+            notes={
+              <>
+                {showCustomerNote && !isEmpty(customerNote) && (
+                  <PaperTemplate.Statement label={customerNoteLabel}>
+                    {customerNote}
+                  </PaperTemplate.Statement>
+                )}
+                {showTermsConditions && !isEmpty(termsConditions) && (
+                  <PaperTemplate.Statement label={termsConditionsLabel}>
+                    {termsConditions}
+                  </PaperTemplate.Statement>
+                )}
+              </>
+            }
+          >
+            <PaperTemplate.Totals>
+              {showSubtotal && (
+                <PaperTemplate.TotalLine
+                  label={subtotalLabel}
+                  amount={subtotal}
+                />
+              )}
+              {showDiscount && !isEmpty(discount) && (
+                <PaperTemplate.TotalLine
+                  label={discountLabel}
+                  amount={discount}
+                />
+              )}
+              {showAdjustment && !isEmpty(adjustment) && (
+                <PaperTemplate.TotalLine
+                  label={adjustmentLabel}
+                  amount={adjustment}
+                />
+              )}
+              {showTotal && (
+                <PaperTemplate.TotalLine
+                  label={totalLabel}
+                  amount={total}
+                  emphasis
+                />
+              )}
+            </PaperTemplate.Totals>
+          </PaperTemplate.Summary>
         </Stack>
 
-        <Stack spacing={0}>
-          {showCustomerNote && !isEmpty(customerNote) && (
-            <PaperTemplate.Statement label={customerNoteLabel}>
-              {customerNote}
-            </PaperTemplate.Statement>
-          )}
-          {showTermsConditions && !isEmpty(termsConditions) && (
-            <PaperTemplate.Statement label={termsConditionsLabel}>
-              {termsConditions}
-            </PaperTemplate.Statement>
-          )}
-        </Stack>
+        <PaperTemplate.Signatures
+          labels={['Accepted by', 'Accepted date']}
+        />
       </Stack>
     </PaperTemplate>
   );

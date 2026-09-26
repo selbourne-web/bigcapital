@@ -33,16 +33,24 @@ export const transformInvoiceToPdfTemplate = (
     termsConditions: invoice.termsConditions,
     statement: invoice.invoiceMessage,
 
+    isPaid: !!invoice.isFullyPaid,
+
     lines: invoice.entries.map((entry) => ({
       item: entry.item.name,
       description: entry.description,
       rate: entry.rateFormatted,
       quantity: entry.quantityFormatted,
       total: entry.totalFormatted,
+      tax: (entry as { taxCode?: string }).taxCode,
     })),
     taxes: invoice.taxes.map((tax) => ({
       label: tax.name,
       amount: tax.taxRateAmountFormatted,
+      // With a single tax, the net is everything the tax was charged on.
+      net:
+        invoice.taxes.length === 1
+          ? invoice.subtotalExludingTaxFormatted
+          : undefined,
     })),
     discount: invoice.discountAmountFormatted,
     discountLabel: invoice.discountPercentageFormatted

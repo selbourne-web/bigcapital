@@ -69,7 +69,7 @@ export const defaultPaymentReceivedPdfTemplateAttributes = {
   // # Company address
   showCompanyAddress: true,
   companyAddress: '',
-  billedToLabel: 'Billed To',
+  billedToLabel: 'Received from',
 
   // Total
   total: '$1000.00',

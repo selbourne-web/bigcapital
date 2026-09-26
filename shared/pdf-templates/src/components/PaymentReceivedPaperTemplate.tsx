@@ -1,10 +1,7 @@
-import { Box } from '../lib/layout/Box';
 import { Stack } from '../lib/layout/Stack';
-import { Group } from '../lib/layout/Group';
 import {
   PaperTemplate,
   PaperTemplateProps,
-  PaperTemplateTotalBorder,
 } from './PaperTemplate';
 import {
   DefaultPdfTemplateAddressBilledFrom,
@@ -43,7 +40,16 @@ export interface PaymentReceivedPaperTemplateProps extends PaperTemplateProps {
     paidAmount: string;
     invoiceAmount: string;
     invoiceNumber: string;
+    invoiceDate?: string;
+    dueDate?: string;
+    balance?: string;
   }>;
+
+  // Payment details.
+  showPaymentMethod?: boolean;
+  paymentMethod?: string;
+  referenceNumber?: string;
+  memo?: string;
 
   // Issue date.
   paymentReceivedDateLabel?: string;
@@ -64,6 +70,7 @@ export function PaymentReceivedPaperTemplate({
   // # Company logo
   showCompanyLogo = true,
   companyLogoUri,
+  companyName,
 
   // # Customer address
   showCustomerAddress = true,
@@ -73,7 +80,7 @@ export function PaymentReceivedPaperTemplate({
   showCompanyAddress = true,
   companyAddress = DefaultPdfTemplateAddressBilledFrom,
 
-  billedToLabel = 'Billed To',
+  billedToLabel = 'Received from',
 
   total = '$1000.00',
   totalLabel = 'Total',
@@ -97,79 +104,96 @@ export function PaymentReceivedPaperTemplate({
   paymentReceivedDate = 'September 3, 2024',
   showPaymentReceivedDate = true,
   paymentReceivedDateLabel = 'Payment Date',
+
+  showPaymentMethod = true,
+  paymentMethod = '',
+  referenceNumber = '',
+  memo = '',
 }: PaymentReceivedPaperTemplateProps) {
+  const hasInvoiceDates = lines.some((line) => !!line.invoiceDate);
+  const hasBalance = lines.some((line) => !!line.balance);
   return (
     <PaperTemplate primaryColor={primaryColor} secondaryColor={secondaryColor}>
-      <Stack spacing={24}>
-        <Group align={'start'} spacing={10}>
-          <Stack flex={1}>
-            <PaperTemplate.BigTitle title={'Payment'} />
-
-            <PaperTemplate.TermsList>
-              {showPaymentReceivedNumber && (
-                <PaperTemplate.TermsItem label={paymentReceivedNumberLabel}>
-                  {paymentReceivedNumebr}
-                </PaperTemplate.TermsItem>
-              )}
-
-              {showPaymentReceivedDate && (
-                <PaperTemplate.TermsItem label={paymentReceivedDateLabel}>
-                  {paymentReceivedDate}
-                </PaperTemplate.TermsItem>
-              )}
-            </PaperTemplate.TermsList>
-          </Stack>
-
-          {companyLogoUri && showCompanyLogo && (
-            <PaperTemplate.Logo logoUri={companyLogoUri} />
+      <Stack spacing={28}>
+        <PaperTemplate.DocumentHead
+          title={'Receipt'}
+          showLogo={showCompanyLogo}
+          logoUri={companyLogoUri}
+          companyName={companyName}
+          showCompanyAddress={showCompanyAddress}
+          companyAddress={companyAddress}
+          showCustomerAddress={showCustomerAddress}
+          customerAddressLabel={billedToLabel}
+          customerAddress={customerAddress}
+        >
+          {showPaymentReceivedDate && (
+            <PaperTemplate.TermsItem label={paymentReceivedDateLabel}>
+              {paymentReceivedDate}
+            </PaperTemplate.TermsItem>
           )}
-        </Group>
-
-        <PaperTemplate.AddressesGroup>
-          {showCompanyAddress && (
-            <PaperTemplate.Address>
-              <Box dangerouslySetInnerHTML={{ __html: companyAddress }} />
-            </PaperTemplate.Address>
+          {showPaymentMethod && paymentMethod && (
+            <PaperTemplate.TermsItem label={'Payment method'}>
+              {paymentMethod}
+            </PaperTemplate.TermsItem>
           )}
-
-          {showCustomerAddress && (
-            <PaperTemplate.Address>
-              <strong>{billedToLabel}</strong>
-              <Box dangerouslySetInnerHTML={{ __html: customerAddress }} />
-            </PaperTemplate.Address>
+          {referenceNumber && (
+            <PaperTemplate.TermsItem label={'Reference no'}>
+              {referenceNumber}
+            </PaperTemplate.TermsItem>
           )}
-        </PaperTemplate.AddressesGroup>
+          {showPaymentReceivedNumber && (
+            <PaperTemplate.TermsItem label={paymentReceivedNumberLabel}>
+              {paymentReceivedNumebr}
+            </PaperTemplate.TermsItem>
+          )}
+        </PaperTemplate.DocumentHead>
 
         <Stack spacing={0}>
           <PaperTemplate.Table
             columns={[
-              { label: 'Invoice #', accessor: 'invoiceNumber' },
+              { label: 'Invoice number', accessor: 'invoiceNumber' },
               {
-                label: 'Invoice Amount',
+                label: 'Invoice date',
+                accessor: 'invoiceDate',
+                visible: hasInvoiceDates,
+              },
+              { label: 'Due date', accessor: 'dueDate', visible: hasInvoiceDates },
+              {
+                label: 'Original amount',
                 accessor: 'invoiceAmount',
                 align: 'right',
               },
-              { label: 'Paid Amount', accessor: 'paidAmount', align: 'right' },
+              {
+                label: 'Balance',
+                accessor: 'balance',
+                align: 'right',
+                visible: hasBalance,
+              },
+              { label: 'Payment', accessor: 'paidAmount', align: 'right' },
             ]}
             data={lines}
           />
-          <PaperTemplate.Totals>
-            {showSubtotal && (
-              <PaperTemplate.TotalLine
-                label={subtotalLabel}
-                amount={subtotal}
-                border={PaperTemplateTotalBorder.Gray}
-              />
-            )}
-            {showTotal && (
-              <PaperTemplate.TotalLine
-                label={totalLabel}
-                amount={total}
-                border={PaperTemplateTotalBorder.Dark}
-                style={{ fontWeight: 500 }}
-              />
-            )}
-          </PaperTemplate.Totals>
+          <PaperTemplate.Divider />
+
+          <PaperTemplate.Summary
+            notes={memo ? <>{`Memo: ${memo}`}</> : undefined}
+          >
+            <PaperTemplate.Totals>
+              {showSubtotal && (
+                <PaperTemplate.TotalLine
+                  label={subtotalLabel}
+                  amount={subtotal}
+                />
+              )}
+              {showTotal && (
+                <PaperTemplate.TotalLine
+                  label={totalLabel}
+                  amount={total}
+                  emphasis
+                />
+              )}
+            </PaperTemplate.Totals>
+          </PaperTemplate.Summary>
         </Stack>
       </Stack>
     </PaperTemplate>

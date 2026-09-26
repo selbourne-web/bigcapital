@@ -101,7 +101,7 @@ export const defaultCreditNoteBrandingAttributes = {
   // # Company address
   showCompanyAddress: true,
   companyAddress: '',
-  billedToLabel: 'Billed To',
+  billedToLabel: 'Credit to',
 
   // Total
   total: '$1000.00',

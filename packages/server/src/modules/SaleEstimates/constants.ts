@@ -190,7 +190,7 @@ export const defaultEstimatePdfBrandingAttributes = {
   companyAddress: '',
   showCustomerAddress: true,
   showCompanyAddress: true,
-  billedToLabel: 'Billed To',
+  billedToLabel: 'Address',
 
   total: '$1000.00',
   totalLabel: 'Total',

@@ -17,7 +17,8 @@ export function PaymentInvoicePreviewContent() {
             dateIssue={sharableLinkMeta?.invoiceDateFormatted}
             total={sharableLinkMeta?.totalFormatted}
             subtotal={sharableLinkMeta?.subtotalFormatted}
-            balanceDue={sharableLinkMeta?.dueAmountFormatted}
+            dueAmount={sharableLinkMeta?.dueAmountFormatted}
+            companyLogoUri={sharableLinkMeta?.brandingTemplate?.companyLogoUri}
             paymentMade={sharableLinkMeta?.paymentAmountFormatted}
             termsConditions={sharableLinkMeta?.termsConditions}
             statement={sharableLinkMeta?.invoiceMessage}

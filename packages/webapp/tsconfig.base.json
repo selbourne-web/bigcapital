@@ -4,6 +4,7 @@
     "paths": {
       "@/*": ["./*"],
       "@public/*": ["../public/*"],
+      "@bigcapital/pdf-templates": ["../../../shared/pdf-templates/src/browser.ts"],
     }
   }
 }

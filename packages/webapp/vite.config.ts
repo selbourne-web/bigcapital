@@ -36,6 +36,12 @@ export default defineConfig(({ mode }) => {
       alias: {
         '@': path.resolve(rootDir, 'src'),
         '@public': path.resolve(rootDir, 'public'),
+        // The browser entry of the shared PDF templates (components only), so live
+        // previews render exactly what the server prints and emails.
+        '@bigcapital/pdf-templates': path.resolve(
+          rootDir,
+          '../../shared/pdf-templates/src/browser.ts',
+        ),
         path: 'path-browserify',
       },
     },

@@ -190,13 +190,13 @@ export const defaultInvoicePdfTemplateAttributes = {
   // # Company address
   showCompanyAddress: true,
   companyAddress: '',
-  billedToLabel: 'Billed To',
+  billedToLabel: 'Bill to',
 
   // Entries
   lineItemLabel: 'Item',
   lineQuantityLabel: 'Qty',
   lineRateLabel: 'Rate',
-  lineTotalLabel: 'Total',
+  lineTotalLabel: 'Amount',
 
   totalLabel: 'Total',
   subtotalLabel: 'Subtotal',

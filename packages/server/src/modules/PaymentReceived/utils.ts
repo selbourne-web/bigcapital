@@ -14,9 +14,14 @@ export const transformPaymentReceivedToPdfTemplate = (
     customerName: payment.customer.displayName,
     lines: payment.entries.map((entry) => ({
       invoiceNumber: entry.invoice.invoiceNo,
+      invoiceDate: entry.invoice.invoiceDateFormatted,
+      dueDate: entry.invoice.dueDateFormatted,
       invoiceAmount: entry.invoice.totalFormatted,
+      balance: entry.invoice.dueAmountFormatted,
       paidAmount: entry.paymentAmountFormatted,
     })),
+    referenceNumber: payment.referenceNo,
+    memo: payment.statement,
     customerAddress: contactAddressTextFormat(payment.customer),
   };
 };

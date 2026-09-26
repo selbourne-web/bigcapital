@@ -4,10 +4,8 @@ import {
   PaperTemplateProps,
   PaperTemplateTotalBorder,
 } from './PaperTemplate';
-import { Box } from '../lib/layout/Box';
 import { Text } from '../lib/text/Text';
 import { Stack } from '../lib/layout/Stack';
-import { Group } from '../lib/layout/Group';
 import {
   DefaultPdfTemplateTerms,
   DefaultPdfTemplateItemDescription,
@@ -24,11 +22,15 @@ interface InvoiceLine {
   rate?: string;
   total?: string;
   discount?: string;
+  /** Tax label of the line, for example "Exempt" or "VAT 17.5%". */
+  tax?: string;
 }
 
 interface InvoiceTaxLine {
   label: string;
   amount: string;
+  /** The net amount the tax applies to. */
+  net?: string;
 }
 
 export interface InvoicePaperTemplateProps extends PaperTemplateProps {
@@ -68,6 +70,8 @@ export interface InvoicePaperTemplateProps extends PaperTemplateProps {
 
   // Entries
   lineItemLabel?: string;
+  lineDescriptionLabel?: string;
+  lineTaxLabel?: string;
   lineQuantityLabel?: string;
   lineRateLabel?: string;
   lineTotalLabel?: string;
@@ -102,11 +106,17 @@ export interface InvoicePaperTemplateProps extends PaperTemplateProps {
   paymentMade?: string;
 
   showTaxes?: boolean;
+  taxSummaryLabel?: string;
+  showTaxSummary?: boolean;
 
   // Due Amount
   showDueAmount?: boolean;
   dueAmountLabel?: string;
   dueAmount?: string;
+
+  /** Marks the invoice as settled with a green "PAID". */
+  isPaid?: boolean;
+  paidLabel?: string;
 
   // Footer
   termsConditionsLabel?: string;
@@ -117,6 +127,9 @@ export interface InvoicePaperTemplateProps extends PaperTemplateProps {
   statementLabel?: string;
   showStatement?: boolean;
   statement?: string;
+
+  /** Small centred text at the bottom of the page. */
+  footerText?: string;
 
   lines?: Array<InvoiceLine>;
   taxes?: Array<InvoiceTaxLine>;
@@ -129,6 +142,7 @@ export function InvoicePaperTemplate({
 
   showCompanyLogo = true,
   companyLogoUri = '',
+  companyName,
 
   // # Due date
   dueDate = 'September 3, 2024',
@@ -152,13 +166,15 @@ export function InvoicePaperTemplate({
   showCompanyAddress = true,
   companyAddress = DefaultPdfTemplateAddressBilledFrom,
 
-  billedToLabel = 'Billed To',
+  billedToLabel = 'Bill to',
 
   // Entries
   lineItemLabel = 'Item',
+  lineDescriptionLabel = 'Description',
+  lineTaxLabel = 'Tax',
   lineQuantityLabel = 'Qty',
   lineRateLabel = 'Rate',
-  lineTotalLabel = 'Total',
+  lineTotalLabel = 'Amount',
 
   totalLabel = 'Total',
   subtotalLabel = 'Subtotal',
@@ -188,10 +204,15 @@ export function InvoicePaperTemplate({
   paymentMade = '100.00',
   dueAmount = '$562.75',
 
+  isPaid = false,
+  paidLabel = 'PAID',
+
   // Footer paragraphs.
   termsConditionsLabel = 'Terms & Conditions',
   showTermsConditions = true,
   termsConditions = DefaultPdfTemplateTerms,
+
+  footerText = '',
 
   lines = [
     {
@@ -206,6 +227,8 @@ export function InvoicePaperTemplate({
     { label: 'Sample Tax1 (4.70%)', amount: '11.75' },
     { label: 'Sample Tax2 (7.00%)', amount: '21.74' },
   ],
+  taxSummaryLabel = 'Tax summary',
+  showTaxSummary = true,
 
   // # Statement
   statementLabel = 'Statement',
@@ -213,54 +236,42 @@ export function InvoicePaperTemplate({
   statement = DefaultPdfTemplateStatement,
   ...props
 }: InvoicePaperTemplateProps) {
+  const hasLineTax = lines.some((line) => !isEmpty(line.tax));
+
   return (
     <PaperTemplate
       primaryColor={primaryColor}
       secondaryColor={secondaryColor}
       {...props}
     >
-      <Stack spacing={24}>
-        <Group align="start" spacing={10}>
-          <Stack flex={1}>
-            <PaperTemplate.BigTitle title={'Invoice'} />
-
-            <PaperTemplate.TermsList>
-              {showInvoiceNumber && (
-                <PaperTemplate.TermsItem label={invoiceNumberLabel}>
-                  {invoiceNumber}
-                </PaperTemplate.TermsItem>
-              )}
-              {showDateIssue && (
-                <PaperTemplate.TermsItem label={dateIssueLabel}>
-                  {dateIssue}
-                </PaperTemplate.TermsItem>
-              )}
-              {showDueDate && (
-                <PaperTemplate.TermsItem label={dueDateLabel}>
-                  {dueDate}
-                </PaperTemplate.TermsItem>
-              )}
-            </PaperTemplate.TermsList>
-          </Stack>
-
-          {companyLogoUri && showCompanyLogo && (
-            <PaperTemplate.Logo logoUri={companyLogoUri} />
+      <Stack spacing={28}>
+        <PaperTemplate.DocumentHead
+          title={'Invoice'}
+          showLogo={showCompanyLogo}
+          logoUri={companyLogoUri}
+          companyName={companyName}
+          showCompanyAddress={showCompanyAddress}
+          companyAddress={companyAddress}
+          showCustomerAddress={showCustomerAddress}
+          customerAddressLabel={billedToLabel}
+          customerAddress={customerAddress}
+        >
+          {showInvoiceNumber && (
+            <PaperTemplate.TermsItem label={invoiceNumberLabel}>
+              {invoiceNumber}
+            </PaperTemplate.TermsItem>
           )}
-        </Group>
-
-        <PaperTemplate.AddressesGroup>
-          {showCompanyAddress && (
-            <PaperTemplate.Address>
-              <Box dangerouslySetInnerHTML={{ __html: companyAddress }} />
-            </PaperTemplate.Address>
+          {showDateIssue && (
+            <PaperTemplate.TermsItem label={dateIssueLabel}>
+              {dateIssue}
+            </PaperTemplate.TermsItem>
           )}
-          {showCustomerAddress && (
-            <PaperTemplate.Address>
-              <strong>{billedToLabel}</strong>
-              <Box dangerouslySetInnerHTML={{ __html: customerAddress }} />
-            </PaperTemplate.Address>
+          {showDueDate && (
+            <PaperTemplate.TermsItem label={dueDateLabel}>
+              {dueDate}
+            </PaperTemplate.TermsItem>
           )}
-        </PaperTemplate.AddressesGroup>
+        </PaperTemplate.DocumentHead>
 
         <Stack spacing={0}>
           <PaperTemplate.Table
@@ -268,14 +279,20 @@ export function InvoicePaperTemplate({
               {
                 label: lineItemLabel,
                 accessor: (data) => (
-                  <Stack spacing={2}>
-                    <Text>{data.item}</Text>
-                    <Text color={'#5f6b7c'} fontSize={12}>
-                      {data.description}
-                    </Text>
-                  </Stack>
+                  <Text fontWeight={600}>{data.item}</Text>
                 ),
-                thStyle: { width: '60%' },
+                thStyle: { width: '24%' },
+              },
+              {
+                label: lineDescriptionLabel,
+                accessor: (data) => <Text>{data.description}</Text>,
+                thStyle: { width: '34%' },
+              },
+              {
+                label: lineTaxLabel,
+                accessor: 'tax',
+                align: 'right',
+                visible: hasLineTax,
               },
               {
                 label: lineQuantityLabel,
@@ -293,76 +310,82 @@ export function InvoicePaperTemplate({
             ]}
             data={lines}
           />
-          <PaperTemplate.Totals>
-            {showSubtotal && (
-              <PaperTemplate.TotalLine
-                label={subtotalLabel}
-                amount={subtotal}
-                border={PaperTemplateTotalBorder.Gray}
-              />
-            )}
-            {showDiscount && !isEmpty(discount) && (
-              <PaperTemplate.TotalLine
-                label={discountLabel}
-                amount={discount}
-              />
-            )}
-            {showAdjustment && !isEmpty(adjustment) && (
-              <PaperTemplate.TotalLine
-                label={adjustmentLabel}
-                amount={adjustment}
-              />
-            )}
-            {showTaxes && (
+          <PaperTemplate.Divider />
+
+          <PaperTemplate.Summary
+            notes={
               <>
-                {taxes.map((tax, index) => (
+                {showStatement && statement && (
+                  <PaperTemplate.Statement label={statementLabel}>
+                    {statement}
+                  </PaperTemplate.Statement>
+                )}
+                {showTermsConditions && termsConditions && (
+                  <PaperTemplate.Statement label={termsConditionsLabel}>
+                    {termsConditions}
+                  </PaperTemplate.Statement>
+                )}
+              </>
+            }
+          >
+            <PaperTemplate.Totals>
+              {showSubtotal && (
+                <PaperTemplate.TotalLine
+                  label={subtotalLabel}
+                  amount={subtotal}
+                />
+              )}
+              {showDiscount && !isEmpty(discount) && (
+                <PaperTemplate.TotalLine
+                  label={discountLabel}
+                  amount={discount}
+                />
+              )}
+              {showAdjustment && !isEmpty(adjustment) && (
+                <PaperTemplate.TotalLine
+                  label={adjustmentLabel}
+                  amount={adjustment}
+                />
+              )}
+              {showTaxes &&
+                taxes.map((tax, index) => (
                   <PaperTemplate.TotalLine
                     key={index}
                     label={tax.label}
                     amount={tax.amount}
                   />
                 ))}
-              </>
-            )}
-            {showTotal && (
-              <PaperTemplate.TotalLine
-                label={totalLabel}
-                amount={total}
-                border={PaperTemplateTotalBorder.Dark}
-                style={{ fontWeight: 500 }}
-              />
-            )}
-            {showPaymentMade && (
-              <PaperTemplate.TotalLine
-                label={paymentMadeLabel}
-                amount={paymentMade}
-              />
-            )}
-            {showDueAmount && (
-              <PaperTemplate.TotalLine
-                label={dueAmountLabel}
-                amount={dueAmount}
-                border={PaperTemplateTotalBorder.Dark}
-                style={{ fontWeight: 500 }}
-              />
-            )}
-          </PaperTemplate.Totals>
+              {showTotal && (
+                <PaperTemplate.TotalLine
+                  label={totalLabel}
+                  amount={total}
+                  border={PaperTemplateTotalBorder.Gray}
+                />
+              )}
+              {showPaymentMade && (
+                <PaperTemplate.TotalLine
+                  label={paymentMadeLabel}
+                  amount={paymentMade}
+                />
+              )}
+              {showDueAmount && (
+                <PaperTemplate.TotalLine
+                  label={dueAmountLabel}
+                  amount={dueAmount}
+                  emphasis
+                />
+              )}
+              {isPaid && <PaperTemplate.PaidStamp label={paidLabel} />}
+            </PaperTemplate.Totals>
+          </PaperTemplate.Summary>
         </Stack>
 
-        <Stack spacing={0}>
-          {showTermsConditions && termsConditions && (
-            <PaperTemplate.Statement label={termsConditionsLabel}>
-              {termsConditions}
-            </PaperTemplate.Statement>
-          )}
-
-          {showStatement && statement && (
-            <PaperTemplate.Statement label={statementLabel}>
-              {statement}
-            </PaperTemplate.Statement>
-          )}
-        </Stack>
+        {showTaxes && showTaxSummary && (
+          <PaperTemplate.TaxSummary label={taxSummaryLabel} taxes={taxes} />
+        )}
       </Stack>
+
+      <PaperTemplate.Footer>{footerText}</PaperTemplate.Footer>
     </PaperTemplate>
   );
 }
