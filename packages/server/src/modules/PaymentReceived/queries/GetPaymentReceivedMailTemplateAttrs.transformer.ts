@@ -1,4 +1,5 @@
 import { Transformer } from '@/modules/Transformer/Transformer';
+import { withDefaultCompanyLogo } from '@/modules/PdfTemplate/defaultCompanyLogo';
 
 export class GetPaymentReceivedMailTemplateAttrsTransformer extends Transformer {
   /**
@@ -33,7 +34,9 @@ export class GetPaymentReceivedMailTemplateAttrsTransformer extends Transformer 
    * @returns {string}
    */
   public companyLogoUri(): string {
-    return this.options.brandingTemplate?.companyLogoUri;
+    return withDefaultCompanyLogo(
+      this.options.brandingTemplate?.companyLogoUri,
+    );
   }
 
   /**
@@ -57,7 +60,10 @@ export class GetPaymentReceivedMailTemplateAttrsTransformer extends Transformer 
    * @returns {string}
    */
   public total(): string {
-    return this.options.paymentReceived.formattedAmount;
+    return this.formatNumber(this.options.paymentReceived.amount, {
+      currencyCode: this.options.paymentReceived.currencyCode,
+      money: true,
+    });
   }
 
   /**
@@ -97,7 +103,10 @@ export class GetPaymentReceivedMailTemplateAttrsTransformer extends Transformer 
    * @returns {string}
    */
   public paymentNumber(): string {
-    return this.options.paymentReceived.paymentReceiveNumber;
+    return (
+      this.options.paymentReceived.paymentReceiveNo ??
+      this.options.paymentReceived.paymentReceiveNumber
+    );
   }
 
   /**

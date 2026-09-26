@@ -1,5 +1,6 @@
 import { PaymentReceiveTransfromer } from './PaymentReceivedTransformer';
 import { PaymentReceivedEntryTransfromer } from './PaymentReceivedEntryTransformer';
+import { withDefaultCompanyLogo } from '@/modules/PdfTemplate/defaultCompanyLogo';
 
 export class GetPaymentReceivedMailStateTransformer extends PaymentReceiveTransfromer {
   /**
@@ -62,7 +63,7 @@ export class GetPaymentReceivedMailStateTransformer extends PaymentReceiveTransf
    * @returns {string | null}
    */
   protected companyLogoUri = (payment) => {
-    return payment.pdfTemplate?.companyLogoUri;
+    return withDefaultCompanyLogo(payment.pdfTemplate?.companyLogoUri);
   };
 
   /**

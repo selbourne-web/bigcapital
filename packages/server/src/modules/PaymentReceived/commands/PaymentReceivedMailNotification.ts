@@ -26,6 +26,7 @@ import { MailTransporter } from '@/modules/Mail/MailTransporter.service';
 import { TenantModelProxy } from '@/modules/System/models/TenantBaseModel';
 import { TenancyContext } from '@/modules/Tenancy/TenancyContext.service';
 import { GetPaymentReceivedMailTemplate } from '../queries/GetPaymentReceivedMailTemplate.service';
+import { GetPaymentReceivedPdfService } from '../queries/GetPaymentReceivedPdf.service';
 
 @Injectable()
 export class SendPaymentReceiveMailNotification {
@@ -36,6 +37,7 @@ export class SendPaymentReceiveMailNotification {
     private readonly mailTransport: MailTransporter,
     private readonly tenancyContext: TenancyContext,
     private readonly paymentMailTemplate: GetPaymentReceivedMailTemplate,
+    private readonly paymentPdf: GetPaymentReceivedPdfService,
 
     @InjectQueue(SEND_PAYMENT_RECEIVED_MAIL_QUEUE)
     private readonly sendPaymentMailQueue: Queue,
@@ -200,12 +202,30 @@ export class SendPaymentReceiveMailNotification {
       paymentReceiveId,
       messageDTO,
     );
+    // Wraps the message in the branded mail template, like the other documents.
+    const message = await this.paymentMailTemplate.getMailTemplate(
+      paymentReceiveId,
+      {
+        message: formattedMessageOptions.message,
+        preview: formattedMessageOptions.message,
+      },
+    );
     const mail = new Mail()
       .setSubject(formattedMessageOptions.subject)
       .setTo(formattedMessageOptions.to)
       .setCC(formattedMessageOptions.cc)
       .setBCC(formattedMessageOptions.bcc)
-      .setContent(formattedMessageOptions.message);
+      .setContent(message);
+
+    // Attach the payment document.
+    if ((formattedMessageOptions as PaymentReceiveMailOpts).attachPdf) {
+      const [pdfBuffer, pdfFilename] =
+        await this.paymentPdf.getPaymentReceivePdf(paymentReceiveId);
+
+      mail.setAttachments([
+        { filename: `${pdfFilename}.pdf`, content: pdfBuffer },
+      ]);
+    }
 
     const eventPayload = {
       paymentReceiveId,

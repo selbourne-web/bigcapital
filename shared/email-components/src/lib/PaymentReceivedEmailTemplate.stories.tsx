@@ -30,6 +30,6 @@ From your online payment page you can print a PDF or view your outstanding bills
 If you have any questions, please let us know.
 
 Thanks,
-Bigcapital`,
+Selbourne Financial`,
   items: [{ label: 'INV-00001', total: '$1000.00' }]
 };

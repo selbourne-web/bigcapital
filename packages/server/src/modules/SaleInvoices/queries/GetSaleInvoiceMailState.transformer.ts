@@ -1,5 +1,6 @@
 import { ItemEntryTransformer } from '@/modules/TransactionItemEntry/ItemEntry.transformer';
 import { SaleInvoiceTransformer } from './SaleInvoice.transformer';
+import { withDefaultCompanyLogo } from '@/modules/PdfTemplate/defaultCompanyLogo';
 
 export class GetSaleInvoiceMailStateTransformer extends SaleInvoiceTransformer {
   /**
@@ -74,7 +75,7 @@ export class GetSaleInvoiceMailStateTransformer extends SaleInvoiceTransformer {
    * @returns {string | null}
    */
   protected companyLogoUri = (invoice) => {
-    return invoice.pdfTemplate?.companyLogoUri;
+    return withDefaultCompanyLogo(invoice.pdfTemplate?.companyLogoUri);
   };
 
   /**

@@ -10,6 +10,8 @@ import {
 import isEmpty from 'lodash.isempty';
 import { EmailTemplateLayout } from './EmailTemplateLayout';
 import { EmailTemplate } from './EmailTemplate';
+import { BRAND } from './brand';
+import { multiline } from './multiline';
 export interface ReceiptEmailTemplateProps {
   preview: string;
 
@@ -52,7 +54,7 @@ export const ReceiptEmailTemplate: React.FC<
   preview,
 
   // # Company
-  companyName = 'Bigcapital, Inc.',
+  companyName = BRAND.name,
   companyLogoUri,
 
   // # Invoice total
@@ -102,7 +104,7 @@ export const ReceiptEmailTemplate: React.FC<
           </Row>
         </Section>
 
-        <Text style={messageStyle}>{message}</Text>
+        <Text style={messageStyle}>{multiline(message)}</Text>
 
         <Section style={totalsSectionStyle}>
           {items.map((item, index) => (
@@ -199,8 +201,8 @@ const receiptNumberStyle: CSSProperties = {
 const invoiceCompanyNameStyle: CSSProperties = {
   margin: 0,
   fontSize: '18px',
-  fontWeight: 500,
   color: '#404854',
+  fontWeight: 500,
 };
 
 const listItemLabelStyle: CSSProperties = {

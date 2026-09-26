@@ -167,7 +167,7 @@ export const defaultInvoicePdfTemplateAttributes = {
   primaryColor: 'red',
   secondaryColor: 'red',
 
-  companyName: 'Bigcapital Technology, Inc.',
+  companyName: 'Selbourne Financial',
 
   showCompanyLogo: true,
   companyLogoKey: '',

@@ -1,5 +1,6 @@
-import { Container, Section } from '@react-email/components';
+import { Container, Img, Section } from '@react-email/components';
 import { CSSProperties } from 'react';
+import { BRAND } from './brand';
 
 interface EmailTemplateProps {
   children: React.ReactNode;
@@ -8,38 +9,33 @@ export function EmailTemplate({ children }: EmailTemplateProps) {
   return <Container style={containerStyle}>{children}</Container>;
 }
 
+// A real <img>, not a CSS background: mail clients commonly drop background
+// images. Sized for a wide wordmark; a square logo simply renders smaller.
 EmailTemplate.CompanyLogo = ({ src }: { src: string }) => {
   return (
     <Section style={logoSectionStyle}>
-      <div
-        style={{
-          ...companyLogoStyle,
-          backgroundImage: `url("${src}")`,
-        }}
-      ></div>
+      <Img src={src} alt="" style={companyLogoStyle} />
     </Section>
   );
 };
 
 const containerStyle: CSSProperties = {
-  backgroundColor: '#fff',
+  backgroundColor: BRAND.paper,
   width: '100%',
   maxWidth: '500px',
   padding: '30px 20px',
-  color: '#000',
+  color: BRAND.ink,
+  borderRadius: '5px',
 };
 
-const companyLogoStyle = {
-  height: 90,
-  width: 90,
-  borderRadius: '3px',
+const companyLogoStyle: CSSProperties = {
+  display: 'block',
+  width: 'auto',
+  height: 'auto',
+  maxWidth: '200px',
+  maxHeight: '64px',
   marginLeft: 'auto',
   marginRight: 'auto',
-  textIndent: '-999999px',
-  overflow: 'hidden',
-  backgroundRepeat: 'no-repeat',
-  backgroundPosition: 'center center',
-  backgroundSize: 'contain',
 };
 
 const logoSectionStyle = {

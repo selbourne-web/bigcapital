@@ -1,6 +1,7 @@
 import { DiscountType } from '@/common/types/Discount';
 import { ItemEntryTransformer } from '@/modules/TransactionItemEntry/ItemEntry.transformer';
 import { Transformer } from '@/modules/Transformer/Transformer';
+import { withDefaultCompanyLogo } from '@/modules/PdfTemplate/defaultCompanyLogo';
 
 export class GetSaleReceiptMailStateTransformer extends Transformer {
   /**
@@ -65,7 +66,7 @@ export class GetSaleReceiptMailStateTransformer extends Transformer {
    * @returns {string | null}
    */
   protected companyLogoUri = (receipt) => {
-    return receipt.pdfTemplate?.companyLogoUri;
+    return withDefaultCompanyLogo(receipt.pdfTemplate?.companyLogoUri);
   };
 
   /**

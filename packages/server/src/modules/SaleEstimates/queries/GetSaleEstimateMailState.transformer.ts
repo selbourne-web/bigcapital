@@ -1,5 +1,6 @@
 import { ItemEntryTransformer } from '@/modules/TransactionItemEntry/ItemEntry.transformer';
 import { SaleEstimateTransfromer } from './SaleEstimate.transformer';
+import { withDefaultCompanyLogo } from '@/modules/PdfTemplate/defaultCompanyLogo';
 
 export class GetSaleEstimateMailStateTransformer extends SaleEstimateTransfromer {
   public excludeAttributes = (): string[] => {
@@ -62,7 +63,7 @@ export class GetSaleEstimateMailStateTransformer extends SaleEstimateTransfromer
    * @returns {string | null}
    */
   protected companyLogoUri = (invoice) => {
-    return invoice.pdfTemplate?.companyLogoUri || null;
+    return withDefaultCompanyLogo(invoice.pdfTemplate?.companyLogoUri);
   };
 
   /**

@@ -1,6 +1,7 @@
 import { ISaleReceiptBrandingTemplateAttributes } from './types/SaleReceipts.types';
 import { SaleReceiptResponseDto } from './dtos/SaleReceiptResponse.dto';
 import { contactAddressTextFormat } from '@/utils/address-text-format';
+import { formatMailAmount } from '@/utils/format-mail-amount';
 
 export const transformReceiptToBrandingTemplateAttributes = (
   saleReceipt: SaleReceiptResponseDto,
@@ -33,6 +34,6 @@ export const transformReceiptToMailDataArgs = (
     'Customer Name': saleReceipt.customer.displayName,
     'Receipt Number': saleReceipt.receiptNumber,
     'Receipt Date': saleReceipt.formattedReceiptDate,
-    'Receipt Amount': saleReceipt.formattedAmount,
+    'Receipt Amount': formatMailAmount(saleReceipt),
   };
 };

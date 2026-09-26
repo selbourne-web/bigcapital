@@ -11,6 +11,8 @@ import {
 } from '@react-email/components';
 import { EmailTemplateLayout } from './EmailTemplateLayout';
 import { EmailTemplate } from './EmailTemplate';
+import { BRAND } from './brand';
+import { multiline } from './multiline';
 
 export interface EstimatePaymentEmailProps {
   preview: string;
@@ -63,11 +65,11 @@ export const EstimatePaymentEmail: React.FC<
   preview,
 
   // # Company
-  companyName = 'Bigcapital, Inc.',
+  companyName = BRAND.name,
   companyLogoUri,
 
   // # Colors
-  primaryColor = 'rgb(0, 82, 204)',
+  primaryColor = BRAND.primary,
 
   // # Total
   total,
@@ -127,16 +129,19 @@ export const EstimatePaymentEmail: React.FC<
           </Row>
         </Section>
 
-        <Text style={estimateMessageStyle}>{message}</Text>
-        <Button
-          href={viewEstimateButtonUrl}
-          style={{
-            ...viewEstimateButtonStyle,
-            backgroundColor: primaryColor,
-          }}
-        >
-          {viewEstimateButtonLabel}
-        </Button>
+        <Text style={estimateMessageStyle}>{multiline(message)}</Text>
+        {/* Only with a link to open: without one the button is dead text. */}
+        {viewEstimateButtonUrl && (
+          <Button
+            href={viewEstimateButtonUrl}
+            style={{
+              ...viewEstimateButtonStyle,
+              backgroundColor: primaryColor || BRAND.primary,
+            }}
+          >
+            {viewEstimateButtonLabel}
+          </Button>
+        )}
 
         <Section style={totalsSectionStyle}>
           {items.map((item, index) => (
@@ -240,8 +245,8 @@ const estimateExpirationStyle: CSSProperties = {
 const invoiceCompanyNameStyle: CSSProperties = {
   margin: 0,
   fontSize: '18px',
-  fontWeight: 500,
   color: '#404854',
+  fontWeight: 500,
 };
 
 const viewEstimateButtonStyle: CSSProperties = {
@@ -251,7 +256,7 @@ const viewEstimateButtonStyle: CSSProperties = {
   fontSize: 16,
   padding: '10px 15px',
   lineHeight: '1',
-  backgroundColor: 'rgb(0, 82, 204)',
+  backgroundColor: BRAND.primary,
   color: '#fff',
   borderRadius: '5px',
 };

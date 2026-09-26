@@ -4,15 +4,17 @@ export const SEND_PAYMENT_RECEIVED_MAIL_JOB = 'SEND_PAYMENT_RECEIVED_MAIL_JOB';
 
 export const DEFAULT_PAYMENT_MAIL_SUBJECT =
   'Payment Received for {Customer Name} from {Company Name}';
-export const DEFAULT_PAYMENT_MAIL_CONTENT = `Dear {Customer Name}
+export const DEFAULT_PAYMENT_MAIL_CONTENT = `Hi {Customer Name},
 
-Thank you for your payment. It was a pleasure doing business with you. We look forward to work together again!
+Thank you for your payment. We have received it and applied it to your account.
 
-Payment Transaction: {Payment Number}
-Payment Date : {Payment Date}
-Amount : {Payment Amount}
+Payment #: {Payment Number}
+Payment date: {Payment Date}
+Amount received: {Payment Amount}
 
-Regards,
+If you have any questions, please let us know.
+
+Thanks,
 {Company Name}`;
 
 export const ERRORS = {
@@ -58,7 +60,7 @@ export const defaultPaymentReceivedPdfTemplateAttributes = {
   companyLogoUri: '',
 
   // # Company name
-  companyName: 'Bigcapital Technology, Inc.',
+  companyName: 'Selbourne Financial',
 
   // # Customer address
   showCustomerAddress: true,

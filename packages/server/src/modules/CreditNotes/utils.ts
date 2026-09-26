@@ -1,6 +1,7 @@
 import { CreditNotePdfTemplateAttributes } from './types/CreditNotes.types';
 import { CreditNoteResponseDto } from './dtos/CreditNoteResponse.dto';
 import { contactAddressTextFormat } from '@/utils/address-text-format';
+import { formatMailAmount } from '@/utils/format-mail-amount';
 
 export const transformCreditNoteToPdfTemplate = (
   creditNote: CreditNoteResponseDto,
@@ -30,6 +31,6 @@ export const transformCreditNoteToMailDataArgs = (creditNote: any) => {
     'Customer Name': creditNote.customer?.displayName,
     'Credit Note Number': creditNote.creditNoteNumber,
     'Credit Note Date': creditNote.formattedCreditNoteDate,
-    'Credit Note Amount': creditNote.formattedAmount,
+    'Credit Note Amount': formatMailAmount(creditNote),
   };
 };

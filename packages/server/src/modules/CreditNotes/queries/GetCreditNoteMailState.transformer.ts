@@ -1,5 +1,6 @@
 import { ItemEntryTransformer } from '@/modules/TransactionItemEntry/ItemEntry.transformer';
 import { CreditNoteTransformer } from './CreditNoteTransformer';
+import { withDefaultCompanyLogo } from '@/modules/PdfTemplate/defaultCompanyLogo';
 
 export class GetCreditNoteMailStateTransformer extends CreditNoteTransformer {
   public excludeAttributes = (): string[] => {
@@ -61,7 +62,7 @@ export class GetCreditNoteMailStateTransformer extends CreditNoteTransformer {
    * @returns {string | null}
    */
   protected companyLogoUri = (creditNote) => {
-    return creditNote.pdfTemplate?.companyLogoUri || null;
+    return withDefaultCompanyLogo(creditNote.pdfTemplate?.companyLogoUri);
   };
 
   /**

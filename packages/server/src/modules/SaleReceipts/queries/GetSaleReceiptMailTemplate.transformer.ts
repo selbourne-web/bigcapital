@@ -1,4 +1,5 @@
 import { Transformer } from '@/modules/Transformer/Transformer';
+import { withDefaultCompanyLogo } from '@/modules/PdfTemplate/defaultCompanyLogo';
 
 export class GetSaleReceiptMailTemplateAttributesTransformer extends Transformer {
   public includeAttributes = (): string[] => {
@@ -49,7 +50,9 @@ export class GetSaleReceiptMailTemplateAttributesTransformer extends Transformer
    * @returns {string}
    */
   public companyLogoUri(): string {
-    return this.options.brandingTemplate?.companyLogoUri;
+    return withDefaultCompanyLogo(
+      this.options.brandingTemplate?.companyLogoUri,
+    );
   }
 
   /**
@@ -104,7 +107,10 @@ export class GetSaleReceiptMailTemplateAttributesTransformer extends Transformer
    * Receipt total.
    */
   public total(): string {
-    return this.options.receipt.totalFormatted;
+    return this.formatNumber(this.options.receipt.total, {
+      currencyCode: this.options.receipt.currencyCode,
+      money: true,
+    });
   }
 
   /**
@@ -120,7 +126,11 @@ export class GetSaleReceiptMailTemplateAttributesTransformer extends Transformer
    * @returns {string}
    */
   public discount(): string {
-    return this.options.receipt?.discountAmountFormatted;
+    // Money-formatted, like the adjustment line below it.
+    return this.formatNumber(this.options.receipt?.discountAmount ?? 0, {
+      currencyCode: this.options.receipt?.currencyCode,
+      money: true,
+    });
   }
 
   /**

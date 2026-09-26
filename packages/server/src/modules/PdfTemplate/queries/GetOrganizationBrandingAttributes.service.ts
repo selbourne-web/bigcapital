@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { CommonOrganizationBrandingAttributes } from '../types';
 import { TenancyContext } from '../../Tenancy/TenancyContext.service';
 import { GetAttachmentPresignedUrl } from '@/modules/Attachments/GetAttachmentPresignedUrl';
+import { withDefaultCompanyLogo } from '@/modules/PdfTemplate/defaultCompanyLogo';
 
 @Injectable()
 export class GetOrganizationBrandingAttributesService {
@@ -36,7 +37,7 @@ export class GetOrganizationBrandingAttributesService {
     return {
       companyName,
       companyAddress,
-      companyLogoUri: companyLogoUri ?? undefined,
+      companyLogoUri: withDefaultCompanyLogo(companyLogoUri) ?? undefined,
       companyLogoKey,
       primaryColor,
     };

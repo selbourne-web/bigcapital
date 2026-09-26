@@ -1,4 +1,5 @@
 import { Transformer } from '@/modules/Transformer/Transformer';
+import { withDefaultCompanyLogo } from '@/modules/PdfTemplate/defaultCompanyLogo';
 
 export class GetInvoicePaymentMailAttributesTransformer extends Transformer {
   /**
@@ -50,7 +51,9 @@ export class GetInvoicePaymentMailAttributesTransformer extends Transformer {
   };
 
   public companyLogoUri(): string {
-    return this.options.brandingTemplate?.companyLogoUri;
+    return withDefaultCompanyLogo(
+      this.options.brandingTemplate?.companyLogoUri,
+    );
   }
 
   public companyName(): string {

@@ -1,5 +1,6 @@
 import { contactAddressTextFormat } from '@/utils/address-text-format';
 import { EstimatePdfBrandingAttributes } from './constants';
+import { formatMailAmount } from '@/utils/format-mail-amount';
 
 export const transformEstimateToPdfTemplate = (
   estimate,
@@ -28,7 +29,7 @@ export const transformEstimateToMailDataArgs = (estimate: any) => {
     'Customer Name': estimate.customer.displayName,
     'Estimate Number': estimate.estimateNumber,
     'Estimate Date': estimate.formattedEstimateDate,
-    'Estimate Amount': estimate.formattedAmount,
+    'Estimate Amount': formatMailAmount(estimate),
     'Estimate Expiration Date': estimate.formattedExpirationDate,
   };
 };

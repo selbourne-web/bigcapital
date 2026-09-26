@@ -1,6 +1,7 @@
 import { PaymentReceivedPdfTemplateAttributes } from './types/PaymentReceived.types';
 import { IPaymentReceivedTransformed } from './types/PaymentReceived.types';
 import { contactAddressTextFormat } from '@/utils/address-text-format';
+import { formatMailAmount } from '@/utils/format-mail-amount';
 
 export const transformPaymentReceivedToPdfTemplate = (
   payment: IPaymentReceivedTransformed,
@@ -27,6 +28,6 @@ export const transformPaymentReceivedToMailDataArgs = (
     'Customer Name': payment.customer.displayName,
     'Payment Number': payment.paymentReceiveNo,
     'Payment Date': payment.formattedPaymentDate,
-    'Payment Amount': payment.formattedAmount,
+    'Payment Amount': formatMailAmount(payment),
   };
 };

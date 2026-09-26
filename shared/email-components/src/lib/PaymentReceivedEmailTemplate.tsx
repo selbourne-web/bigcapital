@@ -7,7 +7,10 @@ import {
   Section,
   Text,
 } from '@react-email/components';
+import { EmailTemplate } from './EmailTemplate';
 import { EmailTemplateLayout } from './EmailTemplateLayout';
+import { BRAND } from './brand';
+import { multiline } from './multiline';
 import { CSSProperties } from 'react';
 
 export interface PaymentReceivedEmailTemplateProps {
@@ -44,7 +47,7 @@ export const PaymentReceivedEmailTemplate: React.FC<
   preview,
 
   // # Company
-  companyName = 'Bigcapital, Inc.',
+  companyName = BRAND.name,
   companyLogoUri,
 
   // # Payment #
@@ -68,16 +71,7 @@ export const PaymentReceivedEmailTemplate: React.FC<
     return (
       <EmailTemplateLayout preview={preview}>
         <Container style={containerStyle}>
-          {companyLogoUri && (
-            <Section style={logoSectionStyle}>
-              <div
-                style={{
-                  ...companyLogoStyle,
-                  backgroundImage: `url("${companyLogoUri}")`,
-                }}
-              ></div>
-            </Section>
-          )}
+          {companyLogoUri && <EmailTemplate.CompanyLogo src={companyLogoUri} />}
           <Section style={headerInfoStyle}>
             <Row>
               <Heading style={paymentCompanyNameStyle}>{companyName}</Heading>
@@ -92,7 +86,7 @@ export const PaymentReceivedEmailTemplate: React.FC<
             </Row>
           </Section>
 
-          <Text style={paymentMessageStyle}>{message}</Text>
+          <Text style={paymentMessageStyle}>{multiline(message)}</Text>
 
           <Section style={totalsSectionStyle}>
             {items.map((item, index) => (
@@ -147,11 +141,11 @@ export const renderPaymentReceivedEmailTemplate = (
 };
 
 const containerStyle: CSSProperties = {
-  backgroundColor: '#fff',
+  backgroundColor: BRAND.paper,
   width: '100%',
   maxWidth: '500px',
   padding: '35px 25px',
-  color: '#000',
+  color: BRAND.ink,
   borderRadius: '5px',
 };
 
@@ -182,23 +176,6 @@ const paymentMessageStyle: CSSProperties = {
   whiteSpace: 'pre-line',
   margin: '0 0 20px 0',
   lineHeight: '20px',
-};
-
-const logoSectionStyle = {
-  marginBottom: '15px',
-};
-
-const companyLogoStyle = {
-  height: 90,
-  width: 90,
-  borderRadius: '3px',
-  marginLeft: 'auto',
-  marginRight: 'auto',
-  textIndent: '-999999px',
-  overflow: 'hidden',
-  backgroundRepeat: 'no-repeat',
-  backgroundPosition: 'center center',
-  backgroundSize: 'contain',
 };
 
 const totalLineRowStyle: CSSProperties = {

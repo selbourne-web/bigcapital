@@ -11,6 +11,8 @@ import isEmpty from 'lodash.isempty';
 import { EmailTemplateLayout } from './EmailTemplateLayout';
 import { CSSProperties } from 'react';
 import { EmailTemplate } from './EmailTemplate';
+import { BRAND } from './brand';
+import { multiline } from './multiline';
 
 export interface CreditNoteEmailProps {
   preview: string;
@@ -59,11 +61,11 @@ export const CreditNoteEmailTemplate: React.FC<
   preview,
 
   // # Company
-  companyName = 'Bigcapital, Inc.',
+  companyName = BRAND.name,
   companyLogoUri,
 
   // # Colors
-  primaryColor = 'rgb(0, 82, 204)',
+  primaryColor = BRAND.primary,
 
   // # Invoice total
   total,
@@ -118,16 +120,19 @@ export const CreditNoteEmailTemplate: React.FC<
             </Row>
           </Section>
 
-          <Text style={messageStyle}>{message}</Text>
-          <Button
-            href={viewButtonUrl}
-            style={{
-              ...viewInvoiceButtonStyle,
-              backgroundColor: primaryColor,
-            }}
-          >
-            {viewButtonLabel}
-          </Button>
+          <Text style={messageStyle}>{multiline(message)}</Text>
+          {/* Only with a link to open: without one the button is dead text. */}
+          {viewButtonUrl && (
+            <Button
+              href={viewButtonUrl}
+              style={{
+                ...viewInvoiceButtonStyle,
+                backgroundColor: primaryColor || BRAND.primary,
+              }}
+            >
+              {viewButtonLabel}
+            </Button>
+          )}
 
           <Section style={totalsSectionStyle}>
             {items.map((item, index) => (
@@ -226,8 +231,8 @@ const creditNumberStyle: CSSProperties = {
 const companyNameStyle: CSSProperties = {
   margin: 0,
   fontSize: '18px',
-  fontWeight: 500,
   color: '#404854',
+  fontWeight: 500,
 };
 
 const viewInvoiceButtonStyle: CSSProperties = {
@@ -237,7 +242,7 @@ const viewInvoiceButtonStyle: CSSProperties = {
   fontSize: 16,
   padding: '10px 15px',
   lineHeight: '1',
-  backgroundColor: 'rgb(0, 82, 204)',
+  backgroundColor: BRAND.primary,
   color: '#fff',
   borderRadius: '5px',
 };

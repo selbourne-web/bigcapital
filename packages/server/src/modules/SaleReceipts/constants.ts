@@ -3,7 +3,7 @@ export const DEFAULT_RECEIPT_MAIL_SUBJECT =
 
 export const DEFAULT_RECEIPT_MAIL_CONTENT = `Hi {Customer Name},
 
-Here's receipt # {Receipt Number} for Receipt {Receipt Amount}
+Here's receipt # {Receipt Number} for {Receipt Amount}
 
 The receipt paid on {Receipt Date}, and the total amount paid is {Receipt Amount}.
 
@@ -72,7 +72,7 @@ export const SaleReceiptsSampleData = [
 export const defaultSaleReceiptBrandingAttributes = {
   primaryColor: '',
   secondaryColor: '',
-  companyName: 'Bigcapital Technology, Inc.',
+  companyName: 'Selbourne Financial',
 
   // # Company logo
   showCompanyLogo: true,

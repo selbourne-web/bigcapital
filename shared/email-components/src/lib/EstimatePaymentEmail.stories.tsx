@@ -29,7 +29,7 @@ From your online payment page you can print a PDF or view your outstanding bills
 If you have any questions, please let us know.
 
 Thanks,
-Bigcapital`,
+Selbourne Financial`,
   adjustment: '$100.00',
   discount: '$100.00',
   subtotal: '$100.00',

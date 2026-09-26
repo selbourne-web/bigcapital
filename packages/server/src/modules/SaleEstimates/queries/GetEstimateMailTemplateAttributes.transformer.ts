@@ -1,4 +1,5 @@
 import { Transformer } from '@/modules/Transformer/Transformer';
+import { withDefaultCompanyLogo } from '@/modules/PdfTemplate/defaultCompanyLogo';
 
 export class GetEstimateMailTemplateAttributesTransformer extends Transformer {
   public includeAttributes = (): string[] => {
@@ -18,6 +19,9 @@ export class GetEstimateMailTemplateAttributesTransformer extends Transformer {
 
       'estimateNumber',
       'estimateNumberLabel',
+
+      'expirationDate',
+      'expirationDateLabel',
 
       'total',
       'totalLabel',
@@ -54,7 +58,9 @@ export class GetEstimateMailTemplateAttributesTransformer extends Transformer {
    * @returns {string}
    */
   public companyLogoUri(): string {
-    return this.options.brandingTemplate?.companyLogoUri;
+    return withDefaultCompanyLogo(
+      this.options.brandingTemplate?.companyLogoUri,
+    );
   }
 
   /**

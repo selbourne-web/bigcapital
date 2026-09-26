@@ -1,5 +1,6 @@
 // import { getTransactionTypeLabel } from '@/utils/transactions-types';
 import { Transformer } from '../../Transformer/Transformer';
+import { withDefaultCompanyLogo } from '@/modules/PdfTemplate/defaultCompanyLogo';
 
 export class GetPdfTemplateTransformer extends Transformer {
   /**
@@ -39,7 +40,7 @@ export class GetPdfTemplateTransformer extends Transformer {
    * @returns {string | null}
    */
   protected companyLogoUri = (template) => {
-    return template.companyLogoUri;
+    return withDefaultCompanyLogo(template.companyLogoUri);
   };
 
   /**

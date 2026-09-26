@@ -30,7 +30,7 @@ From your online payment page you can print a PDF or view your outstanding bills
 If you have any questions, please let us know.
 
 Thanks,
-Bigcapital`,
+Selbourne Financial`,
   dueDate: ' 10 Oct 2024',
   total: '$1,000.00',
   subtotal: '$1,000.00',

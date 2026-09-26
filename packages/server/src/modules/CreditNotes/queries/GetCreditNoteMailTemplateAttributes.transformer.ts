@@ -1,4 +1,5 @@
 import { Transformer } from '@/modules/Transformer/Transformer';
+import { withDefaultCompanyLogo } from '@/modules/PdfTemplate/defaultCompanyLogo';
 
 export class GetCreditNoteMailTemplateAttributesTransformer extends Transformer {
   public includeAttributes = (): string[] => {
@@ -45,10 +46,9 @@ export class GetCreditNoteMailTemplateAttributesTransformer extends Transformer 
    * @returns {string}
    */
   public companyLogoUri(): string {
-    return (
+    return withDefaultCompanyLogo(
       this.options.brandingTemplate?.companyLogoUri ||
-      this.options.brandingTemplate?.attributes?.companyLogoUri ||
-      null
+        this.options.brandingTemplate?.attributes?.companyLogoUri,
     );
   }
 

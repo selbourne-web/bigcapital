@@ -11,6 +11,8 @@ import {
 import isEmpty from 'lodash.isempty';
 import { EmailTemplateLayout } from './EmailTemplateLayout';
 import { EmailTemplate } from './EmailTemplate';
+import { BRAND } from './brand';
+import { multiline } from './multiline';
 
 export interface InvoicePaymentEmailProps {
   preview: string;
@@ -74,7 +76,7 @@ export const InvoicePaymentEmail: React.FC<
   companyLogoUri,
 
   // # Colors
-  primaryColor = 'rgb(0, 82, 204)',
+  primaryColor = BRAND.primary,
 
   // # Invoice amount
   invoiceAmount,
@@ -141,12 +143,12 @@ export const InvoicePaymentEmail: React.FC<
             </Row>
           </Section>
 
-          <Text style={invoiceMessageStyle}>{invoiceMessage}</Text>
+          <Text style={invoiceMessageStyle}>{multiline(invoiceMessage)}</Text>
           <Button
             href={viewInvoiceButtonUrl}
             style={{
               ...viewInvoiceButtonStyle,
-              backgroundColor: primaryColor,
+              backgroundColor: primaryColor || BRAND.primary,
             }}
           >
             {viewInvoiceButtonLabel}
@@ -259,8 +261,8 @@ const invoiceDateStyle: CSSProperties = {
 const invoiceCompanyNameStyle: CSSProperties = {
   margin: 0,
   fontSize: '18px',
-  fontWeight: 500,
   color: '#404854',
+  fontWeight: 500,
 };
 
 const viewInvoiceButtonStyle: CSSProperties = {
@@ -270,7 +272,7 @@ const viewInvoiceButtonStyle: CSSProperties = {
   fontSize: 16,
   padding: '10px 15px',
   lineHeight: '1',
-  backgroundColor: 'rgb(0, 82, 204)',
+  backgroundColor: BRAND.primary,
   color: '#fff',
   borderRadius: '5px',
 };
