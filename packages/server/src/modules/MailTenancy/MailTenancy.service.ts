@@ -14,11 +14,12 @@ export class MailTenancy {
    */
   public async senders() {
     const tenantMetadata = await this.tenancyContext.getTenantMetadata();
+    // `mail.from` is a `{ name, address }` pair; only the address is the sender mail.
     const from = this.config.get('mail.from');
 
     return [
       {
-        mail: from,
+        mail: from?.address,
         label: tenantMetadata.name,
         primary: true,
       },
