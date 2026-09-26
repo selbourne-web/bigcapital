@@ -83,7 +83,7 @@ export function EstimateSendMailReceipt({
   totalLabel = 'Total',
 
   // # View estimate button
-  showViewEstimateButton = false,
+  showViewEstimateButton = true,
   viewEstimateButtonLabel = 'View Estimate',
   viewEstimateButtonOnClick,
 

@@ -12,6 +12,7 @@ import {
 import {
   PaperTemplate,
   PaperTemplateProps,
+  isZeroAmount,
 } from './PaperTemplate';
 
 export interface EstimatePaperTemplateProps extends PaperTemplateProps {
@@ -264,13 +265,13 @@ export function EstimatePaperTemplate({
                   amount={subtotal}
                 />
               )}
-              {showDiscount && !isEmpty(discount) && (
+              {showDiscount && !isZeroAmount(discount) && (
                 <PaperTemplate.TotalLine
                   label={discountLabel}
                   amount={discount}
                 />
               )}
-              {showAdjustment && !isEmpty(adjustment) && (
+              {showAdjustment && !isZeroAmount(adjustment) && (
                 <PaperTemplate.TotalLine
                   label={adjustmentLabel}
                   amount={adjustment}

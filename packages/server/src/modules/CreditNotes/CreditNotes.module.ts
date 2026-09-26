@@ -47,6 +47,7 @@ import { MailNotificationModule } from '../MailNotification/MailNotification.mod
 import { MailModule } from '../Mail/Mail.module';
 import { TenancyModule } from '../Tenancy/Tenancy.module';
 import { SendCreditNoteMailQueue } from './types/CreditNotes.types';
+import { DocumentLinksModule } from '../DocumentLinks/DocumentLinks.module';
 
 @Module({
   imports: [
@@ -55,6 +56,7 @@ import { SendCreditNoteMailQueue } from './types/CreditNotes.types';
     BranchesModule,
     WarehousesModule,
     PdfTemplatesModule,
+    DocumentLinksModule,
     ChromiumlyTenancyModule,
     TemplateInjectableModule,
     AutoIncrementOrdersModule,

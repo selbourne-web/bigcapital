@@ -5,8 +5,15 @@ import { ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { ApiCommonHeaders } from '@/common/decorators/ApiCommonHeaders';
 import { GetInvoicePaymentLinkResponseWrapperDto } from './dtos/GetInvoicePaymentLinkResponse.dto';
 import { CreateStripeCheckoutSessionResponseDto } from './dtos/CreateStripeCheckoutSessionResponse.dto';
+import { PublicRoute } from '../Auth/guards/jwt.guard';
 
+/**
+ * The pages customers open from an invoice email. Reachable without a login: a
+ * link that was shared opens for anyone who has it, any other link only for the
+ * organization it belongs to (see assertPaymentLinkAccessible).
+ */
 @Controller('payment-links')
+@PublicRoute()
 @ApiTags('Payment Links')
 @ApiCommonHeaders()
 export class PaymentLinksController {

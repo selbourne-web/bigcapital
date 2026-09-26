@@ -49,6 +49,7 @@ import { SaleEstimateSmsNotificationSubscriber } from './subscribers/SaleEstimat
 import { BulkDeleteSaleEstimatesService } from './BulkDeleteSaleEstimates.service';
 import { ValidateBulkDeleteSaleEstimatesService } from './ValidateBulkDeleteSaleEstimates.service';
 import { SendSaleEstimateMailProcess } from './processes/SendSaleEstimateMail.process';
+import { DocumentLinksModule } from '../DocumentLinks/DocumentLinks.module';
 
 @Module({
   imports: [
@@ -62,6 +63,7 @@ import { SendSaleEstimateMailProcess } from './processes/SendSaleEstimateMail.pr
     ChromiumlyTenancyModule,
     TemplateInjectableModule,
     PdfTemplatesModule,
+    DocumentLinksModule,
     BullModule.registerQueue({ name: SMS_QUEUE }),
     BullModule.registerQueue({ name: SendSaleEstimateMailQueue }),
     BullBoardModule.forFeature({
@@ -111,6 +113,7 @@ import { SendSaleEstimateMailProcess } from './processes/SendSaleEstimateMail.pr
     SaleEstimatesImportable,
     GetSaleEstimateMailStateService,
     GetSaleEstimateMailTemplateService,
+    GetSaleEstimatePdf,
   ],
 })
 export class SaleEstimatesModule {}

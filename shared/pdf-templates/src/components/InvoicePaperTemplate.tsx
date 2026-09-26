@@ -2,6 +2,7 @@ import { isEmpty } from 'lodash';
 import {
   PaperTemplate,
   PaperTemplateProps,
+  isZeroAmount,
   PaperTemplateTotalBorder,
 } from './PaperTemplate';
 import { Text } from '../lib/text/Text';
@@ -335,13 +336,13 @@ export function InvoicePaperTemplate({
                   amount={subtotal}
                 />
               )}
-              {showDiscount && !isEmpty(discount) && (
+              {showDiscount && !isZeroAmount(discount) && (
                 <PaperTemplate.TotalLine
                   label={discountLabel}
                   amount={discount}
                 />
               )}
-              {showAdjustment && !isEmpty(adjustment) && (
+              {showAdjustment && !isZeroAmount(adjustment) && (
                 <PaperTemplate.TotalLine
                   label={adjustmentLabel}
                   amount={adjustment}

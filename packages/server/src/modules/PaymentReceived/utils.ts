@@ -7,8 +7,8 @@ export const transformPaymentReceivedToPdfTemplate = (
   payment: IPaymentReceivedTransformed,
 ): Partial<PaymentReceivedPdfTemplateAttributes> => {
   return {
-    total: payment.formattedAmount,
-    subtotal: payment.subtotalFormatted,
+    total: formatMailAmount(payment),
+    subtotal: formatMailAmount(payment),
     paymentReceivedNumebr: payment.paymentReceiveNo,
     paymentReceivedDate: payment.formattedPaymentDate,
     customerName: payment.customer.displayName,

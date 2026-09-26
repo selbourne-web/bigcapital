@@ -34,6 +34,11 @@ const PaymentPortalPage = lazy(() =>
     default: m.PaymentPortalPage,
   })),
 );
+const DocumentViewPage = lazy(() =>
+  import('@/containers/DocumentView/DocumentViewPage').then((m) => ({
+    default: m.DocumentViewPage,
+  })),
+);
 // Development-only design preview (sample data, no sign-in). Not in production builds.
 const DashboardPreview = import.meta.env.DEV
   ? lazy(() => import('@/containers/Homepage/dashboard/DashboardPreview'))
@@ -71,6 +76,10 @@ function AppInsider({ history }: { history: History }) {
               <Route
                 path={'/payment/:linkId'}
                 children={<PaymentPortalPage />}
+              />
+              <Route
+                path={'/view/:documentType/:linkId'}
+                children={<DocumentViewPage />}
               />
               <Route path={'/'} children={<DashboardPrivatePages />} />
             </Switch>

@@ -4,6 +4,7 @@ import { Stack } from '../lib/layout/Stack';
 import {
   PaperTemplate,
   PaperTemplateProps,
+  isZeroAmount,
 } from './PaperTemplate';
 import {
   DefaultPdfTemplateTerms,
@@ -251,13 +252,13 @@ export function ReceiptPaperTemplate({
                   amount={subtotal}
                 />
               )}
-              {showDiscount && discount && (
+              {showDiscount && !isZeroAmount(discount) && (
                 <PaperTemplate.TotalLine
                   label={discountLabel}
                   amount={discount}
                 />
               )}
-              {showAdjustment && adjustment && (
+              {showAdjustment && !isZeroAmount(adjustment) && (
                 <PaperTemplate.TotalLine
                   label={adjustmentLabel}
                   amount={adjustment}

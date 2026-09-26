@@ -10,7 +10,7 @@ export const transformCreditNoteToPdfTemplate = (
     creditNoteDate: creditNote.formattedCreditNoteDate,
     creditNoteNumebr: creditNote.creditNoteNumber,
 
-    total: creditNote.formattedAmount,
+    total: creditNote.totalFormatted ?? creditNote.formattedAmount,
     subtotal: creditNote.formattedSubtotal,
 
     lines: creditNote.entries?.map((entry) => ({

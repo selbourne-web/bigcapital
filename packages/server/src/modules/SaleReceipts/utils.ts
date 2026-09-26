@@ -7,7 +7,11 @@ export const transformReceiptToBrandingTemplateAttributes = (
   saleReceipt: SaleReceiptResponseDto,
 ): Partial<ISaleReceiptBrandingTemplateAttributes> => {
   return {
-    total: saleReceipt.totalFormatted,
+    total: formatMailAmount({
+      amount: saleReceipt.total,
+      currencyCode: saleReceipt.currencyCode,
+      formattedAmount: saleReceipt.totalFormatted,
+    }),
     subtotal: saleReceipt.subtotalFormatted,
     lines: saleReceipt.entries?.map((entry) => ({
       item: entry.item.name,

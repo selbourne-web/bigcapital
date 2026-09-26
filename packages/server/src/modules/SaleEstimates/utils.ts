@@ -16,7 +16,7 @@ export const transformEstimateToPdfTemplate = (
       quantity: entry.quantityFormatted,
       total: entry.totalFormatted,
     })),
-    total: estimate.formattedSubtotal,
+    total: estimate.totalFormatted ?? estimate.formattedSubtotal,
     subtotal: estimate.formattedSubtotal,
     customerNote: estimate.note,
     termsConditions: estimate.termsConditions,

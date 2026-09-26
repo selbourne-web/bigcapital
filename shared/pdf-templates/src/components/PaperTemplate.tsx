@@ -7,7 +7,28 @@ import { Box, BoxProps } from '../lib/layout/Box';
 import { Group, GroupProps } from '../lib/layout/Group';
 import { Stack } from '../lib/layout/Stack';
 
+/** True for an empty or zero amount such as "0.00" or "Bds$0.00". */
+export const isZeroAmount = (value?: string | null): boolean => {
+  if (!value) return true;
+  const amount = Number(String(value).replace(/[^0-9.-]/g, ''));
+  return Number.isFinite(amount) && amount === 0;
+};
+
+/**
+ * The company address usually starts with the company name; drop that line so
+ * the name is not printed twice under the bold heading.
+ */
+const withoutLeadingName = (html: string, name?: string): string => {
+  if (!name) return html;
+  const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return html.replace(
+    new RegExp(`^\\s*(<(strong|b)>)?\\s*${escaped}\\s*(</(strong|b)>)?\\s*(<br\\s*/?>)?`, 'i'),
+    '',
+  );
+};
+
 // Palette of the document layout (modelled on the reference QuickBooks PDFs).
+
 const MUTED = '#6b7378';
 const TITLE = '#55606a';
 const BAND = '#e6e9eb';
@@ -43,7 +64,9 @@ export function PaperTemplate({
         restProps?.className,
         css`
           @media print {
+            /* Fill whatever paper the PDF is printed on (Letter or A4). */
             width: auto !important;
+            min-height: calc(100vh - 1px) !important;
           }
         `
       )}
@@ -344,7 +367,9 @@ PaperTemplate.DocumentHead = ({
           {showCompanyAddress && companyAddress && (
             <Box
               lineHeight={1.55}
-              dangerouslySetInnerHTML={{ __html: companyAddress }}
+              dangerouslySetInnerHTML={{
+                __html: withoutLeadingName(companyAddress, companyName),
+              }}
             />
           )}
         </Stack>

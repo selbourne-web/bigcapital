@@ -1,0 +1,128 @@
+// The public page for a shared estimate or credit note. Light, like the app, on
+// the brand page grey; the document itself is the white sheet.
+
+// The dashboard shell is desktop-only (fixed 1100px minimum width, a body that
+// never scrolls); a customer opens this page on any device.
+.pageBody {
+  overflow: auto !important;
+  background: #ececec;
+
+  :global(.App) {
+    min-width: 0;
+  }
+}
+
+.page {
+  min-height: 100vh;
+  background: #ececec;
+  color: #000;
+  font-family: Tahoma, Verdana, 'Segoe UI', system-ui, sans-serif;
+}
+
+.bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px 24px;
+  max-width: 826px; // the 794px page plus its 16px side padding
+  margin: 0 auto;
+  padding: 24px 16px 8px;
+}
+
+.summary {
+  min-width: 0;
+}
+
+.title {
+  margin: 0;
+  font-family: Impact, Haettenschweiler, 'Arial Narrow Bold', 'Arial Narrow',
+    sans-serif;
+  font-weight: 400;
+  font-size: 30px;
+  line-height: 1.15;
+  letter-spacing: 0.01em;
+}
+
+.meta {
+  margin: 4px 0 0;
+  color: #4c4c4c;
+  font-size: 13px;
+}
+
+.total {
+  margin: 6px 0 0;
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.primary,
+.secondary {
+  display: inline-block;
+  padding: 9px 20px;
+  border-radius: 999px;
+  border: 1px solid #800000;
+  font-size: 14px;
+  font-weight: 700;
+  text-decoration: none;
+
+  &:focus-visible {
+    outline: 2px solid #800000;
+    outline-offset: 2px;
+  }
+}
+
+.primary {
+  background: #800000;
+  color: #fff;
+
+  &:hover {
+    background: #950000;
+    color: #fff;
+  }
+}
+
+.secondary {
+  background: #fff;
+  color: #800000;
+
+  &:hover {
+    background: #f7eeee;
+    color: #800000;
+  }
+}
+
+.sheetHolder {
+  max-width: 826px; // the 794px page plus its 16px side padding
+  margin: 0 auto;
+  padding: 8px 16px 40px;
+}
+
+.sheet {
+  background: #fff;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.12);
+}
+
+.frame {
+  display: block;
+  border: 0;
+  transform-origin: top left;
+}
+
+.message {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+  max-width: 520px;
+  margin: 0 auto;
+  padding: 64px 16px;
+}

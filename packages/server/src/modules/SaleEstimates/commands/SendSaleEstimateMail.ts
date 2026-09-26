@@ -25,6 +25,7 @@ import { MailTransporter } from '@/modules/Mail/MailTransporter.service';
 import { TenantModelProxy } from '@/modules/System/models/TenantBaseModel';
 import { GetSaleEstimateMailTemplateService } from '../queries/GetSaleEstimateMailTemplate.service';
 import { TenancyContext } from '@/modules/Tenancy/TenancyContext.service';
+import { DocumentViewLinks } from '@/modules/DocumentLinks/DocumentViewLinks.service';
 
 @Injectable()
 export class SendSaleEstimateMail {
@@ -44,6 +45,7 @@ export class SendSaleEstimateMail {
     private readonly eventPublisher: EventEmitter2,
     private readonly mailTransporter: MailTransporter,
     private readonly tenancyContext: TenancyContext,
+    private readonly documentLinks: DocumentViewLinks,
 
     @Inject(SaleEstimate.name)
     private readonly saleEstimateModel: TenantModelProxy<typeof SaleEstimate>,
@@ -147,12 +149,18 @@ export class SendSaleEstimateMail {
         mailOptions,
         formatterArgs,
       );
+    // The public page where the customer can view and download the estimate.
+    const viewUrl = await this.documentLinks.getOrCreateLink(
+      'SaleEstimate',
+      saleEstimateId,
+    );
     // Retrieves the estimate mail template.
     const message = await this.getEstimateMailTemplate.getMailTemplate(
       saleEstimateId,
       {
         message: formattedOptions.message,
         preview: formattedOptions.message,
+        viewEstimateButtonUrl: viewUrl,
       },
     );
     return { ...formattedOptions, message };

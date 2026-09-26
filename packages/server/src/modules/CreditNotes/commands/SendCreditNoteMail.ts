@@ -25,6 +25,7 @@ import { MailTransporter } from '@/modules/Mail/MailTransporter.service';
 import { TenantModelProxy } from '@/modules/System/models/TenantBaseModel';
 import { GetCreditNoteMailTemplateService } from '../queries/GetCreditNoteMailTemplate.service';
 import { TenancyContext } from '@/modules/Tenancy/TenancyContext.service';
+import { DocumentViewLinks } from '@/modules/DocumentLinks/DocumentViewLinks.service';
 
 @Injectable()
 export class SendCreditNoteMail {
@@ -46,6 +47,7 @@ export class SendCreditNoteMail {
     private readonly eventPublisher: EventEmitter2,
     private readonly mailTransporter: MailTransporter,
     private readonly tenancyContext: TenancyContext,
+    private readonly documentLinks: DocumentViewLinks,
 
     @Inject(CreditNote.name)
     private readonly creditNoteModel: TenantModelProxy<typeof CreditNote>,
@@ -150,12 +152,18 @@ export class SendCreditNoteMail {
         mailOptions,
         formatterArgs,
       );
+    // The public page where the customer can view and download the credit note.
+    const viewUrl = await this.documentLinks.getOrCreateLink(
+      'CreditNote',
+      creditNoteId,
+    );
     // Retrieves the credit note mail template.
     const message = await this.getCreditNoteMailTemplate.getMailTemplate(
       creditNoteId,
       {
         message: formattedOptions.message,
         preview: formattedOptions.message,
+        viewButtonUrl: viewUrl,
       },
     );
     return { ...formattedOptions, message };
