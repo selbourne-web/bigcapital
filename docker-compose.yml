@@ -41,6 +41,10 @@ services:
 
   gotenberg:
     image: gotenberg/gotenberg:7
+    # Gotenberg fetches documents from the API by GOTENBERG_DOCS_URL, which
+    # defaults to host.docker.internal; Linux Docker only defines that name when asked.
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
     ports:
       - '127.0.0.1:9000:3000'
       - '[::1]:9000:3000'

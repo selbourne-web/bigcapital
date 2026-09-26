@@ -1,14 +1,20 @@
 import { ChromiumRoute, LibreOfficeRoute, PdfEngineRoute } from './_types';
 
 export class Chromiumly {
-  public static readonly GOTENBERG_ENDPOINT = process.env.GOTENBERG_URL || '';
+  // Read on use, not at import: these classes load before Nest's ConfigModule
+  // has read the .env file, so a static initializer would capture an empty value
+  // outside of Docker (where the variables come from the container environment).
+  public static get GOTENBERG_ENDPOINT(): string {
+    return process.env.GOTENBERG_URL || '';
+  }
 
   public static readonly CHROMIUM_PATH = 'forms/chromium/convert';
   public static readonly PDF_ENGINES_PATH = 'forms/pdfengines';
   public static readonly LIBRE_OFFICE_PATH = 'forms/libreoffice';
 
-  public static readonly GOTENBERG_DOCS_ENDPOINT =
-    process.env.GOTENBERG_DOCS_URL || '';
+  public static get GOTENBERG_DOCS_ENDPOINT(): string {
+    return process.env.GOTENBERG_DOCS_URL || '';
+  }
 
   public static readonly CHROMIUM_ROUTES = {
     url: ChromiumRoute.URL,
