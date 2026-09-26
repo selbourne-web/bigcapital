@@ -16,15 +16,13 @@
   background-color: #fff;
 }
 
+// Sized for a wide wordmark; `contain` keeps a square logo uncropped too.
 .companyLogoWrap {
-  height: 50px;
-  width :50px;
-  border-radius: 50px;
-  background-color: #dfdfdf;
-  background-position: center center;
-  background-size: cover;
+  height: 44px;
+  width: 170px;
+  background-position: left center;
+  background-size: contain;
   background-repeat: no-repeat;
-  border: 1px solid #e8e8e8;
 }
 
 .bigTitle{

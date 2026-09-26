@@ -1,35 +1,6 @@
-import { Icon, For, FormattedMessage as T } from '@/components';
-import { getFooterLinks } from '@/constants/footerLinks';
+import { FormattedMessage as T } from '@/components';
+import { SelbourneLogo } from '@/components/Branding/SelbourneLogo';
 import { useAuthActions } from '@/hooks/state';
-
-/**
- * Footer item link.
- */
-function FooterLinkItem({ title, link }: { title: string; link: string }) {
-  return (
-    <div className="content__links-item">
-      <a href={link} target="_blank" rel="noreferrer">
-        {title}
-      </a>
-    </div>
-  );
-}
-
-/**
- * Setup left section footer.
- */
-function SetupLeftSectionFooter() {
-  // Retrieve the footer links.
-  const footerLinks = getFooterLinks();
-
-  return (
-    <div className={'content__footer'}>
-      <div className={'content__links'}>
-        <For render={FooterLinkItem} of={footerLinks} />
-      </div>
-    </div>
-  );
-}
 
 /**
  * Setup left section header.
@@ -71,15 +42,9 @@ export function SetupLeftSection() {
     <section className={'setup-page__left-section'}>
       <div className={'content'}>
         <div className={'content__logo'}>
-          <Icon
-            icon="bigcapital"
-            className={'bigcapital--alt'}
-            height={37}
-            width={190}
-          />
+          <SelbourneLogo width={190} onDark />
         </div>
         <SetupLeftSectionHeader />
-        <SetupLeftSectionFooter />
       </div>
     </section>
   );

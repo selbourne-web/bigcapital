@@ -86,7 +86,7 @@ function GlobalErrorsInner({
   }
   if (globalErrors.subscriptionInactive) {
     AppToaster.show({
-      message: `You can't add new data to Bigcapital because your subscription is inactive. Make sure your billing information is up-to-date from Preferences > Billing page.`,
+      message: `You can't add new data to Selbourne Financial because your subscription is inactive. Make sure your billing information is up-to-date from Preferences > Billing page.`,
       intent: Intent.DANGER,
       onDismiss: () => {
         globalErrorsSet({ subscriptionInactive: undefined });

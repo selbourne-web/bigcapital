@@ -1,6 +1,6 @@
 import classNames from 'classnames';
 import React from 'react';
-import { Icon } from '@/components';
+import { SelbourneLogo } from '@/components/Branding/SelbourneLogo';
 import { useIsDarkMode } from '@/hooks/useDarkMode';
 
 import '@/style/components/BigcapitalLoading.scss';
@@ -10,7 +10,8 @@ interface BigcapitalLoadingProps {
 }
 
 /**
- * Bigcapital logo loading.
+ * Full-screen logo loading. (File name kept from upstream; it shows the
+ * Selbourne logo.)
  */
 export default function BigcapitalLoading({
   className,
@@ -20,17 +21,7 @@ export default function BigcapitalLoading({
   return (
     <div className={classNames('bigcapital-loading', className)}>
       <div className="center">
-        {isDarkmode ? (
-          <Icon
-            icon="bigcapital-alt"
-            height={37}
-            width={228}
-            color="#fff"
-            className="bigcapital-logo"
-          />
-        ) : (
-          <Icon icon="bigcapital" height={37} width={228} />
-        )}
+        <SelbourneLogo width={228} onDark={isDarkmode} />
       </div>
     </div>
   );

@@ -115,8 +115,8 @@ export function InvoiceMailReceipt({
       <Stack spacing={16} textAlign={'center'}>
         {companyLogoUri && (
           <x.div
-            h="90px"
-            w="90px"
+            h="64px"
+            w="200px"
             mx="auto"
             borderRadius="3px"
             backgroundRepeat="no-repeat"

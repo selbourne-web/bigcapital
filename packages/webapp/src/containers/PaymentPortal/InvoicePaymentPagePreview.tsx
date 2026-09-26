@@ -14,7 +14,7 @@ export function InvoicePaymentPagePreview(
       subtotal={'$1,000.00'}
       dueAmount={'$1,000.00'}
       customerName={'Ahmed Bouhuolia'}
-      organizationName={'Bigcapital Technology, Inc.'}
+      organizationName={'Selbourne Financial'}
       invoiceNumber={'INV-000001'}
       companyLogoUri={' '}
       organizationAddress={' '}

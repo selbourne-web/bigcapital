@@ -36,7 +36,7 @@ export function StripePreSetupDialogContent() {
               <LayoutAutoIcon size={16} />
             </PaymentFeatureIcon>{' '}
             If you're already using Stripe, you can connect your Stripe account
-            to Bigcapital.
+            to Selbourne Financial.
           </PaymentFeatureItem>
 
           <PaymentFeatureItem>

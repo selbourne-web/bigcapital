@@ -9,7 +9,7 @@ export const DefaultPdfTemplateItemName = 'Web development';
 export const DefaultPdfTemplateItemDescription =
   'Website development with content and SEO optimization';
 
-export const DefaultPdfTemplateAddressBilledTo = `Bigcapital Technology, Inc.<br />
+export const DefaultPdfTemplateAddressBilledTo = `Selbourne Financial<br />
 131 Continental Dr, <br />
 Suite 305, <br />
 Newark, Delaware 19713, <br />
@@ -21,5 +21,5 @@ export const DefaultPdfTemplateAddressBilledFrom = `131 Continental Dr Suite 305
 Delaware 19713,<br />
 United States, <br />
 +1 762-339-5634, <br />
-ahmed@bigcapital.app
+accounts@example.com
 `;

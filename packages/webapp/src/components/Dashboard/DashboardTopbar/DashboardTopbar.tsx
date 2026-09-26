@@ -8,7 +8,6 @@ import {
   Position,
   MenuItem,
   Menu,
-  MenuDivider,
 } from '@blueprintjs/core';
 import { Popover2 } from '@blueprintjs/popover2';
 import * as FF from 'fp-ts/function';
@@ -22,10 +21,6 @@ import DashboardBackLink from '@/components/Dashboard/DashboardBackLink';
 import DashboardBreadcrumbs from '@/components/Dashboard/DashboardBreadcrumbs';
 import DashboardTopbarUser from '@/components/Dashboard/TopbarUser';
 import { DialogsName } from '@/constants/dialogs';
-import {
-  COMMUNITY_BIGCAPITAL_LINK,
-  DOCS_BIGCAPITAL_LINK,
-} from '@/constants/routes';
 import { withDashboard } from '@/containers/Dashboard/withDashboard';
 import { withDialogActions } from '@/containers/Dialog/withDialogActions';
 import { QuickNewDropdown } from '@/containers/QuickNewDropdown/QuickNewDropdown';
@@ -105,21 +100,9 @@ function DashboardTopbar({
               content={
                 <Menu>
                   <MenuItem
-                    text={'Documents'}
-                    onClick={() => window.open(DOCS_BIGCAPITAL_LINK)}
-                    labelElement={<Icon icon={'share'} iconSize={16} />}
-                  />
-                  <MenuItem
-                    text={'Community support'}
-                    onClick={() => window.open(COMMUNITY_BIGCAPITAL_LINK)}
-                    labelElement={<Icon icon={'share'} iconSize={16} />}
-                  />
-                  <MenuItem
                     text={'Keyboard shortcuts'}
                     onClick={() => openDialog(DialogsName.KeyboardShortcutForm)}
                   />
-                  <MenuDivider />
-                  <MenuItem text={'Share feedback'} />
                 </Menu>
               }
             >

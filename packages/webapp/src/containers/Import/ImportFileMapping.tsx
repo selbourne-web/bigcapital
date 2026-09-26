@@ -22,7 +22,7 @@ export function ImportFileMapping() {
         <ImportFileContainer>
           <p>
             Review and map the column headers in your csv/xlsx file with the
-            Bigcapital fields.
+            Selbourne Financial fields.
           </p>
 
           {entityColumns.map((entityColumn) => (
@@ -58,7 +58,7 @@ function ImportFileMappingGroup({
       <table className={clsx('bp4-html-table', styles.table)}>
         <thead>
           <tr>
-            <th className={styles.label}>Bigcapital Fields</th>
+            <th className={styles.label}>Selbourne Financial Fields</th>
             <th className={styles.field}>Sheet Column Headers</th>
           </tr>
         </thead>

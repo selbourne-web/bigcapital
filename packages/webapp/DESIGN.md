@@ -199,6 +199,16 @@ Rounded is the house form. Pills (`rounded.pill`, 999px) for buttons, chips, sel
 ### Empty and error states
 - A plain sentence and, when there is an obvious next step, one pill action (for example "Create an invoice"). Errors offer "Try again"; missing permission says so.
 
+### Email
+
+Outbound mail follows the same brand on white paper, with everything as literal values (mail clients ignore CSS variables and web fonts).
+
+- Sources: the three account emails (reset password, verify email, team invite) are static HTML in `packages/server/static/mail/` filled by Mustache; the customer emails (invoice, estimate, receipt, credit note, payment received) are React components in `shared/email-components/`, with tokens in `src/lib/brand.ts`. Keep the two in step by hand.
+- Card: white on the `page` grey, 28px radius, Selbourne logo at the top of account emails (attached inline as `cid:selbourne_logo`).
+- Headings and headline figures in the display stack (Impact with fallbacks); body in Tahoma; the primary button is a maroon pill.
+- The customer emails use the organization's branding-template `primaryColor` for the button when one is set, and fall back to maroon when it is empty.
+- Always include the pasted-link fallback under a button, and a plain sentence for what to do if the message was unexpected.
+
 ## Do's and Don'ts
 
 ### Do:
@@ -209,6 +219,7 @@ Rounded is the house form. Pills (`rounded.pill`, 999px) for buttons, chips, sel
 - **Do** compile all SCSS after changing colours to CSS variables: Sass colour functions (`lighten`, `rgba(...)` on a value, colour maps) need literal colours, and email or portal defaults cannot use CSS variables.
 
 ### Don't:
+- **Don't** show the upstream Bigcapital logo or name in the UI. Use `SelbourneLogo` (`src/components/Branding/`; plain on light surfaces, `onDark` puts it on a white plate because the wordmark is black) and "Selbourne Financial" in copy. Still upstream by choice: external Docs/Community/Support links, storage keys (`bigcapital:*`), CSS class names.
 - **Don't** use blue for links, focus or selection; the upstream Blueprint blues have been replaced with the brand reds.
 - **Don't** put an eyebrow label above a heading, or number sections.
 - **Don't** use hard offset shadows or coloured glows.

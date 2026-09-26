@@ -1,5 +1,6 @@
 import React from 'react';
-import { FormattedMessage as T, Icon } from '@/components';
+import { FormattedMessage as T } from '@/components';
+import { SelbourneLogo } from '@/components/Branding/SelbourneLogo';
 
 export default function DashboardErrorBoundary() {
   return (
@@ -10,7 +11,7 @@ export default function DashboardErrorBoundary() {
       <p>
         <T id={'if_the_problem_stuck_please_contact_us_as_soon_as_possible'} />
       </p>
-      <Icon icon="bigcapital" height={30} width={160} />
+      <SelbourneLogo width={160} />
     </div>
   );
 }

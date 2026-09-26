@@ -83,7 +83,7 @@ export function CreditNoteSendMailReceipt({
   totalLabel = 'Total',
 
   // # View credit note button
-  showViewCreditNoteButton = true,
+  showViewCreditNoteButton = false,
   viewCreditNoteButtonLabel = 'View Credit Note',
   viewCreditNoteButtonOnClick,
 
