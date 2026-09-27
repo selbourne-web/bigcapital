@@ -4,6 +4,7 @@ import systemDatabase from './system-database';
 import tenantDatabase from './tenant-database';
 import signup from './signup';
 import gotenberg from './gotenberg';
+import anthropic from './anthropic';
 import plaid from './plaid';
 import lemonsqueezy from './lemonsqueezy';
 import s3 from './s3';
@@ -32,6 +33,7 @@ export const config = [
   tenantDatabase,
   signup,
   gotenberg,
+  anthropic,
   plaid,
   lemonsqueezy,
   s3,

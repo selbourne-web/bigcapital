@@ -34,6 +34,7 @@ import { UserIpInterceptor } from '@/interceptors/user-ip.interceptor';
 import { TransformerModule } from '../Transformer/Transformer.module';
 import { AccountsModule } from '../Accounts/Accounts.module';
 import { ExpensesModule } from '../Expenses/Expenses.module';
+import { ExpenseAutofillModule } from '../ExpenseAutofill/ExpenseAutofill.module';
 import { ItemCategoryModule } from '../ItemCategories/ItemCategory.module';
 import { TaxRatesModule } from '../TaxRates/TaxRate.module';
 import { PdfTemplatesModule } from '../PdfTemplate/PdfTemplates.module';
@@ -203,6 +204,7 @@ import { AppThrottleModule } from './AppThrottle.module';
     ItemCategoryModule,
     AccountsModule,
     ExpensesModule,
+    ExpenseAutofillModule,
     TaxRatesModule,
     PdfTemplatesModule,
     BranchesModule,

@@ -16,6 +16,7 @@ import { ExpenseFormFooter } from './ExpenseFormFooter';
 import { ExpenseFormHeader } from './ExpenseFormHeader';
 import { useExpenseFormContext } from './ExpenseFormPageProvider';
 import { ExpenseFormTopBar } from './ExpenseFormTopBar';
+import { ExpenseReceiptAutofill } from './ExpenseReceiptAutofill';
 import {
   transformErrors,
   defaultExpense,
@@ -42,6 +43,8 @@ function ExpenseFormInner() {
     expenseId,
     submitPayloadRef,
     expenseSettings,
+    accounts,
+    currencies,
   } = useExpenseFormContext();
 
   const preferredPaymentAccount = parseInt(
@@ -148,12 +151,23 @@ function ExpenseFormInner() {
         <PageForm flex={1}>
           <PageForm.Body>
             <ExpenseFormTopBar />
-            <ExpenseFormHeader />
 
-            <Box p="18px 32px 0">
-              <ExpenseFormBody />
-            </Box>
-            <ExpenseFormFooter />
+            <div className={css({ display: 'flex', alignItems: 'stretch' })}>
+              {isNewMode && (
+                <ExpenseReceiptAutofill
+                  accounts={accounts}
+                  currencies={currencies}
+                />
+              )}
+              <div className={css({ flex: 1, minWidth: 0 })}>
+                <ExpenseFormHeader />
+
+                <Box p="18px 32px 0">
+                  <ExpenseFormBody />
+                </Box>
+                <ExpenseFormFooter />
+              </div>
+            </div>
           </PageForm.Body>
 
           <PageForm.Footer>
