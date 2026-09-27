@@ -63,6 +63,15 @@ export class ExpenseCategoryDto {
   })
   landedCost?: boolean;
 
+  @IsBoolean()
+  @Transform(({ value }) => parseBoolean(value, false))
+  @IsOptional()
+  @ApiProperty({
+    example: false,
+    description: 'Whether the line is the sales tax charged on the other lines',
+  })
+  isTax?: boolean;
+
   @ToNumber()
   @IsInt()
   @IsOptional()

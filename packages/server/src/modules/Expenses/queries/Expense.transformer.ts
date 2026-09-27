@@ -14,6 +14,10 @@ export class ExpenseTransfromer extends Transformer {
       'formattedAmount',
       'formattedLandedCostAmount',
       'formattedAllocatedCostAmount',
+      'payeeName',
+      'salesTaxAmount',
+      'formattedSalesTaxAmount',
+      'formattedAmountBeforeSalesTax',
       'formattedDate',
       'formattedCreatedAt',
       'formattedPublishedAt',
@@ -32,6 +36,49 @@ export class ExpenseTransfromer extends Transformer {
     return this.formatNumber(expense.totalAmount, {
       currencyCode: expense.currencyCode,
     });
+  };
+
+  /**
+   * The name of the vendor the expense was paid to.
+   * @param {Expense} expense - Expense.
+   * @returns {string | null}
+   */
+  protected payeeName = (expense: Expense): string | null => {
+    return expense.payee?.displayName ?? null;
+  };
+
+  /**
+   * The sales tax of the expense: the sum of the lines marked as tax.
+   * @param {Expense} expense - Expense.
+   * @returns {number}
+   */
+  protected salesTaxAmount = (expense: Expense): number => {
+    return (expense.categories ?? [])
+      .filter((category) => category.isTax)
+      .reduce((sum, category) => sum + Number(category.amount || 0), 0);
+  };
+
+  /**
+   * Formatted sales tax of the expense.
+   * @param {Expense} expense - Expense.
+   * @returns {string}
+   */
+  protected formattedSalesTaxAmount = (expense: Expense): string => {
+    return this.formatNumber(this.salesTaxAmount(expense), {
+      currencyCode: expense.currencyCode,
+    });
+  };
+
+  /**
+   * Formatted total before the sales tax.
+   * @param {Expense} expense - Expense.
+   * @returns {string}
+   */
+  protected formattedAmountBeforeSalesTax = (expense: Expense): string => {
+    return this.formatNumber(
+      Number(expense.totalAmount || 0) - this.salesTaxAmount(expense),
+      { currencyCode: expense.currencyCode },
+    );
   };
 
   /**

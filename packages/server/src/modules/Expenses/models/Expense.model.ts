@@ -2,6 +2,7 @@ import { Model, raw } from 'objection';
 import * as moment from 'moment';
 import { ExpenseCategory } from './ExpenseCategory.model';
 import { Account } from '@/modules/Accounts/models/Account.model';
+import { Vendor } from '@/modules/Vendors/models/Vendor';
 import { TenantBaseModel } from '@/modules/System/models/TenantBaseModel';
 import { ExportableModel } from '@/modules/Export/decorators/ExportableModel.decorator';
 import { ImportableModel } from '@/modules/Import/decorators/Import.decorator';
@@ -36,6 +37,7 @@ export class Expense extends TenantBaseModel {
 
   categories!: ExpenseCategory[];
   paymentAccount!: Account;
+  payee?: Vendor;
   attachments!: Document[];
 
   /**
@@ -204,6 +206,7 @@ export class Expense extends TenantBaseModel {
    */
   static get relationMappings() {
     const { Account } = require('../../Accounts/models/Account.model');
+    const { Vendor } = require('../../Vendors/models/Vendor');
     const { ExpenseCategory } = require('./ExpenseCategory.model');
     const { Document } = require('../../ChromiumlyTenancy/models/Document');
     const { Branch } = require('../../Branches/models/Branch.model');
@@ -221,6 +224,18 @@ export class Expense extends TenantBaseModel {
         join: {
           from: 'expenses_transactions.paymentAccountId',
           to: 'accounts.id',
+        },
+      },
+
+      /**
+       * The vendor the expense was paid to.
+       */
+      payee: {
+        relation: Model.BelongsToOneRelation,
+        modelClass: Vendor,
+        join: {
+          from: 'expenses_transactions.payeeId',
+          to: 'contacts.id',
         },
       },
 

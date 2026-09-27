@@ -1,4 +1,4 @@
-import mime from 'mime-types';
+import * as mime from 'mime-types';
 import { Response } from 'express';
 import {
   ApiBody,
@@ -108,6 +108,9 @@ export class AttachmentsController {
 
     res.set('Content-Disposition', `filename="${documentId}.${extension}"`);
     res.set('Content-Type', contentType);
+    // The file is data, never a page: no sniffing, and no scripts if it is opened.
+    res.set('X-Content-Type-Options', 'nosniff');
+    res.set('Content-Security-Policy', 'sandbox');
     res.send(buffer);
   }
 

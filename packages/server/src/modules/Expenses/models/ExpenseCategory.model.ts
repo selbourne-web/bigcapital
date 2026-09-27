@@ -7,6 +7,7 @@ export class ExpenseCategory extends BaseModel {
   public expenseAccountId!: number;
   public projectId!: number;
   public description!: string;
+  public isTax!: boolean;
 
   /**
    * Table name

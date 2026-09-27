@@ -49,6 +49,7 @@ export class GetExpensesService {
       .query()
       .onBuild((builder) => {
         builder.withGraphFetched('paymentAccount');
+        builder.withGraphFetched('payee');
         builder.withGraphFetched('categories.expenseAccount');
 
         dynamicList.buildQuery()(builder);
