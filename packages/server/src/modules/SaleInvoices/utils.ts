@@ -1,4 +1,5 @@
 import { pickBy } from 'lodash';
+import * as moment from 'moment';
 import { InvoicePdfTemplateAttributes } from './SaleInvoice.types';
 import { SaleInvoiceResponseDto } from './dtos/SaleInvoiceResponse.dto';
 import { contactAddressTextFormat } from '@/utils/address-text-format';
@@ -36,6 +37,9 @@ export const transformInvoiceToPdfTemplate = (
     isPaid: !!invoice.isFullyPaid,
 
     lines: invoice.entries.map((entry) => ({
+      serviceDate: entry.serviceDate
+        ? moment(entry.serviceDate).format('DD MMM YYYY')
+        : undefined,
       item: entry.item.name,
       description: entry.description,
       rate: entry.rateFormatted,

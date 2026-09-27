@@ -14,6 +14,7 @@ export class ItemEntry extends BaseModel {
   public index: number;
   public itemId: number;
   public description: string;
+  public serviceDate: string | null;
 
   public sellAccountId: number;
   public costAccountId: number;
@@ -44,6 +45,21 @@ export class ItemEntry extends BaseModel {
    */
   static get tableName() {
     return 'items_entries';
+  }
+
+  /**
+   * The service date is a calendar day, not a moment in time: hand it on as
+   * `YYYY-MM-DD` so it cannot shift with the server or browser time zone.
+   */
+  $parseDatabaseJson(json) {
+    const parsed = super.$parseDatabaseJson(json);
+    const day = parsed.serviceDate;
+
+    if (day instanceof Date) {
+      const pad = (value: number) => String(value).padStart(2, '0');
+      parsed.serviceDate = `${day.getFullYear()}-${pad(day.getMonth() + 1)}-${pad(day.getDate())}`;
+    }
+    return parsed;
   }
 
   /**

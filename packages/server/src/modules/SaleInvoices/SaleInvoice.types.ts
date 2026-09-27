@@ -224,6 +224,7 @@ export interface ISaleInvoiceMailSent {
 
 // Invoice Pdf Document
 export interface InvoicePdfLine {
+  serviceDate?: string;
   item: string;
   description: string;
   rate: string;

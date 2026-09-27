@@ -9,6 +9,7 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  Matches,
 } from 'class-validator';
 import { ItemLinkDto } from '@/modules/Items/dtos/ItemLink.dto';
 
@@ -79,6 +80,19 @@ export class ItemEntryDto {
     example: 'This is a description',
   })
   description?: string;
+
+  @IsOptional()
+  @IsString()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, {
+    message: 'serviceDate must be a date in YYYY-MM-DD format',
+  })
+  @ApiProperty({
+    description: 'The service date of the item entry (YYYY-MM-DD)',
+    example: '2026-09-25',
+    required: false,
+    nullable: true,
+  })
+  serviceDate?: string | null;
 
   @IsOptional()
   @IsNotEmpty()

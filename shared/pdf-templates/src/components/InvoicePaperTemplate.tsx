@@ -17,6 +17,8 @@ import {
 } from './_constants';
 
 interface InvoiceLine {
+  /** Date the service was provided, already formatted. */
+  serviceDate?: string;
   item?: string;
   description?: string;
   quantity?: string;
@@ -238,6 +240,7 @@ export function InvoicePaperTemplate({
   ...props
 }: InvoicePaperTemplateProps) {
   const hasLineTax = lines.some((line) => !isEmpty(line.tax));
+  const hasLineDate = lines.some((line) => !isEmpty(line.serviceDate));
 
   return (
     <PaperTemplate
@@ -278,10 +281,18 @@ export function InvoicePaperTemplate({
           <PaperTemplate.Table
             columns={[
               {
-                label: lineItemLabel,
+                label: 'Date',
                 accessor: (data) => (
-                  <Text fontWeight={600}>{data.item}</Text>
+                  <span style={{ whiteSpace: 'nowrap' }}>
+                    {data.serviceDate}
+                  </span>
                 ),
+                visible: hasLineDate,
+                thStyle: { width: '14%' },
+              },
+              {
+                label: lineItemLabel,
+                accessor: (data) => <Text fontWeight={600}>{data.item}</Text>,
                 thStyle: { width: '24%' },
               },
               {
