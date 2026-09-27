@@ -9,10 +9,10 @@ import intl from 'react-intl-universal';
 import { ExpensesExchangeRateInputField } from './components';
 import { SUPPORTED_EXPENSE_PAYMENT_ACCOUNT_TYPES } from './constants';
 import { useExpenseFormContext } from './ExpenseFormPageProvider';
-import { customersFieldShouldUpdate, accountsFieldShouldUpdate } from './utils';
+import { vendorsFieldShouldUpdate, accountsFieldShouldUpdate } from './utils';
 import type { Theme } from '@xstyled/emotion';
 import {
-  CustomersSelect,
+  VendorsSelect,
   FInputGroup,
   Stack,
   FormattedMessage as T,
@@ -49,7 +49,7 @@ const getFieldsStyle = (theme: Theme) => css`
  * Expense form header.
  */
 export function ExpenseFormHeader() {
-  const { currencies, accounts, customers } = useExpenseFormContext();
+  const { currencies, accounts, vendors } = useExpenseFormContext();
   const theme = useTheme() as unknown as Theme;
   const fieldsClassName = getFieldsStyle(theme);
   const dateInputFormatter = useDateInputFormatter();
@@ -140,43 +140,41 @@ export function ExpenseFormHeader() {
         />
       </FFormGroup>
 
-      {/* ----------- Customer ----------- */}
-      <ExpenseFormCustomerSelect customers={customers} />
+      {/* ----------- Vendor (payee) ----------- */}
+      <ExpenseFormVendorSelect vendors={vendors} />
     </Stack>
   );
 }
 
-type ExpenseFormCustomerSelectProps = {
-  customers: Record<string, any>[];
+type ExpenseFormVendorSelectProps = {
+  vendors: Record<string, any>[];
 };
 
 /**
- * Customer select field of expense form.
+ * Vendor select field of expense form: who the expense was paid to.
  * @returns {React.ReactNode}
  */
-function ExpenseFormCustomerSelect({
-  customers,
-}: ExpenseFormCustomerSelectProps) {
+function ExpenseFormVendorSelect({ vendors }: ExpenseFormVendorSelectProps) {
   return (
     <FormGroup
-      label={intl.get('customer')}
+      label={intl.get('vendor')}
       labelInfo={<Hint />}
       inline={true}
       // @ts-expect-error FormGroup does not declare `name` / `fastField` / `shouldUpdateDeps` / `shouldUpdate`
-      name={'customerId'}
+      name={'payeeId'}
       fastField={true}
-      shouldUpdateDeps={{ items: customers }}
-      shouldUpdate={customersFieldShouldUpdate}
+      shouldUpdateDeps={{ items: vendors }}
+      shouldUpdate={vendorsFieldShouldUpdate}
     >
-      <CustomersSelect
-        name={'customerId'}
-        items={customers}
-        placeholder={<T id={'select_customer_account'} />}
+      <VendorsSelect
+        name={'payeeId'}
+        items={vendors}
+        placeholder={<T id={'select_vender_account'} />}
         allowCreate={true}
         popoverFill={true}
         fastField={true}
-        shouldUpdateDeps={{ items: customers }}
-        shouldUpdate={customersFieldShouldUpdate}
+        shouldUpdateDeps={{ items: vendors }}
+        shouldUpdate={vendorsFieldShouldUpdate}
       />
     </FormGroup>
   );

@@ -8,8 +8,11 @@ import {
   ImportDropzoneField,
   ImportDropzoneFieldProps,
 } from '@/containers/Import/ImportDropzoneFile';
+import { AttachmentPreviewDialog } from '@/components/Attachments/AttachmentPreviewDialog';
 import {
-  useGetPresignedUrlAttachment,
+  downloadBlob,
+  getAttachmentPreviewKind,
+  useFetchAttachmentBlob,
   useUploadAttachments,
 } from '@/hooks/query/attachments';
 import { useUncontrolled } from '@/hooks/useUncontrolled';
@@ -183,7 +186,7 @@ export function UploadAttachmentsPopoverContent({
 
                 {!localFile.loading && (
                   <Group spacing={2}>
-                    <ViewButton fileKey={localFile.key} />
+                    <ViewButton file={localFile} />
                     <Button
                       small
                       minimal
@@ -203,29 +206,47 @@ export function UploadAttachmentsPopoverContent({
   );
 }
 
-const ViewButton = ({ fileKey }: { fileKey: string }) => {
+/**
+ * Opens an image or PDF in a large view; other files are downloaded. Files are
+ * read through the API, since the storage server is not always reachable from
+ * the browser.
+ */
+const ViewButton = ({ file }: { file: AttachmentFile }) => {
   const [isLoading, setLoading] = useState<boolean>(false);
-  const { mutateAsync: getAttachmentPresignedUrl } =
-    useGetPresignedUrlAttachment();
+  const [isPreviewing, setPreviewing] = useState<boolean>(false);
+  const fetchBlob = useFetchAttachmentBlob();
+  const canPreview = !!getAttachmentPreviewKind(file.mimeType);
 
-  const handleViewBtnClick = (key: string) => () => {
+  const handleViewBtnClick = async () => {
+    if (canPreview) {
+      setPreviewing(true);
+      return;
+    }
     setLoading(true);
-
-    getAttachmentPresignedUrl(key).then((data) => {
-      window.open(data.presignedUrl);
+    try {
+      downloadBlob(await fetchBlob(file.key), file.originName || 'attachment');
+    } finally {
       setLoading(false);
-    });
+    }
   };
 
   return (
-    <Button
-      small
-      minimal
-      onClick={handleViewBtnClick(fileKey)}
-      disabled={isLoading}
-      intent={Intent.PRIMARY}
-    >
-      View
-    </Button>
+    <>
+      <Button
+        small
+        minimal
+        onClick={handleViewBtnClick}
+        disabled={isLoading}
+        intent={Intent.PRIMARY}
+      >
+        {canPreview ? 'View' : 'Download'}
+      </Button>
+      {canPreview && (
+        <AttachmentPreviewDialog
+          file={isPreviewing ? file : null}
+          onClose={() => setPreviewing(false)}
+        />
+      )}
+    </>
   );
 };

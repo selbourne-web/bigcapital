@@ -6,7 +6,7 @@ import { DashboardInsider } from '@/components/Dashboard';
 import { Features } from '@/constants';
 import {
   useCurrencies,
-  useCustomers,
+  useVendors,
   useExpense,
   useAccounts,
   useBranches,
@@ -39,8 +39,10 @@ function ExpenseFormPageProvider({
 
   const { data: currencies, isLoading: isCurrenciesLoading } = useCurrencies();
 
-  // Fetches customers list.
-  const { data: customersData, isLoading: isCustomersLoading } = useCustomers();
+  // Fetches vendors list (the payee of an expense is a vendor).
+  const { data: vendorsData, isLoading: isVendorsLoading } = useVendors({
+    page_size: 10000,
+  });
 
   // Fetch the expense details.
   const { data: expense, isLoading: isExpenseLoading } = useExpense(expenseId, {
@@ -87,14 +89,14 @@ function ExpenseFormPageProvider({
     submitPayloadRef,
 
     currencies: currencies ?? [],
-    customers: customersData?.data ?? [],
+    vendors: vendorsData?.data ?? [],
     expense,
     accounts: accounts ?? [],
     branches: branches ?? [],
 
     isCurrenciesLoading,
     isExpenseLoading,
-    isCustomersLoading,
+    isVendorsLoading,
     isAccountsLoading,
     isBranchesSuccess,
     isBranchesLoading,
@@ -111,7 +113,7 @@ function ExpenseFormPageProvider({
       loading={
         isCurrenciesLoading ||
         isExpenseLoading ||
-        isCustomersLoading ||
+        isVendorsLoading ||
         isAccountsLoading
       }
       name={'expense-form'}

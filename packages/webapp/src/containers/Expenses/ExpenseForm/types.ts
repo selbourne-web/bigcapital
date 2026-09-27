@@ -12,11 +12,15 @@ export type ExpenseEntry = {
   expenseAccountId: string | number;
   description: string;
   landedCost: boolean | number;
+  /** The line is the sales tax (VAT) charged on the other lines. */
+  isTax?: boolean | number;
 };
 
 export type ExpenseFormValues = {
   paymentAccountId: string | number;
   beneficiary: string;
+  /** Contact id of the vendor the expense was paid to. */
+  payeeId: string | number;
   paymentDate: string;
   description: string;
   referenceNo: string;
@@ -45,13 +49,13 @@ export type ExpenseFormContext = {
   expenseId: number;
   submitPayloadRef: React.MutableRefObject<ExpenseSubmitPayload>;
   currencies: Record<string, any>[];
-  customers: Record<string, any>[];
+  vendors: Record<string, any>[];
   expense: Expense | undefined;
   accounts: Record<string, any>[];
   branches: Record<string, any>[];
   isCurrenciesLoading: boolean;
   isExpenseLoading: boolean;
-  isCustomersLoading: boolean;
+  isVendorsLoading: boolean;
   isAccountsLoading: boolean;
   isBranchesSuccess: boolean;
   isBranchesLoading: boolean;

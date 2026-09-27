@@ -126,3 +126,49 @@
 .hiddenInput {
   display: none;
 }
+
+// Receipt thumbnails (saved attachments): click for the large view.
+.thumbs {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.thumb {
+  position: relative;
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 1px solid #dcdcdc;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #fff;
+  cursor: zoom-in;
+
+  &:focus-visible {
+    outline: 2px solid #800000;
+    outline-offset: 2px;
+  }
+
+  img,
+  iframe {
+    display: block;
+    width: 100%;
+    height: 300px;
+    border: 0;
+    object-fit: contain;
+    // Clicks go to the button, not into the PDF viewer.
+    pointer-events: none;
+  }
+}
+
+.thumbHint {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.72);
+  color: #fff;
+  font-size: 11px;
+}

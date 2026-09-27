@@ -3,6 +3,7 @@ import { useFormikContext } from 'formik';
 import React, { useEffect, useRef, useState } from 'react';
 import styles from './ExpenseReceiptAutofill.module.scss';
 import { AppToaster } from '@/components';
+import { AttachmentPreviewDialog } from '@/components/Attachments/AttachmentPreviewDialog';
 import { useUploadAttachments } from '@/hooks/query/attachments';
 import { useExpenseAutofill } from '@/hooks/query/expense-autofill';
 import type {
@@ -49,6 +50,7 @@ export const receiptToFormValues = (
   result: ReceiptAutofillResult,
   currencies: Account[] | undefined,
   current: Pick<ExpenseFormValues, 'currencyCode'>,
+  vendors: Account[] = [],
 ): { values: Partial<ExpenseFormValues>; notes: string[] } => {
   const values: Partial<ExpenseFormValues> = {};
   const notes = [...result.warnings];
@@ -58,7 +60,25 @@ export const receiptToFormValues = (
 
   const description = [result.payee, result.memo].filter(Boolean).join(' — ');
   if (description) values.description = description;
-  if (result.payee) values.beneficiary = result.payee;
+  if (result.payee) {
+    values.beneficiary = result.payee;
+
+    // Pick the vendor only when the name matches one exactly (ignoring case and
+    // spacing); a near match could book the expense to the wrong vendor.
+    const normalize = (name: string) =>
+      name.toLowerCase().replace(/\s+/g, ' ').trim();
+    const payee = normalize(result.payee);
+    const matches = vendors.filter(
+      (vendor) => normalize(String(vendor.displayName ?? '')) === payee,
+    );
+    if (matches.length === 1) {
+      values.payeeId = matches[0].id;
+    } else {
+      notes.push(
+        `No vendor named "${result.payee}" was found. Choose or create the vendor.`,
+      );
+    }
+  }
 
   if (result.currencyCode && result.currencyCode !== current.currencyCode) {
     const available = (currencies ?? []).some(
@@ -81,6 +101,7 @@ export const receiptToFormValues = (
       expenseAccountId: line.accountId ?? '',
       description: line.description,
       landedCost: 0,
+      isTax: line.isTax ? 1 : 0,
     }));
     if (result.lines.some((line) => line.accountId == null)) {
       notes.push('Choose an account for the lines that have none.');
@@ -92,6 +113,7 @@ export const receiptToFormValues = (
 interface ExpenseReceiptAutofillProps {
   accounts: Account[] | undefined;
   currencies: Account[] | undefined;
+  vendors?: Account[];
 }
 
 /**
@@ -102,6 +124,7 @@ interface ExpenseReceiptAutofillProps {
 export function ExpenseReceiptAutofill({
   accounts,
   currencies,
+  vendors,
 }: ExpenseReceiptAutofillProps) {
   const { values, setFieldValue } = useFormikContext<ExpenseFormValues>();
   const valuesRef = useRef(values);
@@ -114,6 +137,7 @@ export function ExpenseReceiptAutofill({
   const [notes, setNotes] = useState<string[]>([]);
   const [filled, setFilled] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [enlarged, setEnlarged] = useState(false);
 
   const fileInput = useRef<HTMLInputElement>(null);
   const cameraInput = useRef<HTMLInputElement>(null);
@@ -166,6 +190,7 @@ export function ExpenseReceiptAutofill({
             result,
             currencies,
             valuesRef.current,
+            vendors,
           );
           Object.entries(changes).forEach(([field, value]) =>
             setFieldValue(field, value),
@@ -309,14 +334,33 @@ export function ExpenseReceiptAutofill({
 
         {file && previewUrl && (
           <>
-            <div className={styles.preview}>
+            <button
+              type="button"
+              className={styles.thumb}
+              onClick={() => setEnlarged(true)}
+              aria-label={`Open a larger view of ${file.name}`}
+            >
               {file.type === 'application/pdf' ? (
-                <iframe src={previewUrl} title={`Preview of ${file.name}`} />
+                <iframe src={previewUrl} title="" tabIndex={-1} />
               ) : (
-                <img src={previewUrl} alt={`Preview of ${file.name}`} />
+                <img src={previewUrl} alt="" />
               )}
-            </div>
+              <span className={styles.thumbHint}>Click to enlarge</span>
+            </button>
             <div className={styles.fileName}>{file.name}</div>
+            <AttachmentPreviewDialog
+              file={
+                enlarged
+                  ? {
+                      key: '',
+                      originName: file.name,
+                      mimeType: file.type,
+                      localUrl: previewUrl,
+                    }
+                  : null
+              }
+              onClose={() => setEnlarged(false)}
+            />
           </>
         )}
 

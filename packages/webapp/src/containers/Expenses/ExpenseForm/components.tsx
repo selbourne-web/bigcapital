@@ -135,6 +135,15 @@ export function useExpenseFormTableColumns({
         align: Align.Right,
         moneyInputGroupProps: { 'data-testId': 'expense-entry-amount-input' },
       },
+      {
+        Header: 'Tax',
+        accessor: 'isTax',
+        Cell: CheckBoxFieldCell,
+        disableSortBy: true,
+        disableResizing: true,
+        width: 50,
+        align: Align.Center,
+      },
       ...(landedCost
         ? [
             {

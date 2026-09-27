@@ -47,6 +47,9 @@ export type ExpenseTableRow = Omit<Expense, 'categories'> & {
   formattedDate?: string;
   formattedAmount?: string;
   paymentAccount?: PaymentAccount;
+  payeeName?: string | null;
+  formattedSalesTaxAmount?: string;
+  formattedAmountBeforeSalesTax?: string;
 };
 
 interface ActionsMenuPayload {
@@ -169,7 +172,34 @@ export function ExpenseAccountAccessor(expense: ExpenseTableRow): ReactNode {
 }
 
 /**
- * Retrieve the expenses table columns.
+ * Reference number cell: the number, with a tag while the expense is a draft.
+ */
+export function ReferenceAccessor(expense: ExpenseTableRow): ReactNode {
+  return (
+    <>
+      {expense.referenceNo}
+      {!expense.isPublished && (
+        <Tag round minimal intent={Intent.WARNING} className="ml1">
+          <T id={'draft'} />
+        </Tag>
+      )}
+    </>
+  );
+}
+
+/**
+ * Category cell: the account of a single-category expense, or "--Split--".
+ */
+export function CategoryAccessor(expense: ExpenseTableRow): ReactNode {
+  if (expense.categories.length === 1) {
+    return expense.categories[0].expenseAccount?.name;
+  }
+  return expense.categories.length > 1 ? '--Split--' : null;
+}
+
+/**
+ * Retrieve the expenses table columns: date, reference no., payee, category,
+ * the total before sales tax, the sales tax and the total (as in QuickBooks).
  */
 export function useExpensesTableColumns(): DataTableColumn<ExpenseTableRow>[] {
   return React.useMemo(
@@ -177,54 +207,64 @@ export function useExpensesTableColumns(): DataTableColumn<ExpenseTableRow>[] {
       [
         {
           id: 'payment_date',
-          Header: intl.get('payment_date'),
+          Header: 'Date',
           accessor: 'formattedDate',
-          width: 140,
+          width: 120,
           className: 'payment_date',
           clickable: true,
         },
         {
+          id: 'reference_no',
+          Header: 'Reference No.',
+          accessor: (row: ExpenseTableRow) => ReferenceAccessor(row),
+          width: 150,
+          clickable: true,
+        },
+        {
+          id: 'payee',
+          Header: 'Payee',
+          accessor: 'payeeName',
+          width: 200,
+          disableSortBy: true,
+          clickable: true,
+        },
+        {
+          id: 'category',
+          Header: 'Category',
+          accessor: (row: ExpenseTableRow) => CategoryAccessor(row),
+          width: 220,
+          disableSortBy: true,
+          clickable: true,
+        },
+        {
+          id: 'amount_before_sales_tax',
+          Header: 'Total before Sales Tax/VAT',
+          accessor: 'formattedAmountBeforeSalesTax',
+          align: 'right',
+          width: 190,
+          disableSortBy: true,
+          clickable: true,
+          money: true,
+        },
+        {
+          id: 'sales_tax',
+          Header: 'Sales Tax',
+          accessor: 'formattedSalesTaxAmount',
+          align: 'right',
+          width: 120,
+          disableSortBy: true,
+          clickable: true,
+          money: true,
+        },
+        {
           id: 'amount',
-          Header: intl.get('full_amount'),
+          Header: 'Total',
           accessor: 'formattedAmount',
           align: 'right',
-          width: 150,
+          width: 130,
           clickable: true,
           money: true,
           className: clsx(CLASSES.FONT_BOLD),
-        },
-        {
-          id: 'payment_account',
-          Header: intl.get('payment_account'),
-          accessor: 'paymentAccount.name',
-          width: 150,
-          clickable: true,
-          className: clsx(CLASSES.TEXT_MUTED),
-        },
-        {
-          id: 'expense_account',
-          Header: intl.get('expense_account'),
-          accessor: (row: ExpenseTableRow) => ExpenseAccountAccessor(row),
-          width: 160,
-          disableSortBy: true,
-          clickable: true,
-        },
-        {
-          id: 'published',
-          Header: intl.get('publish'),
-          accessor: (row: ExpenseTableRow) => PublishAccessor(row),
-          width: 100,
-          className: 'publish',
-          clickable: true,
-        },
-        {
-          id: 'description',
-          Header: intl.get('description'),
-          accessor: (row: ExpenseTableRow) => DescriptionAccessor(row),
-          width: 150,
-          className: 'description',
-          disableSortBy: true,
-          clickable: true,
         },
       ] as DataTableColumn<ExpenseTableRow>[],
     [],

@@ -40,11 +40,13 @@ export const defaultExpenseEntry: ExpenseEntry = {
   expenseAccountId: '',
   description: '',
   landedCost: 0,
+  isTax: 0,
 };
 
 export const defaultExpense: ExpenseFormValues = {
   paymentAccountId: '',
   beneficiary: '',
+  payeeId: '',
   paymentDate: moment(new Date()).format('YYYY-MM-DD'),
   description: '',
   referenceNo: '',
@@ -116,9 +118,9 @@ export const transformToEditForm = (
 };
 
 /**
- * Detarmine cusotmers fast-field should update.
+ * Detarmine vendors fast-field should update.
  */
-export const customersFieldShouldUpdate = (newProps: any, oldProps: any) => {
+export const vendorsFieldShouldUpdate = (newProps: any, oldProps: any) => {
   return (
     newProps.shouldUpdateDeps.items !== oldProps.shouldUpdateDeps.items ||
     defaultFastFieldShouldUpdate(newProps, oldProps)
@@ -151,8 +153,12 @@ export const transformFormValuesToRequest = (values: ExpenseFormValues) => {
   const categories = filterNonZeroEntries(values.categories);
   const attachments = transformAttachmentsToRequest(values);
 
+  const { payeeId, ...rest } = values;
+
   return {
-    ...values,
+    ...rest,
+    // A blank payee is left out, not sent as an empty string.
+    ...(payeeId !== '' && payeeId != null && { payeeId }),
     categories: FF.pipe(categories, orderingLinesIndexes),
     attachments,
   };
