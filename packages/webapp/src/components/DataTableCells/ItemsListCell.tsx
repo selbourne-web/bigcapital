@@ -25,6 +25,8 @@ export default function ItemsListCell({
   const handleItemSelected = useCallback(
     (item) => {
       updateData(index, id, item.id);
+      // The list reopens on the next click, which needs the field to lose focus.
+      fieldRef.current?.blur();
     },
     [updateData, index, id],
   );
@@ -34,7 +36,11 @@ export default function ItemsListCell({
   return (
     <FormGroup
       intent={error ? Intent.DANGER : null}
-      className={classNames('form-group--select-list', Classes.FILL)}
+      className={classNames(
+        'form-group--select-list',
+        'form-group--dropdown',
+        Classes.FILL,
+      )}
       {...formGroupProps}
     >
       <ItemsSuggest
@@ -47,8 +53,8 @@ export default function ItemsListCell({
           inputRef: (ref) => (fieldRef.current = ref),
           placeholder: intl.get('enter_an_item'),
         }}
-        openOnKeyDown={true}
-        blurOnSelectClose={false}
+        // Dropdown style: the list opens on click and can still be searched
+        // by typing.
         {...fieldProps}
       />
     </FormGroup>

@@ -1,11 +1,96 @@
+// Invoice form header: title row, then a shaded panel with the customer at the
+// left and the invoice details (stacked labels) at the right.
 .root {
-  --color-invoice-form-header-background: #fff;
-  --color-invoice-form-header-border: #d2dce2;
+  --invoice-header-bg: #fff;
+  --invoice-header-border: #d2dce2;
+  --invoice-panel-bg: #f4f4f4;
+  --invoice-title: #800000;
+  --invoice-muted: #4c4c4c;
 
   :global(.bp4-dark) & {
-    --color-invoice-form-header-background: var(--color-dark-gray1);
-    --color-invoice-form-header-border: rgba(255, 255, 255, 0.1);
-  }    
-  border-bottom: 1px solid var(--color-invoice-form-header-border);
-  background-color: var(--color-invoice-form-header-background);
+    --invoice-header-bg: var(--color-dark-gray1);
+    --invoice-header-border: rgba(255, 255, 255, 0.1);
+    --invoice-panel-bg: var(--color-dark-gray2);
+    --invoice-title: #f6f7f9;
+    --invoice-muted: var(--color-light-gray1);
+  }
+
+  border-bottom: 1px solid var(--invoice-header-border);
+  background-color: var(--invoice-header-bg);
+}
+
+.titleRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 32px 14px;
+}
+
+.title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--invoice-title);
+}
+
+.balance {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.balanceLabel {
+  font-size: 12px;
+  color: var(--invoice-muted);
+}
+
+.balanceAmount {
+  font-size: 22px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.panel {
+  padding: 22px 32px 26px;
+  background-color: var(--invoice-panel-bg);
+  border-top: 1px solid var(--invoice-header-border);
+}
+
+// The fields inside the panel.
+.fields {
+  display: grid;
+  grid-template-columns: minmax(260px, 480px) minmax(0, 520px);
+  justify-content: space-between;
+  gap: 32px;
+  align-items: start;
+
+  @media (max-width: 960px) {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+}
+
+.details {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px 18px;
+
+  @media (max-width: 560px) {
+    grid-template-columns: 1fr;
+  }
+}
+
+// Stacked labels, close to their inputs.
+.fields :global(.bp4-form-group) {
+  margin: 0;
+
+  > label.bp4-label {
+    margin-bottom: 4px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--invoice-muted);
+  }
 }

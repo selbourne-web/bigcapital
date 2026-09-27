@@ -3,34 +3,36 @@ import intl from 'react-intl-universal';
 import styles from './InvoiceFormHeader.module.scss';
 import { InvoiceFormHeaderFields } from './InvoiceFormHeaderFields';
 import { useInvoiceTotalFormatted } from './utils';
-import { Group, PageFormBigNumber } from '@/components';
 
 /**
- * Invoice form header section.
+ * Invoice form header section: the document title with the balance due, and a
+ * shaded panel holding the customer and the invoice details.
  */
 export function InvoiceFormHeader() {
   return (
-    <Group
-      position="apart"
-      align={'flex-start'}
-      p="25px 32px"
-      className={styles.root}
-    >
-      <InvoiceFormHeaderFields />
-      <InvoiceFormBigTotal />
-    </Group>
+    <div className={styles.root}>
+      <div className={styles.titleRow}>
+        <h2 className={styles.title}>{intl.get('invoice')}</h2>
+        <InvoiceFormBalanceDue />
+      </div>
+      <div className={styles.panel}>
+        <InvoiceFormHeaderFields />
+      </div>
+    </div>
   );
 }
 
 /**
- * Big total of invoice form header.
+ * Balance due of the invoice, from the entries.
  * @returns {React.ReactNode}
  */
-function InvoiceFormBigTotal() {
-  // Calculate the total due amount of invoice entries.
+function InvoiceFormBalanceDue() {
   const totalFormatted = useInvoiceTotalFormatted();
 
   return (
-    <PageFormBigNumber label={intl.get('due_amount')} amount={totalFormatted} />
+    <div className={styles.balance} aria-live="polite">
+      <span className={styles.balanceLabel}>{intl.get('due_amount')}</span>
+      <span className={styles.balanceAmount}>{totalFormatted}</span>
+    </div>
   );
 }

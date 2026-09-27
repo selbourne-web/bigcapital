@@ -3,6 +3,7 @@ import AccountsListFieldCell from './AccountsListFieldCell';
 import BranchesListFieldCell from './BranchesListFieldCell';
 import CheckBoxFieldCell from './CheckBoxFieldCell';
 import ContactsListFieldCell from './ContactsListFieldCell';
+import DateInputCell from './DateInputCell';
 import { DivFieldCell, EmptyDiv } from './DivFieldCell';
 import InputGroupCell from './InputGroupCell';
 import ItemsListCell from './ItemsListCell';
@@ -15,6 +16,7 @@ import { TextOverviewTooltipCell } from './TextOverviewTooltipCell';
 
 export {
   AccountsListFieldCell,
+  DateInputCell,
   MoneyFieldCell,
   InputGroupCell,
   ContactsListFieldCell,

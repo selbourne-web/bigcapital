@@ -37,6 +37,7 @@ export function InvoiceItemsEntriesEditorField() {
           itemType={ITEM_TYPE.SELLABLE}
           errors={error}
           linesNumber={4}
+          enableServiceDate
           currencyCode={values.currencyCode}
           isInclusiveTax={values.inclusiveExclusiveTax === TaxType.Inclusive}
         />

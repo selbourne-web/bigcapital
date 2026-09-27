@@ -42,6 +42,7 @@ export type InvoiceEntry = {
   discount: string | number;
   quantity: string | number;
   description: string;
+  serviceDate?: string | null;
   amount: string | number;
   taxRateId: string | number;
   taxRate: string | number;
@@ -91,6 +92,7 @@ export const defaultInvoiceEntry: InvoiceEntry = {
   discount: '',
   quantity: '',
   description: '',
+  serviceDate: null,
   amount: '',
   taxRateId: '',
   taxRate: '',
@@ -131,6 +133,7 @@ export const defaultReqInvoiceEntry = {
   discount: '',
   quantity: '',
   description: '',
+  serviceDate: null,
   taxRateId: '',
 };
 

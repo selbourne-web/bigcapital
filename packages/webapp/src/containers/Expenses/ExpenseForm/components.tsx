@@ -116,7 +116,15 @@ export function useExpenseFormTableColumns({
         disableSortBy: true,
         width: 40,
         filterAccountsByRootTypes: ['expense'],
+        dropdown: true,
         fieldProps: { allowCreate: true },
+      },
+      {
+        Header: intl.get('description'),
+        accessor: 'description',
+        Cell: InputGroupCell,
+        disableSortBy: true,
+        width: 100,
       },
       {
         Header: ExpenseAmountHeaderCell,
@@ -126,13 +134,6 @@ export function useExpenseFormTableColumns({
         width: 40,
         align: Align.Right,
         moneyInputGroupProps: { 'data-testId': 'expense-entry-amount-input' },
-      },
-      {
-        Header: intl.get('description'),
-        accessor: 'description',
-        Cell: InputGroupCell,
-        disableSortBy: true,
-        width: 100,
       },
       ...(landedCost
         ? [

@@ -67,7 +67,6 @@ export const InvoiceFormInvoiceNumberField = FF.pipe(
         name={'invoiceNo'}
         label={intl.get('invoice_no')}
         labelInfo={<FieldRequiredHint />}
-        inline={true}
         fastField={true}
       >
         <ControlGroup fill={true}>

@@ -247,3 +247,28 @@
     }
   }
 }
+
+// Dropdown-style cells (product/service, expense category) and the service
+// date: a visible outline and a caret, so they read as pickers, not free text.
+// The caret is a background image so it cannot disturb the cell layout.
+.datatable-editor {
+  .table .tbody .tr {
+    .form-group--dropdown,
+    .form-group--date-cell {
+      .bp4-input:not(:focus) {
+        border-color: #d2dce2;
+        cursor: pointer;
+      }
+      .bp4-input {
+        padding-right: 26px;
+        text-overflow: ellipsis;
+      }
+    }
+    .form-group--dropdown .bp4-input {
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%238d8d8d'/%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 9px center;
+      background-size: 10px 6px;
+    }
+  }
+}

@@ -45,7 +45,7 @@ const InvoiceExchangeRateInputFieldRoot = ({
       name={'exchangeRate'}
       fromCurrency={values.currencyCode}
       toCurrency={baseCurrency ?? ''}
-      formGroupProps={{ label: ' ', inline: true }}
+      formGroupProps={{ inline: false }}
       withPopoverRecalcConfirm
     />
   );

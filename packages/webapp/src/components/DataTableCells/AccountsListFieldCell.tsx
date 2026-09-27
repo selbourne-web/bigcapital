@@ -16,6 +16,7 @@ export default function AccountCellRenderer({
     accountsDataProp,
     filterAccountsByRootTypes,
     filterAccountsByTypes,
+    dropdown,
     fieldProps,
     formGroupProps,
   },
@@ -36,8 +37,10 @@ export default function AccountCellRenderer({
   const handleAccountSelected = useCallback(
     (account) => {
       updateData(index, id, account.id);
+      // A dropdown reopens on the next click, which needs it to lose focus.
+      if (dropdown) accountRef.current?.blur();
     },
-    [updateData, index, id],
+    [updateData, index, id, dropdown],
   );
   const error = errors?.[index]?.[id];
 
@@ -52,6 +55,7 @@ export default function AccountCellRenderer({
       className={classNames(
         'form-group--select-list',
         'form-group--account',
+        { 'form-group--dropdown': dropdown },
         Classes.FILL,
       )}
       {...formGroupProps}
@@ -66,8 +70,8 @@ export default function AccountCellRenderer({
           inputRef: (ref) => (accountRef.current = ref),
           placeholder: intl.get('search'),
         }}
-        openOnKeyDown={true}
-        blurOnSelectClose={false}
+        // Dropdown style: the list opens on click, not only on a key press.
+        openOnKeyDown={!dropdown}
         {...fieldProps}
       />
     </FormGroup>

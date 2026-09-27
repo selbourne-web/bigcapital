@@ -33,6 +33,8 @@ interface ItemsEntriesTableProps {
   currencyCode?: string;
   isInclusiveTax?: boolean;
   landedCost?: boolean;
+  /** Shows the service date column (invoices). */
+  enableServiceDate?: boolean;
 }
 
 /**

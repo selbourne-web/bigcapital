@@ -12,6 +12,7 @@ import {
   PercentFieldCell,
   NumericInputCell,
   CheckBoxFieldCell,
+  DateInputCell,
 } from '@/components/DataTableCells';
 import { TaxRatesSuggestInputCell } from '@/components/TaxRates/TaxRatesSuggestInputCell';
 import { Align, CellType } from '@/constants';
@@ -88,10 +89,24 @@ const LandedCostHeaderCell = () => {
  * Retrieve editable items entries columns.
  */
 export function useEditableItemsEntriesColumns() {
-  const { landedCost, enableTaxRates } = useItemEntriesTableContext();
+  const { landedCost, enableTaxRates, enableServiceDate } =
+    useItemEntriesTableContext();
 
   return React.useMemo(
     () => [
+      // Optional date of the service, as on the QuickBooks invoice lines.
+      ...(enableServiceDate
+        ? [
+            {
+              Header: 'Service date',
+              accessor: 'serviceDate',
+              Cell: DateInputCell,
+              disableSortBy: true,
+              width: 110,
+              className: 'service-date',
+            },
+          ]
+        : []),
       {
         id: 'itemId',
         Header: ItemHeaderCell,
@@ -177,6 +192,6 @@ export function useEditableItemsEntriesColumns() {
         align: Align.Center,
       },
     ],
-    [],
+    [enableServiceDate],
   );
 }

@@ -1,11 +1,10 @@
 import { Position } from '@blueprintjs/core';
-import { css } from '@emotion/css';
-import { Theme, useTheme } from '@emotion/react';
 import { useFormikContext } from 'formik';
 import React from 'react';
 import intl from 'react-intl-universal';
 import styled from 'styled-components';
 import { InvoiceExchangeRateInputField } from './components';
+import styles from './InvoiceFormHeader.module.scss';
 import { InvoiceFormInvoiceNumberField } from './InvoiceFormInvoiceNumberField';
 import { useInvoiceFormContext } from './InvoiceFormProvider';
 import { customerNameFieldShouldUpdate } from './utils';
@@ -16,7 +15,6 @@ import {
   CustomerDrawerLink,
   FieldRequiredHint,
   CustomersSelect,
-  Stack,
   FInputGroup,
   Icon,
   FDateInput,
@@ -24,99 +22,82 @@ import {
 import { useCustomerUpdateExRate } from '@/containers/Entries/withExRateItemEntriesPriceRecalc';
 import { useDateInputFormatter } from '@/hooks';
 
-const getInvoiceFieldsStyle = (theme: Theme & { bpPrefix?: string }) => css`
-  .${theme.bpPrefix}-form-group {
-    margin-bottom: 0;
-
-    &.${theme.bpPrefix}-inline {
-      max-width: 450px;
-    }
-    .${theme.bpPrefix}-label {
-      min-width: 150px;
-      font-weight: 500;
-    }
-    .${theme.bpPrefix}-form-content {
-      width: 100%;
-    }
-  }
-`;
-
 /**
  * Invoice form header fields.
  */
 export function InvoiceFormHeaderFields() {
-  const theme = useTheme();
-  const invoiceFieldsClassName = getInvoiceFieldsStyle(theme);
   const dateInputFormatter = useDateInputFormatter();
 
   return (
-    <Stack spacing={18} flex={1} className={invoiceFieldsClassName}>
-      {/* ----------- Customer name ----------- */}
-      <InvoiceFormCustomerSelect />
+    <div className={styles.fields}>
+      <div>
+        {/* ----------- Customer name ----------- */}
+        <InvoiceFormCustomerSelect />
 
-      {/* ----------- Exchange rate ----------- */}
-      <InvoiceExchangeRateInputField />
+        {/* ----------- Exchange rate ----------- */}
+        <InvoiceExchangeRateInputField />
+      </div>
 
-      {/* ----------- Invoice date ----------- */}
-      <FFormGroup
-        name={'invoiceDate'}
-        label={intl.get('invoice_date')}
-        labelInfo={<FieldRequiredHint />}
-        inline
-        fastField
-      >
-        <FDateInput
+      <div className={styles.details}>
+        {/* ----------- Invoice number ----------- */}
+        <InvoiceFormInvoiceNumberField />
+
+        {/* ----------- Reference ----------- */}
+        <FFormGroup name={'referenceNo'} label={intl.get('reference')}>
+          <FInputGroup
+            name={'referenceNo'}
+            data-testId="invoice-reference-input"
+          />
+        </FFormGroup>
+
+        {/* ----------- Invoice date ----------- */}
+        <FFormGroup
           name={'invoiceDate'}
-          {...dateInputFormatter}
-          popoverProps={{
-            position: Position.BOTTOM_LEFT,
-            minimal: true,
-            fill: true,
-          }}
-          inputProps={{
-            leftIcon: <Icon icon={'date-range'} />,
-          }}
-          fill
+          label={intl.get('invoice_date')}
+          labelInfo={<FieldRequiredHint />}
           fastField
-        />
-      </FFormGroup>
+        >
+          <FDateInput
+            name={'invoiceDate'}
+            {...dateInputFormatter}
+            popoverProps={{
+              position: Position.BOTTOM_LEFT,
+              minimal: true,
+              fill: true,
+            }}
+            inputProps={{
+              leftIcon: <Icon icon={'date-range'} />,
+            }}
+            fill
+            fastField
+          />
+        </FFormGroup>
 
-      {/* ----------- Due date ----------- */}
-      <FFormGroup
-        name={'dueDate'}
-        label={intl.get('due_date')}
-        labelInfo={<FieldRequiredHint />}
-        inline
-        fastField
-      >
-        <FDateInput
+        {/* ----------- Due date ----------- */}
+        <FFormGroup
           name={'dueDate'}
-          {...dateInputFormatter}
-          popoverProps={{
-            position: Position.BOTTOM_LEFT,
-            minimal: true,
-            fill: true,
-          }}
-          inputProps={{
-            leftIcon: <Icon icon={'date-range'} />,
-            fill: true,
-          }}
-          fill
+          label={intl.get('due_date')}
+          labelInfo={<FieldRequiredHint />}
           fastField
-        />
-      </FFormGroup>
-
-      {/* ----------- Invoice number ----------- */}
-      <InvoiceFormInvoiceNumberField />
-
-      {/* ----------- Reference ----------- */}
-      <FFormGroup name={'referenceNo'} label={intl.get('reference')} inline>
-        <FInputGroup
-          name={'referenceNo'}
-          data-testId="invoice-reference-input"
-        />
-      </FFormGroup>
-    </Stack>
+        >
+          <FDateInput
+            name={'dueDate'}
+            {...dateInputFormatter}
+            popoverProps={{
+              position: Position.BOTTOM_LEFT,
+              minimal: true,
+              fill: true,
+            }}
+            inputProps={{
+              leftIcon: <Icon icon={'date-range'} />,
+              fill: true,
+            }}
+            fill
+            fastField
+          />
+        </FFormGroup>
+      </div>
+    </div>
   );
 }
 
@@ -144,7 +125,6 @@ function InvoiceFormCustomerSelect() {
     <FFormGroup
       name={'customerId'}
       label={intl.get('customer_name')}
-      inline={true}
       labelInfo={<FieldRequiredHint />}
       fastField={true}
     >
