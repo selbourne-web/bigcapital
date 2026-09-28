@@ -7,6 +7,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { RedisService } from '@liaoliaots/nestjs-redis';
 import { randomUUID } from 'crypto';
+import * as moment from 'moment';
 import { decryptSecret, encryptSecret } from './mfa-secret-crypto';
 import {
   consumeRecoveryCode,
@@ -130,7 +131,7 @@ export class MfaService {
       .patch({
         mfaSecret: encryptSecret(pending.secret, key),
         mfaEnabled: true,
-        mfaEnrolledAt: new Date().toISOString(),
+        mfaEnrolledAt: moment().toMySqlDateTime(),
         mfaRecoveryCodes: JSON.stringify(recoveryCodeHashes),
       } as Partial<SystemUser>);
 
