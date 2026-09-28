@@ -58,6 +58,7 @@ export interface IAuthSendedResetPassword {
 
 export interface IAuthGetMetaPOJO {
   signupDisabled: boolean;
+  microsoftSsoEnabled: boolean;
 }
 
 export interface IAuthSignUpVerifingEventPayload {

@@ -19,12 +19,14 @@ describe('AuthSigninService token claims', () => {
     const jwtService = {
       sign: jest.fn().mockReturnValue('signed-token'),
     } as any;
+    const configService = { get: jest.fn().mockReturnValue(undefined) } as any;
     const service = new AuthSigninService(
       systemUserModel,
       {} as any,
       {} as any,
       jwtService,
       clsService,
+      configService,
     );
     return { service, findOne, clsService, jwtService };
   };

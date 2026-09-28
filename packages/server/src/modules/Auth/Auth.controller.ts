@@ -26,20 +26,27 @@ import { AuthSignupVerifyDto } from './dtos/AuthSignupVerify.dto';
 import { AuthSendResetPasswordDto } from './dtos/AuthSendResetPassword.dto';
 import { AuthResetPasswordDto } from './dtos/AuthResetPassword.dto';
 import { AuthSigninResponseDto } from './dtos/AuthSigninResponse.dto';
+import { AuthSigninChallengeResponseDto } from './dtos/AuthSigninChallengeResponse.dto';
 import { AuthMetaResponseDto } from './dtos/AuthMetaResponse.dto';
 import { LocalAuthGuard } from './guards/Local.guard';
 import { AuthSigninService } from './commands/AuthSignin.service';
+import { MfaService } from './mfa/Mfa.service';
 import { SystemUser } from '../System/models/SystemUser';
 
 @Controller('/auth')
 @ApiTags('Auth')
-@ApiExtraModels(AuthSigninResponseDto, AuthMetaResponseDto)
+@ApiExtraModels(
+  AuthSigninResponseDto,
+  AuthSigninChallengeResponseDto,
+  AuthMetaResponseDto,
+)
 @PublicRoute()
 @Throttle({ auth: {} })
 export class AuthController {
   constructor(
     private readonly authApp: AuthenticationApplication,
     private readonly authSignin: AuthSigninService,
+    private readonly mfaService: MfaService,
   ) {}
 
   @Post('/signin')
@@ -55,8 +62,15 @@ export class AuthController {
   async signin(
     @Request() req: Request & { user: SystemUser },
     @Body() signinDto: AuthSigninDto,
-  ): Promise<AuthSigninResponseDto> {
+  ): Promise<AuthSigninResponseDto | AuthSigninChallengeResponseDto> {
     const { user } = req;
+
+    // Password checked out; if the account also has an authenticator, that
+    // is the second factor still owed before tokens are issued.
+    if (user.mfaEnabled) {
+      const challengeToken = await this.mfaService.issueLoginChallenge(user.id);
+      return { mfaRequired: true, challengeToken };
+    }
     const tenant = await this.authSignin.resolveSigninTenant(user);
 
     if (!tenant) {

@@ -6,6 +6,7 @@ import { useAuthMetadata } from '@/hooks/query';
 export interface AuthMetaBootState {
   isAuthMetaLoading: boolean;
   signupDisabled?: boolean;
+  microsoftSsoEnabled?: boolean;
 }
 
 export interface AuthMetaBootProviderProps {
@@ -25,9 +26,20 @@ function AuthMetaBootProvider({
 }: AuthMetaBootProviderProps) {
   const { isLoading: isAuthMetaLoading, data: authMeta } = useAuthMetadata();
 
+  // useAuthApiFetcher() (unauthenticated) does not camelCase responses, so
+  // this reads whichever key name actually came back on the wire.
+  const meta = authMeta as
+    | (typeof authMeta & {
+        signup_disabled?: boolean;
+        microsoft_sso_enabled?: boolean;
+      })
+    | undefined;
+
   const state: AuthMetaBootState = {
     isAuthMetaLoading,
-    signupDisabled: authMeta?.signupDisabled,
+    signupDisabled: meta?.signupDisabled ?? meta?.signup_disabled,
+    microsoftSsoEnabled:
+      meta?.microsoftSsoEnabled ?? meta?.microsoft_sso_enabled,
   };
 
   if (isAuthMetaLoading) {

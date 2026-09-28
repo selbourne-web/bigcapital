@@ -14,6 +14,8 @@ export class GetAuthedAccountTransformer extends Transformer {
       'language',
       'tenantId',
       'verified',
+      'ssoProvider',
+      'mfaEnabled',
     ];
   };
 
@@ -22,6 +24,12 @@ export class GetAuthedAccountTransformer extends Transformer {
    * @returns {Array}
    */
   public excludeAttributes = (): string[] => {
-    return ['password', 'verifyToken'];
+    return [
+      'password',
+      'verifyToken',
+      'mfaSecret',
+      'mfaRecoveryCodes',
+      'microsoftOid',
+    ];
   };
 }

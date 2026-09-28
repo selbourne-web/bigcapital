@@ -1,5 +1,6 @@
 import { ClsService } from 'nestjs-cls';
 import { Inject, Injectable, UnauthorizedException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { SystemUser } from '@/modules/System/models/SystemUser';
 import { TenantModel } from '@/modules/System/models/TenantModel';
@@ -8,6 +9,7 @@ import { ModelObject } from 'objection';
 import { JwtPayload } from '../Auth.interfaces';
 import { JWT_ISSUER, JWT_AUDIENCE } from '../Auth.constants';
 import { InvalidEmailPasswordException } from '../exceptions/InvalidEmailPassword.exception';
+import { PasswordSigninRequiresMfaException } from '../exceptions/PasswordSigninRequiresMfa.exception';
 import { UserNotFoundException } from '../exceptions/UserNotFound.exception';
 
 @Injectable()
@@ -24,6 +26,7 @@ export class AuthSigninService {
 
     private readonly jwtService: JwtService,
     private readonly clsService: ClsService,
+    private readonly configService: ConfigService,
   ) {}
 
   /**
@@ -49,7 +52,23 @@ export class AuthSigninService {
     if (!(await user.checkPassword(password))) {
       throw new InvalidEmailPasswordException(email);
     }
+    // Once required, password sign-in only completes for accounts that
+    // already have two-factor authentication set up; see mfa.requireForPassword.
+    if (
+      this.configService.get<boolean>('mfa.requireForPassword') &&
+      !user.mfaEnabled
+    ) {
+      throw new PasswordSigninRequiresMfaException();
+    }
     return user;
+  }
+
+  /**
+   * Finds a system user by id, or null. Used to resolve a two-factor
+   * sign-in challenge back to the account it was issued for.
+   */
+  async findById(userId: number): Promise<SystemUser | null> {
+    return (await this.systemUserModel.query().findById(userId)) ?? null;
   }
 
   /**

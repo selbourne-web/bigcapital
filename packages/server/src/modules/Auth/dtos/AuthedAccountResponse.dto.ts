@@ -24,4 +24,14 @@ export class AuthedAccountResponseDto {
 
   @ApiProperty({ description: 'Whether the user email is verified' })
   verified: boolean;
+
+  @ApiProperty({
+    description: 'How the user signs in, when linked to an identity provider',
+    required: false,
+    enum: ['microsoft'],
+  })
+  ssoProvider?: 'microsoft' | null;
+
+  @ApiProperty({ description: 'Whether two-factor authentication is on' })
+  mfaEnabled: boolean;
 }

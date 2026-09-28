@@ -23,6 +23,11 @@ export const PreferencesMenu: PreferencesMenuItem[] = [
     href: '/preferences/users',
   },
   {
+    text: 'Security',
+    disabled: false,
+    href: '/preferences/security',
+  },
+  {
     text: 'Payment Methods',
     href: '/preferences/payment-methods',
   },

@@ -24,6 +24,8 @@ import redis from './redis';
 import queue from './queue';
 import bullBoard from './bull-board';
 import clickhouse from './clickhouse';
+import microsoftSso from './microsoft-sso';
+import mfa from './mfa';
 
 export const config = [
   app,
@@ -52,4 +54,6 @@ export const config = [
   queue,
   bullBoard,
   clickhouse,
+  microsoftSso,
+  mfa,
 ];

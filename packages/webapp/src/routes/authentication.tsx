@@ -13,6 +13,14 @@ export default [
     ),
   },
   {
+    path: `${BASE_URL}/sso/callback`,
+    component: lazy(() =>
+      import('@/containers/Authentication/SsoCallback').then((m) => ({
+        default: m.SsoCallback,
+      })),
+    ),
+  },
+  {
     path: `${BASE_URL}/send_reset_password`,
     component: lazy(() =>
       import('@/containers/Authentication/SendResetPassword').then((m) => ({

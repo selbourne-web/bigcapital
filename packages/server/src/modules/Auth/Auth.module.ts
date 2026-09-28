@@ -45,6 +45,10 @@ import { AuthApiKeysController } from './AuthApiKeys.controllers';
 import { AuthApiKeyAuthorizeService } from './commands/AuthApiKeyAuthorization.service';
 import { GenerateApiKey } from './commands/GenerateApiKey.service';
 import { GetApiKeysService } from './queries/GetApiKeys.service';
+import { MicrosoftSsoController } from './sso/MicrosoftSso.controller';
+import { MicrosoftSsoService } from './sso/MicrosoftSso.service';
+import { MfaController } from './mfa/Mfa.controller';
+import { MfaService } from './mfa/Mfa.service';
 
 const models = [
   InjectSystemModel(PasswordReset),
@@ -53,7 +57,13 @@ const models = [
 ];
 
 @Module({
-  controllers: [AuthController, AuthedController, AuthApiKeysController],
+  controllers: [
+    AuthController,
+    AuthedController,
+    AuthApiKeysController,
+    MicrosoftSsoController,
+    MfaController,
+  ],
   imports: [
     MailModule,
     PassportModule.register({ defaultStrategy: 'jwt' }),
@@ -117,6 +127,8 @@ const models = [
     AuthApiKeyAuthorizeService,
     GenerateApiKey,
     GetApiKeysService,
+    MicrosoftSsoService,
+    MfaService,
     JwtAuthGuard,
     {
       provide: APP_GUARD,

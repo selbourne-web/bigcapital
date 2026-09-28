@@ -381,6 +381,176 @@
         ]
       }
     },
+    "/api/auth/sso/microsoft/start": {
+      "get": {
+        "operationId": "MicrosoftSsoController_start",
+        "summary": "Start \"Sign in with Microsoft\"",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/auth/sso/microsoft/callback": {
+      "get": {
+        "operationId": "MicrosoftSsoController_callback",
+        "summary": "Handle the redirect back from Microsoft",
+        "parameters": [
+          {
+            "name": "code",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "state",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "error",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/auth/sso/microsoft/exchange": {
+      "post": {
+        "operationId": "MicrosoftSsoController_exchange",
+        "summary": "Exchange a Microsoft sign-in code for tokens",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MicrosoftSsoExchangeDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/auth/mfa/setup": {
+      "post": {
+        "operationId": "MfaController_setup",
+        "summary": "Start two-factor authentication setup",
+        "parameters": [],
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/auth/mfa/enable": {
+      "post": {
+        "operationId": "MfaController_enable",
+        "summary": "Confirm and enable two-factor authentication",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MfaEnableDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/auth/mfa/disable": {
+      "post": {
+        "operationId": "MfaController_disable",
+        "summary": "Disable two-factor authentication",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MfaEnableDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
+    "/api/auth/mfa/verify-login": {
+      "post": {
+        "operationId": "MfaController_verifyLogin",
+        "summary": "Finish a two-factor sign-in challenge",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MfaVerifyLoginDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": ""
+          }
+        },
+        "tags": [
+          "Auth"
+        ]
+      }
+    },
     "/api/items": {
       "get": {
         "operationId": "ItemsController_getItems",
@@ -7307,6 +7477,45 @@
         },
         "tags": [
           "Expenses"
+        ]
+      }
+    },
+    "/api/expense-autofill": {
+      "post": {
+        "operationId": "ExpenseAutofillController_autofill",
+        "summary": "Read a receipt or bill to fill in the expense form",
+        "description": "Sends the receipt (PDF, PNG, JPEG, GIF or WebP, up to 10 MB) to the Claude API and returns the payee, date, reference, currency and line items. Nothing is saved.",
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "description": "Value must be 'Bearer <token>' where <token> is an API key prefixed with 'bc_' or a JWT token.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "Bearer bc_1234567890abcdef"
+            }
+          },
+          {
+            "name": "organization-id",
+            "in": "header",
+            "description": "Required if Authorization is a JWT token. The organization ID to operate within.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The values read from the receipt"
+          },
+          "503": {
+            "description": "Autofill is not configured"
+          }
+        },
+        "tags": [
+          "Expense Autofill"
         ]
       }
     },
@@ -22329,6 +22538,118 @@
         ]
       }
     },
+    "/api/document-views/{linkId}/estimate": {
+      "get": {
+        "operationId": "DocumentViewsController_getEstimate",
+        "summary": "Get a shared estimate",
+        "parameters": [
+          {
+            "name": "linkId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "404": {
+            "description": "Link not found"
+          }
+        },
+        "tags": [
+          "Document Views"
+        ]
+      }
+    },
+    "/api/document-views/{linkId}/estimate/pdf": {
+      "get": {
+        "operationId": "DocumentViewsController_getEstimatePdf",
+        "summary": "Get the PDF of a shared estimate",
+        "parameters": [
+          {
+            "name": "linkId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "inline",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "404": {
+            "description": "Link not found"
+          }
+        },
+        "tags": [
+          "Document Views"
+        ]
+      }
+    },
+    "/api/document-views/{linkId}/credit-note": {
+      "get": {
+        "operationId": "DocumentViewsController_getCreditNote",
+        "summary": "Get a shared credit note",
+        "parameters": [
+          {
+            "name": "linkId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "404": {
+            "description": "Link not found"
+          }
+        },
+        "tags": [
+          "Document Views"
+        ]
+      }
+    },
+    "/api/document-views/{linkId}/credit-note/pdf": {
+      "get": {
+        "operationId": "DocumentViewsController_getCreditNotePdf",
+        "summary": "Get the PDF of a shared credit note",
+        "parameters": [
+          {
+            "name": "linkId",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "inline",
+            "required": true,
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "404": {
+            "description": "Link not found"
+          }
+        },
+        "tags": [
+          "Document Views"
+        ]
+      }
+    },
     "/api/roles": {
       "post": {
         "operationId": "RolesController_createRole",
@@ -24909,16 +25230,38 @@
           "userId"
         ]
       },
+      "AuthSigninChallengeResponseDto": {
+        "type": "object",
+        "properties": {
+          "mfaRequired": {
+            "type": "boolean",
+            "example": true
+          },
+          "challengeToken": {
+            "type": "string",
+            "description": "Pass this to POST /auth/mfa/verify-login"
+          }
+        },
+        "required": [
+          "mfaRequired",
+          "challengeToken"
+        ]
+      },
       "AuthMetaResponseDto": {
         "type": "object",
         "properties": {
           "signupDisabled": {
             "type": "boolean",
             "description": "Whether signup is disabled"
+          },
+          "microsoftSsoEnabled": {
+            "type": "boolean",
+            "description": "Whether \"Sign in with Microsoft\" is offered"
           }
         },
         "required": [
-          "signupDisabled"
+          "signupDisabled",
+          "microsoftSsoEnabled"
         ]
       },
       "AuthSigninDto": {
@@ -25055,6 +25398,17 @@
           "verified": {
             "type": "boolean",
             "description": "Whether the user email is verified"
+          },
+          "ssoProvider": {
+            "type": "string",
+            "description": "How the user signs in, when linked to an identity provider",
+            "enum": [
+              "microsoft"
+            ]
+          },
+          "mfaEnabled": {
+            "type": "boolean",
+            "description": "Whether two-factor authentication is on"
           }
         },
         "required": [
@@ -25064,7 +25418,8 @@
           "email",
           "active",
           "tenantId",
-          "verified"
+          "verified",
+          "mfaEnabled"
         ]
       },
       "ApiKeyResponseDto": {
@@ -25172,6 +25527,53 @@
             "example": "My API Key"
           }
         }
+      },
+      "MicrosoftSsoExchangeDto": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "The one-time code from /auth/sso/callback?code=..."
+          }
+        },
+        "required": [
+          "code"
+        ]
+      },
+      "MfaEnableDto": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string",
+            "example": "123456",
+            "description": "The current 6-digit code from the authenticator app"
+          }
+        },
+        "required": [
+          "token"
+        ]
+      },
+      "MfaVerifyLoginDto": {
+        "type": "object",
+        "properties": {
+          "challengeToken": {
+            "type": "string",
+            "description": "The challenge id returned by /auth/signin"
+          },
+          "token": {
+            "type": "string",
+            "example": "123456",
+            "description": "The current 6-digit code from the authenticator app"
+          },
+          "recoveryCode": {
+            "type": "string",
+            "example": "ABCD-1234",
+            "description": "A one-time recovery code, instead of an authenticator code"
+          }
+        },
+        "required": [
+          "challengeToken"
+        ]
       },
       "ItemErrorResponseDto": {
         "type": "object",
@@ -27626,6 +28028,12 @@
             "type": "string",
             "description": "The description of the item entry",
             "example": "This is a description"
+          },
+          "serviceDate": {
+            "type": "string",
+            "description": "The service date of the item entry (YYYY-MM-DD)",
+            "example": "2026-09-25",
+            "nullable": true
           },
           "taxCode": {
             "type": "string",
@@ -33977,6 +34385,12 @@
             "type": "string",
             "description": "The description of the item entry",
             "example": "This is a description"
+          },
+          "serviceDate": {
+            "type": "string",
+            "description": "The service date of the item entry (YYYY-MM-DD)",
+            "example": "2026-09-25",
+            "nullable": true
           },
           "taxCode": {
             "type": "string",

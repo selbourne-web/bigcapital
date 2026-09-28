@@ -12,6 +12,7 @@ export class GetAuthMetaService {
   public async getAuthMeta(): Promise<IAuthGetMetaPOJO> {
     return {
       signupDisabled: this.configService.get('signupRestrictions.disabled'),
+      microsoftSsoEnabled: !!this.configService.get('microsoftSso.enabled'),
     };
   }
 }

@@ -30,26 +30,66 @@ import {
 import { useAuthApiFetcher, useApiFetcher } from '../../useRequest';
 import { authenticationKeys } from './query-keys';
 
-/**
- * Saves the response data to cookies.
- */
+/** The tokens a completed sign-in returns, however it got there (password,
+ * two-factor challenge, or Microsoft). */
+export interface AuthSession {
+  accessToken: string;
+  organizationId: string;
+  tenantId: number;
+  userId: number;
+}
+
+/** Saves the session to cookies. */
+export function setAuthSessionCookies(
+  session: AuthSession,
+  rememberMe = false,
+): void {
+  const expiry = rememberMe ? 30 : 1;
+  setCookie('token', session.accessToken ?? '', expiry);
+  setCookie('authenticated_user_id', String(session.userId ?? ''), expiry);
+  setCookie('organization_id', session.organizationId ?? '', expiry);
+  setCookie('tenant_id', String(session.tenantId ?? ''), expiry);
+}
+
+/** @deprecated kept for callers still passing the raw snake_case response. */
 export function setAuthLoginCookies(
   data: AuthSigninResponse,
   rememberMe = false,
 ): void {
-  const expiry = rememberMe ? 30 : 1;
-  // @ts-ignore
-  setCookie('token', data.access_token ?? '', expiry);
-  // @ts-ignore
-  setCookie('authenticated_user_id', String(data.user_id ?? ''), expiry);
-  // @ts-ignore
-  setCookie('organization_id', data.organization_id ?? '', expiry);
-  // @ts-ignore
-  setCookie('tenant_id', String(data.tenant_id ?? ''), expiry);
+  setAuthSessionCookies(
+    {
+      // @ts-ignore - the wire response is snake_case; the SDK type is not.
+      accessToken: data.access_token ?? '',
+      // @ts-ignore
+      organizationId: data.organization_id ?? '',
+      // @ts-ignore
+      tenantId: data.tenant_id,
+      // @ts-ignore
+      userId: data.user_id,
+    },
+    rememberMe,
+  );
+}
+
+/** What /auth/signin returns: either tokens, or a two-factor challenge to
+ * resolve at POST /auth/mfa/verify-login before any tokens are issued. */
+export interface AuthSigninOrChallengeResponse {
+  // Present when sign-in is complete (the wire response is snake_case).
+  access_token?: string;
+  organization_id?: string;
+  tenant_id?: number;
+  user_id?: number;
+  // Present instead, when two-factor authentication is required.
+  mfa_required?: true;
+  challenge_token?: string;
 }
 
 export function useAuthLogin(
-  props?: UseMutationOptions<AuthSigninResponse, Error, AuthSigninBody>,
+  props?: UseMutationOptions<
+    AuthSigninOrChallengeResponse,
+    Error,
+    AuthSigninBody
+  >,
 ) {
   const fetcher = useAuthApiFetcher();
   const setAuthToken = useSetAuthToken();
@@ -58,20 +98,42 @@ export function useAuthLogin(
 
   return useMutation({
     ...props,
-    mutationFn: (values: AuthSigninBody) => signin(fetcher, values),
+    mutationFn: (values: AuthSigninBody) =>
+      signin(
+        fetcher,
+        values,
+      ) as unknown as Promise<AuthSigninOrChallengeResponse>,
     onSuccess: (data, variables, context, mutation) => {
-      setAuthLoginCookies(data, variables?.rememberMe);
-      batch(() => {
-        // @ts-ignore
-        setAuthToken(data.access_token ?? '');
-        // @ts-ignore
-        setOrganizationId(data.organization_id ?? '');
-        // @ts-ignore
-        setUserId(String(data.user_id ?? ''));
-      });
+      // A two-factor challenge carries no tokens yet; nothing to store until
+      // POST /auth/mfa/verify-login completes it.
+      if (!data.mfa_required) {
+        setAuthLoginCookies(data as AuthSigninResponse, variables?.rememberMe);
+        batch(() => {
+          setAuthToken(data.access_token ?? '');
+          setOrganizationId(data.organization_id ?? '');
+          setUserId(String(data.user_id ?? ''));
+        });
+      }
       props?.onSuccess?.(data, variables, context, mutation);
     },
   });
+}
+
+/** Applies a completed session (two-factor or Microsoft sign-in) the same
+ * way a normal password sign-in does. */
+export function useApplyAuthSession() {
+  const setAuthToken = useSetAuthToken();
+  const setOrganizationId = useSetOrganizationId();
+  const setUserId = useSetAuthUserId();
+
+  return (session: AuthSession, rememberMe = false) => {
+    setAuthSessionCookies(session, rememberMe);
+    batch(() => {
+      setAuthToken(session.accessToken);
+      setOrganizationId(session.organizationId);
+      setUserId(String(session.userId));
+    });
+  };
 }
 
 export function useAuthRegister(

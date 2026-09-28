@@ -207,6 +207,125 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/auth/sso/microsoft/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Start "Sign in with Microsoft" */
+        get: operations["MicrosoftSsoController_start"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/sso/microsoft/callback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Handle the redirect back from Microsoft */
+        get: operations["MicrosoftSsoController_callback"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/sso/microsoft/exchange": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Exchange a Microsoft sign-in code for tokens */
+        post: operations["MicrosoftSsoController_exchange"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/mfa/setup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Start two-factor authentication setup */
+        post: operations["MfaController_setup"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/mfa/enable": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Confirm and enable two-factor authentication */
+        post: operations["MfaController_enable"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/mfa/disable": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Disable two-factor authentication */
+        post: operations["MfaController_disable"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/mfa/verify-login": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Finish a two-factor sign-in challenge */
+        post: operations["MfaController_verifyLogin"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/items": {
         parameters: {
             query?: never;
@@ -1905,6 +2024,26 @@ export interface paths {
         put?: never;
         /** Publish the given expense transaction. */
         post: operations["ExpensesController_publishExpense"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/expense-autofill": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Read a receipt or bill to fill in the expense form
+         * @description Sends the receipt (PDF, PNG, JPEG, GIF or WebP, up to 10 MB) to the Claude API and returns the payee, date, reference, currency and line items. Nothing is saved.
+         */
+        post: operations["ExpenseAutofillController_autofill"];
         delete?: never;
         options?: never;
         head?: never;
@@ -4221,6 +4360,74 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/document-views/{linkId}/estimate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get a shared estimate */
+        get: operations["DocumentViewsController_getEstimate"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/document-views/{linkId}/estimate/pdf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get the PDF of a shared estimate */
+        get: operations["DocumentViewsController_getEstimatePdf"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/document-views/{linkId}/credit-note": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get a shared credit note */
+        get: operations["DocumentViewsController_getCreditNote"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/document-views/{linkId}/credit-note/pdf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get the PDF of a shared credit note */
+        get: operations["DocumentViewsController_getCreditNotePdf"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/roles": {
         parameters: {
             query?: never;
@@ -5125,9 +5332,17 @@ export interface components {
             /** @description User ID */
             userId: number;
         };
+        AuthSigninChallengeResponseDto: {
+            /** @example true */
+            mfaRequired: boolean;
+            /** @description Pass this to POST /auth/mfa/verify-login */
+            challengeToken: string;
+        };
         AuthMetaResponseDto: {
             /** @description Whether signup is disabled */
             signupDisabled: boolean;
+            /** @description Whether "Sign in with Microsoft" is offered */
+            microsoftSsoEnabled: boolean;
         };
         AuthSigninDto: {
             /**
@@ -5211,6 +5426,13 @@ export interface components {
             tenantId: number;
             /** @description Whether the user email is verified */
             verified: boolean;
+            /**
+             * @description How the user signs in, when linked to an identity provider
+             * @enum {string}
+             */
+            ssoProvider?: "microsoft";
+            /** @description Whether two-factor authentication is on */
+            mfaEnabled: boolean;
         };
         ApiKeyResponseDto: {
             /**
@@ -5279,6 +5501,31 @@ export interface components {
              * @example My API Key
              */
             name?: string;
+        };
+        MicrosoftSsoExchangeDto: {
+            /** @description The one-time code from /auth/sso/callback?code=... */
+            code: string;
+        };
+        MfaEnableDto: {
+            /**
+             * @description The current 6-digit code from the authenticator app
+             * @example 123456
+             */
+            token: string;
+        };
+        MfaVerifyLoginDto: {
+            /** @description The challenge id returned by /auth/signin */
+            challengeToken: string;
+            /**
+             * @description The current 6-digit code from the authenticator app
+             * @example 123456
+             */
+            token?: string;
+            /**
+             * @description A one-time recovery code, instead of an authenticator code
+             * @example ABCD-1234
+             */
+            recoveryCode?: string;
         };
         ItemErrorResponseDto: {
             /**
@@ -7010,6 +7257,11 @@ export interface components {
              * @example This is a description
              */
             description: string;
+            /**
+             * @description The service date of the item entry (YYYY-MM-DD)
+             * @example 2026-09-25
+             */
+            serviceDate?: string | null;
             /**
              * @description The tax code of the item entry
              * @example 123456
@@ -11262,6 +11514,11 @@ export interface components {
              * @example This is a description
              */
             description: string;
+            /**
+             * @description The service date of the item entry (YYYY-MM-DD)
+             * @example 2026-09-25
+             */
+            serviceDate?: string | null;
             /**
              * @description The tax code of the item entry
              * @example 123456
@@ -17735,6 +17992,145 @@ export interface operations {
             };
         };
     };
+    MicrosoftSsoController_start: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    MicrosoftSsoController_callback: {
+        parameters: {
+            query: {
+                code: string;
+                state: string;
+                error: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    MicrosoftSsoController_exchange: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MicrosoftSsoExchangeDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    MfaController_setup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    MfaController_enable: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MfaEnableDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    MfaController_disable: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MfaEnableDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    MfaController_verifyLogin: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MfaVerifyLoginDto"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     ItemsController_getItems: {
         parameters: {
             query?: {
@@ -21688,6 +22084,36 @@ export interface operations {
         requestBody?: never;
         responses: {
             201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    ExpenseAutofillController_autofill: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Value must be 'Bearer <token>' where <token> is an API key prefixed with 'bc_' or a JWT token. */
+                Authorization: string;
+                /** @description Required if Authorization is a JWT token. The organization ID to operate within. */
+                "organization-id": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The values read from the receipt */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Autofill is not configured */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -31500,6 +31926,90 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["GetDashboardBootMetaResponseDto"];
                 };
+            };
+        };
+    };
+    DocumentViewsController_getEstimate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                linkId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Link not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    DocumentViewsController_getEstimatePdf: {
+        parameters: {
+            query: {
+                inline: string;
+            };
+            header?: never;
+            path: {
+                linkId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Link not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    DocumentViewsController_getCreditNote: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                linkId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Link not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    DocumentViewsController_getCreditNotePdf: {
+        parameters: {
+            query: {
+                inline: string;
+            };
+            header?: never;
+            path: {
+                linkId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Link not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

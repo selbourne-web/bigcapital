@@ -6,7 +6,27 @@ export const LOGIN_ERRORS = {
   INVALID_DETAILS: 'INVALID_DETAILS',
   USER_INACTIVE: 'USER_INACTIVE',
   LOGIN_TO_MANY_ATTEMPTS: 'LOGIN_TO_MANY_ATTEMPTS',
+  PASSWORD_SIGNIN_REQUIRES_MFA: 'PASSWORD_SIGNIN_REQUIRES_MFA',
 };
+
+/** Why the server sent the browser back from a Microsoft sign-in attempt. */
+export const SSO_ERROR_MESSAGES: Record<string, string> = {
+  cancelled: 'Sign-in with Microsoft was cancelled.',
+  not_configured: 'Sign-in with Microsoft is not set up.',
+  domain_not_allowed:
+    'That Microsoft account is not on an allowed company domain.',
+  tenant_not_allowed: 'That Microsoft account is not on the company tenant.',
+  oid_mismatch:
+    'That Microsoft account does not match the one already linked to this email. Contact an administrator.',
+  no_account:
+    'There is no Selbourne Financial account for that email yet. Ask an administrator to invite you first.',
+  no_workspace:
+    'No active workspace is available for this account. Contact an administrator.',
+};
+
+export const ssoErrorMessage = (reason: string): string =>
+  SSO_ERROR_MESSAGES[reason] ??
+  'Sign-in with Microsoft did not work. Please try again.';
 
 const REGISTER_ERRORS = {
   PHONE_NUMBER_EXISTS: 'PHONE_NUMBER_EXISTS',
@@ -130,6 +150,13 @@ export const transformLoginErrorsToToasts = (
   } else if (error.code === LOGIN_ERRORS.USER_INACTIVE) {
     toastBuilders.push({
       message: intl.get('the_user_has_been_suspended_from_admin'),
+      intent: Intent.DANGER,
+    });
+  } else if (error.code === LOGIN_ERRORS.PASSWORD_SIGNIN_REQUIRES_MFA) {
+    toastBuilders.push({
+      message:
+        error.message ??
+        'Password sign-in requires two-factor authentication for this account.',
       intent: Intent.DANGER,
     });
   }

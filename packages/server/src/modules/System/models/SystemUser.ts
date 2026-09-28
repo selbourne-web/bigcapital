@@ -14,6 +14,20 @@ export class SystemUser extends BaseModel {
   public readonly verified: boolean;
   public readonly inviteAcceptedAt!: string;
 
+  // Microsoft SSO (Entra ID): `microsoftOid` is Microsoft's stable per-user,
+  // per-tenant id (the `oid` claim), set the first time this account signs
+  // in through Microsoft with a matching email.
+  public microsoftOid: string | null;
+  public ssoProvider: 'microsoft' | null;
+
+  // TOTP two-factor authentication (the fallback for sign-in without SSO).
+  // `mfaSecret` is encrypted at rest; never expose it or the recovery codes
+  // outside the Mfa module.
+  public mfaSecret: string | null;
+  public mfaEnabled: boolean;
+  public mfaEnrolledAt: string | null;
+  public mfaRecoveryCodes: string | null;
+
   static get tableName() {
     return 'users';
   }
