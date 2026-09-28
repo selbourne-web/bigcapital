@@ -1,5 +1,5 @@
 // Two-factor authentication settings: a status card, then an inline setup
-// or turn-off flow with a manual-entry secret (no QR code yet).
+// or turn-off flow with a scannable QR code and a manual-entry fallback.
 .card {
   padding: 20px 22px;
   max-width: 520px;
@@ -32,6 +32,24 @@
     :global(.bp4-dark) & {
       background: var(--color-dark-gray2);
     }
+  }
+}
+
+.qrCode {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 192px;
+  height: 192px;
+  margin: 4px 0 12px;
+  padding: 8px;
+  border-radius: 8px;
+  background: #fff;
+  border: 1px solid #dcdcdc;
+
+  img {
+    width: 176px;
+    height: 176px;
   }
 }
 

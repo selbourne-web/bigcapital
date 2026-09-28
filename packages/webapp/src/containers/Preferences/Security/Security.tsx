@@ -1,5 +1,13 @@
-import { Button, Icon, InputGroup, Intent, Tag } from '@blueprintjs/core';
+import {
+  Button,
+  Icon,
+  InputGroup,
+  Intent,
+  Spinner,
+  Tag,
+} from '@blueprintjs/core';
 import * as FF from 'fp-ts/function';
+import QRCode from 'qrcode';
 import React, { useEffect, useState } from 'react';
 import styles from './Security.module.scss';
 import type { WithDashboardActionsProps } from '@/containers/Dashboard/withDashboardActions';
@@ -71,6 +79,46 @@ function TwoFactorCard({ mfaEnabled }: { mfaEnabled: boolean }) {
   );
 }
 
+/**
+ * Renders the setup key as a scannable QR code (drawn entirely in the
+ * browser; the secret never leaves this page to produce it). Authenticator
+ * apps that can't scan still have the manual key and link shown alongside.
+ */
+function MfaQrCode({ otpauthUrl }: { otpauthUrl: string }) {
+  const [dataUrl, setDataUrl] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    setDataUrl(null);
+    setFailed(false);
+
+    QRCode.toDataURL(otpauthUrl, { width: 176, margin: 1 })
+      .then((url) => {
+        if (!cancelled) setDataUrl(url);
+      })
+      .catch(() => {
+        if (!cancelled) setFailed(true);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [otpauthUrl]);
+
+  if (failed) return null;
+
+  return (
+    <div className={styles.qrCode}>
+      {dataUrl ? (
+        <img src={dataUrl} alt="Scan this in your authenticator app" />
+      ) : (
+        <Spinner size={40} />
+      )}
+    </div>
+  );
+}
+
 function SetUpMfa() {
   const {
     mutate: startSetup,
@@ -136,9 +184,11 @@ function SetUpMfa() {
   return (
     <>
       <p className={styles.note}>
-        Add this key to an authenticator app (Microsoft Authenticator, Google
+        Scan this with an authenticator app (Microsoft Authenticator, Google
         Authenticator, Authy, ...), then enter the 6-digit code it shows.
       </p>
+      <MfaQrCode otpauthUrl={setup.otpauthUrl} />
+      <p className={styles.note}>Can't scan? Enter this key manually:</p>
       <div className={styles.secret}>
         <code>{setup.secret}</code>
         <Button
