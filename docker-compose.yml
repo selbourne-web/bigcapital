@@ -21,9 +21,7 @@ services:
     ports:
       - '127.0.0.1:3306:3306'
       - '[::1]:3306:3306'
-    deploy:
-      restart_policy:
-        condition: unless-stopped
+    restart: unless-stopped
 
   redis:
     build:
@@ -35,9 +33,7 @@ services:
       - '[::1]:6379:6379'
     volumes:
       - redis:/data
-    deploy:
-      restart_policy:
-        condition: unless-stopped
+    restart: unless-stopped
 
   gotenberg:
     image: gotenberg/gotenberg:7
@@ -48,6 +44,7 @@ services:
     ports:
       - '127.0.0.1:9000:3000'
       - '[::1]:9000:3000'
+    restart: unless-stopped
 
   clickhouse:
     image: clickhouse/clickhouse-server:24.8
@@ -70,9 +67,7 @@ services:
       - '[::1]:8123:8123'
     volumes:
       - clickhouse:/var/lib/clickhouse
-    deploy:
-      restart_policy:
-        condition: unless-stopped
+    restart: unless-stopped
 
   garage:
     image: dxflrs/garage:v1.3.1
@@ -93,9 +88,7 @@ services:
     expose:
       - '3900'
       - '3903'
-    deploy:
-      restart_policy:
-        condition: unless-stopped
+    restart: unless-stopped
 
 # Volumes
 volumes:
