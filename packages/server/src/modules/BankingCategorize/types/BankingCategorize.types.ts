@@ -53,6 +53,7 @@ export interface CreateUncategorizedTransactionDTO {
   date: Date | string;
   accountId: number;
   amount: number;
+  runningBalance?: number;
   currencyCode: string;
   payee?: string;
   description?: string;

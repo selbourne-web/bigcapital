@@ -86,27 +86,33 @@ export interface ICashflowTransactionTypeMeta {
   creditType: string[];
 }
 
+// Mirrors the shape most bank statement exports actually use (a debit and a
+// credit column, plus the bank's own running balance) rather than a single
+// signed amount - see UncategorizedTransactionsImportable.transform().
 export const BankTransactionsSampleData = [
   {
-    Amount: '6,410.19',
     Date: '2024-03-26',
-    Payee: 'MacGyver and Sons',
-    'Reference No.': 'REF-1',
+    'Reference No.': '',
     Description: 'Commodi quo labore.',
+    'Debit Amount': '150.00',
+    'Credit Amount': '',
+    'Running Balance': '6,410.19',
   },
   {
-    Amount: '8,914.17',
     Date: '2024-01-05',
-    Payee: 'Eichmann - Bergnaum',
-    'Reference No.': 'REF-1',
+    'Reference No.': '',
     Description: 'Quia enim et.',
+    'Debit Amount': '',
+    'Credit Amount': '500.00',
+    'Running Balance': '8,914.17',
   },
   {
-    Amount: '6,200.88',
     Date: '2024-02-17',
-    Payee: 'Luettgen, Mraz and Legros',
-    'Reference No.': 'REF-1',
+    'Reference No.': '1042',
     Description: 'Occaecati consequuntur cum impedit illo.',
+    'Debit Amount': '85.30',
+    'Credit Amount': '',
+    'Running Balance': '6,200.88',
   },
 ];
 

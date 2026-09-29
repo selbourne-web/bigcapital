@@ -12,6 +12,13 @@ export type EntityColumnField = {
   required?: boolean;
   hint?: string;
   group?: string;
+  /** Fields sharing the same `altGroup` are alternate ways to map one value
+   *  (e.g. a single "Amount" column vs. split "Debit"/"Credit" columns) and
+   *  render as one row with a mode toggle. See `altLabel`. */
+  altGroup?: string;
+  /** Sub-label shown for this field when its `altGroup` is in "split" mode;
+   *  the field with no `altLabel` is the group's "single" mode option. */
+  altLabel?: string;
 };
 
 export interface EntityColumn {

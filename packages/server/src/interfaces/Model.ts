@@ -156,6 +156,16 @@ export interface IModelMetaFieldCommon2 {
   order?: number;
   unique?: number;
   features?: Array<any>;
+  /**
+   * Marks this field as one of several mutually-exclusive ways to map the
+   * same underlying value (e.g. one signed "Amount" column vs. separate
+   * "Debit"/"Credit" columns). Fields sharing the same key render as one
+   * mapping-screen row with a mode toggle instead of one row each; the field
+   * with no `altLabel` is the toggle's default ("single") option, and each
+   * field with an `altLabel` is one of the alternate ("split") options.
+   */
+  altGroup?: string;
+  altLabel?: string;
 }
 
 export interface IModelMetaRelationField2 {

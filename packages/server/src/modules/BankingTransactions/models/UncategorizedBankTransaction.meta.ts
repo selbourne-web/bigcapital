@@ -32,6 +32,11 @@ export const UncategorizedBankTransactionMeta = {
       fieldType: 'numeric',
       required: true,
     },
+    runningBalance: {
+      name: 'Running Balance',
+      column: 'running_balance',
+      fieldType: 'numeric',
+    },
     account: {
       name: 'Account',
       column: 'account_id',
@@ -54,6 +59,8 @@ export const UncategorizedBankTransactionMeta = {
     payee: {
       name: 'Payee',
       fieldType: 'text',
+      importHint:
+        "Optional - most bank statements don't have a separate payee column. Leave this unmapped (the Description already carries that text); you can assign a customer or vendor to the transaction later when categorizing it.",
     },
     description: {
       name: 'Description',
@@ -67,6 +74,30 @@ export const UncategorizedBankTransactionMeta = {
       name: 'Amount',
       fieldType: 'number',
       required: true,
+      altGroup: 'amount',
+      importHint:
+        'A single signed amount (negative for withdrawals/debits, positive for deposits/credits). Switch to "Two columns" above if your statement uses separate Debit Amount / Credit Amount columns instead.',
+    },
+    debitAmount: {
+      name: 'Debit Amount',
+      fieldType: 'number',
+      altGroup: 'amount',
+      altLabel: 'Money spent',
+      importHint:
+        'Money leaving the account (withdrawal). Either sign works - a plain positive magnitude or an already-negative value, both are read correctly.',
+    },
+    creditAmount: {
+      name: 'Credit Amount',
+      fieldType: 'number',
+      altGroup: 'amount',
+      altLabel: 'Money received',
+      importHint: 'Money coming into the account (deposit).',
+    },
+    runningBalance: {
+      name: 'Running Balance',
+      fieldType: 'number',
+      importHint:
+        'The account balance your bank reported after this transaction. Optional - used only to help you verify the import matches your bank statement.',
     },
   },
 };

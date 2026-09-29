@@ -52,5 +52,10 @@ pids
 *.seed
 *.pid.lock
 
+# Uploaded import files (CSV/xlsx a user uploads to import data, e.g. a real
+# bank statement) - never commit someone's actual financial/customer data.
+static/imports/*
+!static/imports/.gitkeep
+
 # Diagnostic reports (https://nodejs.org/api/report.html)
 report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json

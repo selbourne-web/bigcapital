@@ -20,6 +20,9 @@ export class UncategorizedBankTransaction extends TenantBaseModel {
   readonly categorizeRefId!: number;
   readonly categorizeRefType!: string;
   readonly currencyCode!: string;
+  /** The bank's own running balance after this transaction, if the source
+   *  statement provided one. Informational only - nothing derives from it. */
+  readonly runningBalance: number;
 
   /**
    * Table name.

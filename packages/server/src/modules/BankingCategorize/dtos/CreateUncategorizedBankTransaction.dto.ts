@@ -1,4 +1,10 @@
-import { IsBoolean, IsDateString, IsNumber, IsString } from 'class-validator';
+import {
+  IsBoolean,
+  IsDateString,
+  IsNumber,
+  IsOptional,
+  IsString,
+} from 'class-validator';
 
 export class UncategorizedBankTransactionDto {
   @IsDateString()
@@ -9,6 +15,10 @@ export class UncategorizedBankTransactionDto {
 
   @IsNumber()
   amount: number;
+
+  @IsOptional()
+  @IsNumber()
+  runningBalance?: number;
 
   @IsString()
   currencyCode: string;

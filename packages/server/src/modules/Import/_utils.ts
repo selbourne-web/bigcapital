@@ -24,6 +24,33 @@ import { multiNumberParse } from '@/utils/multi-number-parse';
 import { ServiceError } from '../Items/ServiceError';
 import { IModelMetaField, IModelMetaField2 } from '@/interfaces/Model';
 
+/**
+ * Formats accepted when parsing an imported "date" field, tried in order
+ * (moment.js picks the first one that parses strictly without error flags).
+ *
+ * Both a zero-padded (`DD`/`MM`) and a non-padded (`D`/`M`) variant of each
+ * separator are listed - in moment's strict mode `DD`/`MM` reject a
+ * single-digit value ("8") and `D`/`M` reject a zero-padded one ("08"), so a
+ * real export that mixes the two (as bank statements often do, e.g.
+ * "31/08/2026" alongside "4/8/2026" in the same file) needs both to parse
+ * every row. Day-first is tried before month-first, matching this app's
+ * locale; unambiguous rows (day > 12) resolve correctly regardless of order.
+ */
+export const DATE_PARSE_FORMATS = [
+  'YYYY-MM-DD',
+  'YYYY/MM/DD',
+  'DD/MM/YYYY',
+  'D/M/YYYY',
+  'DD-MM-YYYY',
+  'D-M-YYYY',
+  'DD.MM.YYYY',
+  'D.M.YYYY',
+  'MM/DD/YYYY',
+  'M/D/YYYY',
+  'MM-DD-YYYY',
+  'M-D-YYYY',
+];
+
 export const ERRORS = {
   RESOURCE_NOT_IMPORTABLE: 'RESOURCE_NOT_IMPORTABLE',
   INVALID_MAP_ATTRS: 'INVALID_MAP_ATTRS',
@@ -100,12 +127,12 @@ export const convertFieldsToYupValidation = (fields: ResourceMetaFieldsMap) => {
     } else if (field.fieldType === 'date') {
       fieldSchema = fieldSchema.test(
         'date validation',
-        'Invalid date or format. The string should be a valid YYYY-MM-DD format.',
+        'Invalid date or format. Expected a date such as 2024-03-26 or 26/03/2024.',
         (val) => {
           if (!val) {
             return true;
           }
-          return moment(val, 'YYYY-MM-DD', true).isValid();
+          return moment(val, DATE_PARSE_FORMATS, true).isValid();
         },
       );
     } else if (field.fieldType === 'url') {
@@ -253,15 +280,21 @@ export const getResourceColumns = (resourceColumns: {
 }) => {
   const mapColumn =
     (group: string) =>
-    ([fieldKey, { name, importHint, required, order, ...field }]: [
-      string,
-      IModelMetaField2,
-    ]) => {
+    ([
+      fieldKey,
+      { name, importHint, required, order, altGroup, altLabel, ...field },
+    ]: [string, IModelMetaField2]) => {
       const extra: Record<string, any> = {};
       const key = fieldKey;
 
       if (group) {
         extra.group = group;
+      }
+      if (altGroup) {
+        extra.altGroup = altGroup;
+      }
+      if (altLabel) {
+        extra.altLabel = altLabel;
       }
       if (field.fieldType === 'collection') {
         extra.fields = mapColumns(field.fields, key);
@@ -302,6 +335,13 @@ export const valueParser =
     // Parses the boolean value.
     if (field.fieldType === 'boolean') {
       _value = parseBoolean(value);
+
+      // Parses the date value: accepts any of DATE_PARSE_FORMATS and
+      // normalizes to ISO (YYYY-MM-DD) before validation/storage, since a
+      // real bank/spreadsheet export is rarely already in ISO format.
+    } else if (field.fieldType === 'date') {
+      const parsed = moment(value, DATE_PARSE_FORMATS, true);
+      _value = parsed.isValid() ? parsed.format('YYYY-MM-DD') : value;
 
       // Parses the enumeration value.
     } else if (field.fieldType === 'enumeration') {

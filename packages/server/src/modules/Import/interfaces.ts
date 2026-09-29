@@ -33,6 +33,8 @@ export interface ImportFileUploadPOJO {
     name: string;
     required?: boolean;
     hint?: string;
+    altGroup?: string;
+    altLabel?: string;
   }[];
 }
 

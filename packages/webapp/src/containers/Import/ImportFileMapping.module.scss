@@ -53,3 +53,13 @@
 .requiredSign{
   color: rgb(250, 82, 82);
 }
+
+.labelIndented {
+  padding-left: 24px;
+  color: #738091;
+  font-weight: 400;
+
+  :global(.bp4-dark) &{
+    color: var(--color-light-gray1);
+  }
+}
