@@ -2,15 +2,15 @@ import { Button, Icon, Intent, Spinner } from '@blueprintjs/core';
 import { useFormikContext } from 'formik';
 import React, { useEffect, useRef, useState } from 'react';
 import styles from './ExpenseReceiptAutofill.module.scss';
-import { AppToaster } from '@/components';
-import { AttachmentPreviewDialog } from '@/components/Attachments/AttachmentPreviewDialog';
-import { useUploadAttachments } from '@/hooks/query/attachments';
-import { useExpenseAutofill } from '@/hooks/query/expense-autofill';
+import type { ExpenseFormValues } from './types';
 import type {
   AutofillError,
   ReceiptAutofillResult,
 } from '@/hooks/query/expense-autofill';
-import type { ExpenseFormValues } from './types';
+import { AppToaster } from '@/components';
+import { AttachmentPreviewDialog } from '@/components/Attachments/AttachmentPreviewDialog';
+import { useUploadAttachments } from '@/hooks/query/attachments';
+import { useExpenseAutofill } from '@/hooks/query/expense-autofill';
 
 const ACCEPTED_TYPES = [
   'application/pdf',

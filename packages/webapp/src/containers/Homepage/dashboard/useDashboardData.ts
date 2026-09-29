@@ -9,18 +9,18 @@ import { useCallback } from 'react';
 import { useLocation } from 'react-router-dom';
 import { sampleAging, sampleCashFlow, sampleProfitLoss } from './sampleData';
 import { selectAging, selectCashFlow, selectProfitLoss } from './selectors';
-import type {
-  CashflowStatementJsonQuery,
-  PayableAgingJsonQuery,
-  ProfitLossJsonQuery,
-  ReceivableAgingJsonQuery,
-} from '@bigcapital/sdk-ts';
 import type { DateRange, Granularity } from './ranges';
 import type {
   AgingSummary,
   CashFlowSummary,
   ProfitLossSummary,
 } from './selectors';
+import type {
+  CashflowStatementJsonQuery,
+  PayableAgingJsonQuery,
+  ProfitLossJsonQuery,
+  ReceivableAgingJsonQuery,
+} from '@bigcapital/sdk-ts';
 import { useApiFetcher } from '@/hooks/useRequest';
 
 const STALE_TIME_MS = 60 * 1000;

@@ -1,8 +1,8 @@
-import react from '@vitejs/plugin-react';
-import legacy from '@vitejs/plugin-legacy';
 import path from 'node:path';
-import { defineConfig, loadEnv, type PluginOption } from 'vite';
+import legacy from '@vitejs/plugin-legacy';
+import react from '@vitejs/plugin-react';
 import fixReactVirtualized from 'esbuild-plugin-react-virtualized';
+import { defineConfig, loadEnv, type PluginOption } from 'vite';
 
 const allowedEnvPrefixes = ['VITE_', 'REACT_APP_', 'PUBLIC_URL'];
 

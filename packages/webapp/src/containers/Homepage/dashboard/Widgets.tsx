@@ -1,7 +1,7 @@
 import moment from 'moment';
 import { useCallback, useMemo } from 'react';
-import { WidgetCard } from './WidgetCard';
 import { formatRangeLabel } from './ranges';
+import { WidgetCard } from './WidgetCard';
 import type { DateRange } from './ranges';
 import type {
   AgingSummary,

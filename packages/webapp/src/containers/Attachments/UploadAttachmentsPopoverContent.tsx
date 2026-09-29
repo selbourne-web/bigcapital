@@ -3,12 +3,12 @@ import { isEmpty } from 'lodash';
 import { useState } from 'react';
 import styles from './UploadAttachmentPopoverContent.module.scss';
 import { Box, Group, Icon, Stack } from '@/components';
+import { AttachmentPreviewDialog } from '@/components/Attachments/AttachmentPreviewDialog';
 import { MIME_TYPES } from '@/components/Dropzone/mine-types';
 import {
   ImportDropzoneField,
   ImportDropzoneFieldProps,
 } from '@/containers/Import/ImportDropzoneFile';
-import { AttachmentPreviewDialog } from '@/components/Attachments/AttachmentPreviewDialog';
 import {
   downloadBlob,
   getAttachmentPreviewKind,

@@ -3,8 +3,8 @@ import { useFormikContext } from 'formik';
 import React, { useState } from 'react';
 import styles from './ExpenseReceiptAutofill.module.scss';
 import type { ExpenseFormValues } from './types';
-import { AttachmentPreviewDialog } from '@/components/Attachments/AttachmentPreviewDialog';
 import type { AttachmentPreviewFile } from '@/components/Attachments/AttachmentPreviewDialog';
+import { AttachmentPreviewDialog } from '@/components/Attachments/AttachmentPreviewDialog';
 import {
   getAttachmentPreviewKind,
   useAttachmentObjectUrl,

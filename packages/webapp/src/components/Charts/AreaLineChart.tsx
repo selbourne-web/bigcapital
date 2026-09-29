@@ -4,10 +4,10 @@ import { ParentSize } from '@visx/responsive';
 import { scaleLinear } from '@visx/scale';
 import { Area, LinePath } from '@visx/shape';
 import { useId, useMemo, useState } from 'react';
-import type { KeyboardEvent, PointerEvent } from 'react';
-import { ChartTooltip } from './ChartTooltip';
 import { chartCssVars } from './chart-theme';
+import { ChartTooltip } from './ChartTooltip';
 import { formatCompact, showTickLabel, tickEvery } from './format';
+import type { KeyboardEvent, PointerEvent } from 'react';
 import '@/style/components/Charts.scss';
 
 export interface ChartSeries {

@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useCallback, useEffect, useState } from 'react';
-import { attachmentsKeys } from './query-keys';
 import { useAuthOrganizationId, useAuthToken } from '../../state';
+import { attachmentsKeys } from './query-keys';
 
 /** Kinds of file the app shows inline; everything else is downloaded. */
 export type AttachmentPreviewKind = 'image' | 'pdf';

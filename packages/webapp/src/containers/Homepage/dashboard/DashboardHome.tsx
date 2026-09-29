@@ -2,6 +2,8 @@ import moment from 'moment';
 import { DashboardRangeSelect } from './DashboardRangeSelect';
 import { QuickActions } from './QuickActions';
 import { ShortcutsColumn } from './ShortcutsColumn';
+import { useDashboardData, useSampleMode } from './useDashboardData';
+import { useDashboardRange } from './useDashboardRange';
 import {
   AgingWidget,
   CashFlowWidget,
@@ -9,8 +11,6 @@ import {
   IncomeExpensesWidget,
   ProfitLossWidget,
 } from './Widgets';
-import { useDashboardData, useSampleMode } from './useDashboardData';
-import { useDashboardRange } from './useDashboardRange';
 import { useAuthenticatedAccount } from '@/hooks/query';
 import '@/style/pages/HomePage/Dashboard.scss';
 

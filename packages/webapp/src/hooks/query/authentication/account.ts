@@ -1,7 +1,7 @@
 import { fetchAuthedAccount, type AuthedAccount } from '@bigcapital/sdk-ts';
 import { useQuery, UseQueryOptions } from '@tanstack/react-query';
-import { authenticationKeys } from './query-keys';
 import { useApiFetcher } from '../../useRequest';
+import { authenticationKeys } from './query-keys';
 
 /** The signed-in Bigcapital account (name, email, sign-in method, 2FA status). */
 export function useAuthedAccount(

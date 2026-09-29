@@ -2,11 +2,11 @@ import { Group } from '@visx/group';
 import { ParentSize } from '@visx/responsive';
 import { scaleBand, scaleLinear } from '@visx/scale';
 import { useMemo, useState } from 'react';
-import type { CSSProperties, KeyboardEvent } from 'react';
-import { ChartTooltip } from './ChartTooltip';
 import { chartCssVars } from './chart-theme';
+import { ChartTooltip } from './ChartTooltip';
 import { formatCompact, showTickLabel, tickEvery } from './format';
 import type { ChartDatum, ChartSeries } from './AreaLineChart';
+import type { CSSProperties, KeyboardEvent } from 'react';
 import '@/style/components/Charts.scss';
 
 interface GroupedBarChartProps {

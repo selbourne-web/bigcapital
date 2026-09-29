@@ -1,5 +1,5 @@
 // @ts-check
-'use strict';
+
 /**
  * Codemod: Update default imports from containers to use named imports.
  *
@@ -13,9 +13,9 @@
  * Reads: scripts/export-manifest.json
  */
 
-const { Project, Node, SyntaxKind } = require('ts-morph');
-const path = require('path');
 const fs = require('fs');
+const path = require('path');
+const { Project, Node, SyntaxKind } = require('ts-morph');
 
 const ROOT = path.join(__dirname, '..');
 const SRC_DIR = path.join(ROOT, 'src');

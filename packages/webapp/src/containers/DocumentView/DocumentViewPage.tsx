@@ -3,12 +3,12 @@ import BodyClassName from 'react-body-classname';
 import { Helmet } from 'react-helmet';
 import { useParams } from 'react-router-dom';
 import styles from './DocumentViewPage.module.scss';
+import { SelbourneLogo } from '@/components/Branding/SelbourneLogo';
 import {
   documentViewUrl,
   isDocumentViewType,
   useGetDocumentView,
 } from '@/hooks/query/document-view';
-import { SelbourneLogo } from '@/components/Branding/SelbourneLogo';
 
 // The printed page is 794 x 1123 px (A4 at 96 dpi); it is scaled down to fit.
 const PAGE_WIDTH = 794;

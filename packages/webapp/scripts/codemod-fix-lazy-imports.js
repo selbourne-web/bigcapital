@@ -1,5 +1,5 @@
 // @ts-check
-'use strict';
+
 /**
  * Fix React.lazy() calls that need a default export.
  *
@@ -12,8 +12,8 @@
  * (i.e., files that had their default export converted to a named export).
  */
 
-const path = require('path');
 const fs = require('fs');
+const path = require('path');
 
 const ROOT = path.join(__dirname, '..');
 const SRC_DIR = path.join(ROOT, 'src');

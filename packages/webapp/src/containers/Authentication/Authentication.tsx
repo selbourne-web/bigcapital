@@ -4,9 +4,9 @@ import BodyClassName from 'react-body-classname';
 import { Route, Switch, useLocation } from 'react-router-dom';
 import { TransitionGroup, CSSTransition } from 'react-transition-group';
 import styled from 'styled-components';
+import { AuthBrandLogo, useForceLightTheme } from './AuthBranding';
 import { AuthMetaBootProvider } from './AuthMetaBoot';
 import { Box } from '@/components';
-import { AuthBrandLogo, useForceLightTheme } from './AuthBranding';
 import authenticationRoutes from '@/routes/authentication';
 
 import '@/style/pages/Authentication/Auth.scss';

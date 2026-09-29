@@ -1,5 +1,5 @@
 // @ts-check
-'use strict';
+
 /**
  * Codemod: Convert `export default` to named exports in src/containers.
  *
@@ -13,9 +13,9 @@
  * Outputs: scripts/export-manifest.json  (path → exportName)
  */
 
-const { Project, Node, SyntaxKind } = require('ts-morph');
-const path = require('path');
 const fs = require('fs');
+const path = require('path');
+const { Project, Node, SyntaxKind } = require('ts-morph');
 
 const ROOT = path.join(__dirname, '..');
 const CONTAINERS_DIR = path.join(ROOT, 'src', 'containers');
