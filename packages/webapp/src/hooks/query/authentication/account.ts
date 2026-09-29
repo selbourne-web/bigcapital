@@ -7,7 +7,10 @@ import { authenticationKeys } from './query-keys';
 export function useAuthedAccount(
   props?: Omit<UseQueryOptions<AuthedAccount, Error>, 'queryKey' | 'queryFn'>,
 ) {
-  const fetcher = useApiFetcher();
+  // Without this, the fetcher leaves the response snake_case (its default),
+  // so `account.mfaEnabled`/`account.ssoProvider` would read as undefined
+  // even though the server sent `mfa_enabled`/`sso_provider` correctly.
+  const fetcher = useApiFetcher({ enableCamelCaseTransform: true });
 
   return useQuery({
     ...props,

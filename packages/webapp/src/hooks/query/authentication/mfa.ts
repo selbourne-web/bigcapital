@@ -1,5 +1,6 @@
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuthToken } from '../../state';
+import { authenticationKeys } from './query-keys';
 
 /** A failure the person can act on; `type` is the server's error type. */
 export class MfaError extends Error {
@@ -67,11 +68,19 @@ export function useMfaSetup() {
 /** Confirms setup with a code; returns one-time recovery codes. */
 export function useMfaEnable() {
   const token = useAuthToken();
+  const queryClient = useQueryClient();
 
   return useMutation<string[], MfaError, { token: string }>({
     mutationFn: async ({ token: code }) => {
       const data = await request('enable', token, { token: code });
       return data.recovery_codes ?? [];
+    },
+    // The signed-in account (and its `mfaEnabled` flag) is cached under
+    // authenticationKeys.account() - without this, the Security page keeps
+    // showing "Set up two-factor authentication" on every revisit until
+    // that stale cache happens to be refetched some other way.
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: authenticationKeys.account() });
     },
   });
 }
@@ -79,10 +88,14 @@ export function useMfaEnable() {
 /** Turns two-factor authentication off (requires a currently valid code). */
 export function useMfaDisable() {
   const token = useAuthToken();
+  const queryClient = useQueryClient();
 
   return useMutation<void, MfaError, { token: string }>({
     mutationFn: async ({ token: code }) => {
       await request('disable', token, { token: code });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: authenticationKeys.account() });
     },
   });
 }
