@@ -261,7 +261,8 @@ export const CustomerMeta = {
         { key: 'business', label: 'Business' },
         { key: 'individual', label: 'Individual' },
       ],
-      required: true,
+      importHint:
+        "Most exports (e.g. QuickBooks Online) don't have an equivalent column. Leave unmapped and every imported customer defaults to Business - edit individual customers afterwards if some should be Individual.",
     },
     firstName: {
       name: 'customer.field.first_name',
