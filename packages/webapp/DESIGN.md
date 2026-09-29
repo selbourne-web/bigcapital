@@ -191,10 +191,12 @@ Rounded is the house form. Pills (`rounded.pill`, 999px) for buttons, chips, sel
 - A pill-shaped native select, with two date inputs for "Custom range", and the resolved dates beside it.
 
 ### Charts
-- Composition: grid, series, axes, tooltip layer. One root per chart. Colours only from `--chart-1` to `--chart-5`.
+- Composition: grid, series, axes, tooltip layer. One root per chart. Colours from `--chart-1` to `--chart-5`, except the dashboard's financial widgets (see below), which use semantic colour instead - the owner's explicit decision, so the figures read at a glance rather than needing the legend.
 - Line and area: 2.5px round-cap line, gradient fill. Bars: rounded tops. Donut: 22px ring with a value in the centre and a legend.
 - Hover and keyboard (arrow keys) reveal a crosshair or band and a tooltip; a live region announces the focused point.
 - Enter animation: 1100ms exponential ease-out reveal, once per data change.
+
+**Semantic dashboard colours** (`--chart-income`/`-expense`/`-receivable`/`-payable`, `--color-{green,red,blue,orange}-100..500`, `chart-theme.ts`): income is green, expenses are red, money owed to the business (receivable) is blue, money the business owes (payable) is orange. The receivable/payable aging donuts shade from lightest (current) to darkest (most overdue) within their colour. The expense-breakdown-by-category donut uses shades of red, since it's still the Expenses card. The cash flow line/area is diverging: it reads blue at zero, fading to green as the balance rises above zero and to red as it falls below - a vertical SVG gradient keyed to the zero baseline's pixel position (`AreaLineChart.tsx`'s `diverging` series option), not a per-point colour swap, so it renders as one continuous line.
 
 ### Empty and error states
 - A plain sentence and, when there is an obvious next step, one pill action (for example "Create an invoice"). Errors offer "Try again"; missing permission says so.

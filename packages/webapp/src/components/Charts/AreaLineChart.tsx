@@ -13,10 +13,51 @@ import '@/style/components/Charts.scss';
 export interface ChartSeries {
   key: string;
   label: string;
-  /** A `chartCssVars` colour. */
+  /** A `chartCssVars` colour. Used as-is unless `diverging` is set. */
   color: string;
   /** Fill the region under the line with a soft gradient. */
   fill?: boolean;
+  /**
+   * Colour the line/area by sign relative to the zero baseline instead of a
+   * flat `color` - e.g. a cash flow line that reads green while it's above
+   * zero and red once it dips below.
+   */
+  diverging?: { up: string; zero: string; down: string };
+}
+
+interface GradientStop {
+  offset: number;
+  color: string;
+}
+
+/** Stops for a vertical gradient positioned by data value, not by index. */
+function divergingStops(
+  domain: readonly [number, number],
+  zeroY: number,
+  innerHeight: number,
+  colors: { up: string; zero: string; down: string },
+): GradientStop[] {
+  const [min, max] = domain;
+  const zeroOffset =
+    innerHeight > 0
+      ? Math.min(100, Math.max(0, (zeroY / innerHeight) * 100))
+      : 100;
+  const stops: GradientStop[] = [];
+  if (max > 0) stops.push({ offset: 0, color: colors.up });
+  stops.push({ offset: zeroOffset, color: colors.zero });
+  if (min < 0) stops.push({ offset: 100, color: colors.down });
+  if (stops.length === 1) stops.push({ ...stops[0], offset: 100 });
+  return stops;
+}
+
+/** The flat colour for a single value, when a series diverges by sign. */
+function divergingColorFor(
+  value: number,
+  colors: { up: string; zero: string; down: string },
+): string {
+  if (value > 0) return colors.up;
+  if (value < 0) return colors.down;
+  return colors.zero;
 }
 
 export type ChartDatum = { label: string } & Record<string, number | string>;
@@ -91,6 +132,8 @@ function Plot({
     });
   }, [data, series, innerHeight]);
 
+  const yDomain = yScale.domain() as [number, number];
+  const zeroY = yScale(0);
   const yTicks = yScale.ticks(4);
   const labelEvery = tickEvery(count, innerWidth);
 
@@ -152,9 +195,58 @@ function Plot({
         onBlur={() => setActive(null)}
       >
         <defs>
-          {series
-            .filter((s) => s.fill)
-            .map((s) => (
+          {series.map((s) => {
+            if (s.diverging) {
+              const stops = divergingStops(
+                yDomain,
+                zeroY,
+                innerHeight,
+                s.diverging,
+              );
+              return (
+                <g key={s.key}>
+                  <linearGradient
+                    id={`${gradientId}-${s.key}-stroke`}
+                    gradientUnits="userSpaceOnUse"
+                    x1="0"
+                    x2="0"
+                    y1={0}
+                    y2={innerHeight}
+                  >
+                    {stops.map((stop) => (
+                      <stop
+                        key={stop.offset}
+                        offset={`${stop.offset}%`}
+                        style={{ stopColor: stop.color, stopOpacity: 1 }}
+                      />
+                    ))}
+                  </linearGradient>
+                  {s.fill && (
+                    <linearGradient
+                      id={`${gradientId}-${s.key}-fill`}
+                      gradientUnits="userSpaceOnUse"
+                      x1="0"
+                      x2="0"
+                      y1={0}
+                      y2={innerHeight}
+                    >
+                      {stops.map((stop) => (
+                        <stop
+                          key={stop.offset}
+                          offset={`${stop.offset}%`}
+                          style={{
+                            stopColor: stop.color,
+                            stopOpacity:
+                              stop.color === s.diverging?.zero ? 0 : 0.28,
+                          }}
+                        />
+                      ))}
+                    </linearGradient>
+                  )}
+                </g>
+              );
+            }
+            return s.fill ? (
               <linearGradient
                 key={s.key}
                 id={`${gradientId}-${s.key}`}
@@ -172,7 +264,8 @@ function Plot({
                   style={{ stopColor: s.color, stopOpacity: 0 }}
                 />
               </linearGradient>
-            ))}
+            ) : null;
+          })}
         </defs>
 
         <Group left={MARGIN.left} top={MARGIN.top}>
@@ -205,6 +298,12 @@ function Plot({
                 x: xAt(index),
                 y: yScale(Number(d[s.key]) || 0),
               }));
+              const fillUrl = s.diverging
+                ? `${gradientId}-${s.key}-fill`
+                : `${gradientId}-${s.key}`;
+              const strokePaint = s.diverging
+                ? `url(#${gradientId}-${s.key}-stroke)`
+                : s.color;
               return (
                 <g key={s.key}>
                   {s.fill && count > 1 && (
@@ -214,7 +313,7 @@ function Plot({
                       y0={yScale(0)}
                       y1={(p) => p.y}
                       curve={curveMonotoneX}
-                      style={{ fill: `url(#${gradientId}-${s.key})` }}
+                      style={{ fill: `url(#${fillUrl})` }}
                     />
                   )}
                   <LinePath
@@ -223,14 +322,21 @@ function Plot({
                     y={(p) => p.y}
                     curve={curveMonotoneX}
                     className="chart__line"
-                    style={{ stroke: s.color }}
+                    style={{ stroke: strokePaint }}
                   />
                   {count === 1 && (
                     <circle
                       cx={points[0].x}
                       cy={points[0].y}
                       r={4}
-                      style={{ fill: s.color }}
+                      style={{
+                        fill: s.diverging
+                          ? divergingColorFor(
+                              Number(data[0][s.key]) || 0,
+                              s.diverging,
+                            )
+                          : s.color,
+                      }}
                     />
                   )}
                 </g>
@@ -268,16 +374,23 @@ function Plot({
                 y2={innerHeight}
                 style={{ stroke: chartCssVars.crosshair }}
               />
-              {series.map((s) => (
-                <circle
-                  key={s.key}
-                  className="chart__dot"
-                  cx={xAt(active)}
-                  cy={yScale(Number(data[active][s.key]) || 0)}
-                  r={5}
-                  style={{ fill: s.color }}
-                />
-              ))}
+              {series.map((s) => {
+                const value = Number(data[active][s.key]) || 0;
+                return (
+                  <circle
+                    key={s.key}
+                    className="chart__dot"
+                    cx={xAt(active)}
+                    cy={yScale(value)}
+                    r={5}
+                    style={{
+                      fill: s.diverging
+                        ? divergingColorFor(value, s.diverging)
+                        : s.color,
+                    }}
+                  />
+                );
+              })}
             </g>
           )}
 
@@ -295,11 +408,16 @@ function Plot({
       {activeDatum && active != null && (
         <ChartTooltip
           title={activeDatum.label}
-          rows={series.map((s) => ({
-            label: s.label,
-            value: formatValue(Number(activeDatum[s.key]) || 0),
-            color: s.color,
-          }))}
+          rows={series.map((s) => {
+            const value = Number(activeDatum[s.key]) || 0;
+            return {
+              label: s.label,
+              value: formatValue(value),
+              color: s.diverging
+                ? divergingColorFor(value, s.diverging)
+                : s.color,
+            };
+          })}
           style={{
             left: MARGIN.left + xAt(active),
             top: MARGIN.top,

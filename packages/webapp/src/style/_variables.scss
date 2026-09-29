@@ -28,6 +28,13 @@ $ns: bp4;
   --color-orange-200: #ec9a3c;
   --color-orange-100: #fbb360;
 
+  // Blue colors
+  --color-blue-500: #184a90;
+  --color-blue-400: #215db0;
+  --color-blue-300: #2965cc;
+  --color-blue-200: #4580e6;
+  --color-blue-100: #669eff;
+
   --color-dark-gray5: #404854;
   --color-dark-gray4: #383e47;
   --color-dark-gray3: #2f343c;
@@ -109,6 +116,18 @@ $ns: bp4;
   --chart-surface: #fff;
   --chart-tooltip-background: #fff;
   --chart-tooltip-border: #dcdcdc;
+
+  // Semantic dashboard colours. These resolve through the --color-* scales
+  // above, so they follow the same value automatically under body.bp4-dark
+  // (CSS custom properties are resolved at used-value time against the
+  // current cascade, not substituted when declared) - no dark override needed.
+  --chart-income: var(--color-green-300);
+  --chart-expense: var(--color-red-300);
+  --chart-receivable: var(--color-blue-300);
+  --chart-payable: var(--color-orange-300);
+  --chart-cashflow-up: var(--color-green-300);
+  --chart-cashflow-zero: var(--color-blue-300);
+  --chart-cashflow-down: var(--color-red-300);
 
   // Splash screen.
   --color-splash-screen-background: #fff;
@@ -367,6 +386,13 @@ body.bp4-dark  {
   --color-orange-300: #c87619;
   --color-orange-200: #935610;
   --color-orange-100: #77450d;
+
+  // Blue colors (dark mode - lighter variants)
+  --color-blue-500: #669eff;
+  --color-blue-400: #4580e6;
+  --color-blue-300: #2965cc;
+  --color-blue-200: #215db0;
+  --color-blue-100: #184a90;
 
   --color-dark-gray5: #404854;
   --color-dark-gray4: #383e47;

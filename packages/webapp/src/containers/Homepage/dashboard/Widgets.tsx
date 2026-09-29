@@ -13,7 +13,11 @@ import {
   DonutChart,
   GroupedBarChart,
   formatCompact,
-  seriesColor,
+  semanticChartColors,
+  receivableAgingColors,
+  payableAgingColors,
+  expenseShades,
+  cashflowColors,
 } from '@/components/Charts';
 import { useCurrentOrganizationBaseCurrency } from '@/hooks/query';
 import { formattedAmount } from '@/utils';
@@ -50,11 +54,15 @@ function useMoney() {
   return { full, whole };
 }
 
-const INCOME_SERIES = { key: 'income', label: 'Income', color: seriesColor(0) };
+const INCOME_SERIES = {
+  key: 'income',
+  label: 'Income',
+  color: semanticChartColors.income,
+};
 const EXPENSE_SERIES = {
   key: 'expenses',
   label: 'Expenses',
-  color: seriesColor(1),
+  color: semanticChartColors.expense,
 };
 
 function Legend({ items }: { items: Array<{ label: string; color: string }> }) {
@@ -204,7 +212,7 @@ export function ExpensesWidget({
         key: `${account.name}-${index}`,
         label: account.name,
         value: account.value,
-        color: seriesColor(index),
+        color: expenseShades[index % expenseShades.length],
       })),
     [summary],
   );
@@ -251,8 +259,9 @@ export function CashFlowWidget({ query, range }: WidgetProps<CashFlowSummary>) {
       {
         key: 'balance',
         label: 'Cash balance',
-        color: seriesColor(0),
+        color: cashflowColors.zero,
         fill: true,
+        diverging: cashflowColors,
       },
     ],
     [],
@@ -288,14 +297,6 @@ export function CashFlowWidget({ query, range }: WidgetProps<CashFlowSummary>) {
   );
 }
 
-/** Deeper red for older debt; "current" stays neutral. */
-const AGING_COLORS = [
-  seriesColor(1),
-  seriesColor(4),
-  seriesColor(2),
-  seriesColor(0),
-];
-
 export function AgingWidget({
   query,
   kind,
@@ -308,15 +309,16 @@ export function AgingWidget({
   const { full, whole } = useMoney();
   const summary = query.data;
   const isReceivable = kind === 'receivable';
+  const agingColors = isReceivable ? receivableAgingColors : payableAgingColors;
   const slices = useMemo(
     () =>
       (summary?.buckets ?? []).map((bucket, index) => ({
         key: bucket.key,
         label: bucket.label,
         value: bucket.value,
-        color: AGING_COLORS[index % AGING_COLORS.length],
+        color: agingColors[index % agingColors.length],
       })),
-    [summary],
+    [summary, agingColors],
   );
 
   return (
