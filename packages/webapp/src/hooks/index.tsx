@@ -1,4 +1,4 @@
-import { useRef, useEffect, useMemo } from 'react';
+import { useRef, useEffect, useMemo, useState } from 'react';
 import useAutofocus from './useAutofocus';
 import { useLocalStorage } from './utils/useLocalStorage';
 import type { RefObject } from 'react';
@@ -56,6 +56,28 @@ export function useCellAutoFocus(
 }
 
 export { useAutofocus };
+
+/**
+ * For a dropdown-style Suggest field (opens on focus, not only on typing): a
+ * cell that's programmatically auto-focused (e.g. row 0 of a fresh table)
+ * would otherwise pop its list open the moment the page loads, before the
+ * person has done anything. This gives `openOnKeyDown` a value that starts
+ * `true` (don't open on that first, programmatic focus) and flips to `false`
+ * (open on focus, i.e. on click) as soon as a real pointer interaction has
+ * touched the field - permanently, so later re-focusing still opens it.
+ *
+ * Returns `onMouseDown`/`onPointerDown` handlers to spread onto the field's
+ * `inputProps`, and the `openOnKeyDown` value to pass to the Suggest.
+ */
+export function useOpenDropdownOnRealClick() {
+  const [touchedByUser, setTouchedByUser] = useState(false);
+  const markTouched = () => setTouchedByUser(true);
+
+  return {
+    openOnKeyDown: !touchedByUser,
+    inputProps: { onMouseDown: markTouched, onPointerDown: markTouched },
+  };
+}
 
 export function useMemorizedColumnsWidths(tableName: string) {
   const [get, save] = useLocalStorage<Record<string, number>>(

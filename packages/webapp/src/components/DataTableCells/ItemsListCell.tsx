@@ -5,7 +5,7 @@ import React, { useCallback, useRef } from 'react';
 import intl from 'react-intl-universal';
 import { ItemsSuggest } from '@/components';
 import { CellType } from '@/constants';
-import { useCellAutoFocus } from '@/hooks';
+import { useCellAutoFocus, useOpenDropdownOnRealClick } from '@/hooks';
 
 /**
  * Items list cell.
@@ -20,6 +20,10 @@ export default function ItemsListCell({
 
   // Auto-focus the items list input field.
   useCellAutoFocus(fieldRef, autoFocus, id, index);
+
+  // Dropdown style: opens on click, but not from the row-0 auto-focus above,
+  // which would otherwise pop the list open on page load.
+  const dropdownOpen = useOpenDropdownOnRealClick();
 
   // Handle the item selected.
   const handleItemSelected = useCallback(
@@ -52,9 +56,11 @@ export default function ItemsListCell({
         inputProps={{
           inputRef: (ref) => (fieldRef.current = ref),
           placeholder: intl.get('enter_an_item'),
+          ...dropdownOpen.inputProps,
         }}
         // Dropdown style: the list opens on click and can still be searched
         // by typing.
+        openOnKeyDown={dropdownOpen.openOnKeyDown}
         {...fieldProps}
       />
     </FormGroup>

@@ -5,7 +5,7 @@ import React, { useRef, useCallback, useMemo } from 'react';
 import intl from 'react-intl-universal';
 import { AccountsSuggestField } from '@/components';
 import { CellType } from '@/constants';
-import { useCellAutoFocus } from '@/hooks';
+import { useCellAutoFocus, useOpenDropdownOnRealClick } from '@/hooks';
 
 /**
  * Account cell renderer.
@@ -33,6 +33,10 @@ export default function AccountCellRenderer({
   const accountRef = useRef();
 
   useCellAutoFocus(accountRef, autoFocus, id, index);
+
+  // Dropdown style: opens on click, but not from the row-0 auto-focus above,
+  // which would otherwise pop the list open on page load.
+  const dropdownOpen = useOpenDropdownOnRealClick();
 
   const handleAccountSelected = useCallback(
     (account) => {
@@ -69,9 +73,10 @@ export default function AccountCellRenderer({
         inputProps={{
           inputRef: (ref) => (accountRef.current = ref),
           placeholder: intl.get('search'),
+          ...(dropdown ? dropdownOpen.inputProps : undefined),
         }}
         // Dropdown style: the list opens on click, not only on a key press.
-        openOnKeyDown={!dropdown}
+        openOnKeyDown={dropdown ? dropdownOpen.openOnKeyDown : true}
         {...fieldProps}
       />
     </FormGroup>
