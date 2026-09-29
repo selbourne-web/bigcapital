@@ -11,6 +11,13 @@ export const ALLOWED_SHEET_MIMES = new Set([
   'text/csv',
   'application/vnd.ms-excel',
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  // Legacy .xls (Excel 97-2003) is a Compound File Binary container. The
+  // installed file-type version only recognizes the outer CFB signature,
+  // not that it specifically holds a workbook stream, so a genuine .xls
+  // (e.g. exported from QuickBooks Online) is detected as this generic
+  // mime rather than 'application/vnd.ms-excel' - reject it here and the
+  // magic-byte check below would wrongly block every real .xls upload.
+  'application/x-cfb',
 ]);
 
 export function allowSheetExtensions(req, file, cb) {
