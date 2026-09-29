@@ -1,6 +1,5 @@
 import { Html, Head, Body, Preview, Tailwind } from '@react-email/components';
 import { CSSProperties } from 'react';
-import { BRAND } from './brand';
 
 interface EmailTemplateLayoutProps {
   children?: React.ReactNode;
