@@ -1,4 +1,5 @@
 import { useRef, useEffect, useMemo, useState } from 'react';
+import type { SyntheticEvent } from 'react';
 import useAutofocus from './useAutofocus';
 import { useLocalStorage } from './utils/useLocalStorage';
 import type { RefObject } from 'react';
@@ -71,7 +72,19 @@ export { useAutofocus };
  */
 export function useOpenDropdownOnRealClick() {
   const [touchedByUser, setTouchedByUser] = useState(false);
-  const markTouched = () => setTouchedByUser(true);
+
+  // A click on a field that's already focused (e.g. row 0's page-load
+  // auto-focus) doesn't fire a new `focus` event - the browser only fires one
+  // on an actual focus change - so nothing would open the dropdown or (once
+  // `openOnKeyDown` below has flipped) let typing open it either. Blurring it
+  // first makes the browser's own click-to-focus behavior fire a genuine
+  // focus event once the click completes.
+  const markTouched = (event: SyntheticEvent<HTMLElement>) => {
+    setTouchedByUser(true);
+    if (document.activeElement === event.currentTarget) {
+      (event.currentTarget as HTMLElement).blur();
+    }
+  };
 
   return {
     openOnKeyDown: !touchedByUser,
