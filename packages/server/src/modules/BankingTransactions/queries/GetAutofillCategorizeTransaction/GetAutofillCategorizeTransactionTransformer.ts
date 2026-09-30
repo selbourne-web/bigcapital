@@ -21,8 +21,19 @@ export class GetAutofillCategorizeTransctionTransformer extends Transformer {
       'recognizedByRuleName',
       'isWithdrawalTransaction',
       'isDepositTransaction',
+      'bankDescription',
     ];
   };
+
+  /**
+   * The description exactly as the bank statement gave it. Named apart from
+   * the form's own `description` (the person's memo) so it isn't prefilled
+   * into it; used to suggest a bank-rule match condition.
+   * @returns {string | null}
+   */
+  public bankDescription() {
+    return this.options.firstUncategorizedTransaction?.description || null;
+  }
 
   /**
    * Detarmines whether the transaction is recognized.

@@ -72,4 +72,10 @@ export class GetAutofillCategorizeTransactionResponseDto {
 
   @ApiPropertyOptional({ description: 'Assigned memo from recognition' })
   memo?: string | null;
+
+  @ApiPropertyOptional({
+    description: 'Description exactly as the bank statement gave it',
+    example: 'POS PURCHASE STARBUCKS #1234',
+  })
+  bankDescription?: string | null;
 }

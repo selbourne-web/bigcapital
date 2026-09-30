@@ -14,6 +14,9 @@ export interface CategorizeTransactionFormValues {
   referenceNo: string;
   description: string;
   branchId: string | number | null;
+  createRule: boolean;
+  ruleName: string;
+  ruleMatchText: string;
 }
 
 // Default initial form values.
@@ -27,7 +30,47 @@ export const defaultInitialValues: CategorizeTransactionFormValues = {
   referenceNo: '',
   description: '',
   branchId: '',
+  createRule: false,
+  ruleName: '',
+  ruleMatchText: '',
 };
+
+/**
+ * The bank's own description for the transaction, used to suggest the rule's
+ * match text (the generated SDK type doesn't list `bankDescription` yet).
+ */
+export const getSuggestedRuleText = (
+  autofill: GetAutofillCategorizeTransaction | null | undefined,
+): string => {
+  const { bankDescription } = (autofill ?? {}) as {
+    bankDescription?: string | null;
+  };
+  return (bankDescription || '').trim();
+};
+
+/**
+ * Builds a bank rule that repeats this categorization for future
+ * transactions from the same bank account whose description matches.
+ */
+export const transformToBankRuleRequest = (
+  formValues: CategorizeTransactionFormValues,
+  isDepositTransaction: boolean,
+) => ({
+  name: formValues.ruleName.trim(),
+  order: 0,
+  applyIfAccountId: toNumber(formValues.debitAccountId),
+  applyIfTransactionType: isDepositTransaction ? 'deposit' : 'withdrawal',
+  conditionsType: 'and',
+  conditions: [
+    {
+      field: 'description',
+      comparator: 'contains',
+      value: formValues.ruleMatchText.trim(),
+    },
+  ],
+  assignCategory: formValues.transactionType,
+  assignAccountId: toNumber(formValues.creditAccountId),
+});
 
 export const transformToCategorizeForm = (
   autofillCategorizeTransaction:
@@ -61,6 +104,7 @@ export const useCategorizeTransactionFormInitialValues =
   (): CategorizeTransactionFormValues => {
     const { primaryBranch, autofillCategorizeValues } =
       useCategorizeTransactionBoot();
+    const suggestedRuleText = getSuggestedRuleText(autofillCategorizeValues);
 
     return {
       ...defaultInitialValues,
@@ -73,5 +117,8 @@ export const useCategorizeTransactionFormInitialValues =
 
       /** Assign the primary branch id as default value. */
       branchId: primaryBranch?.id || null,
+
+      ruleName: suggestedRuleText,
+      ruleMatchText: suggestedRuleText,
     };
   };

@@ -3,6 +3,7 @@ import { useFormikContext } from 'formik';
 import React, { lazy } from 'react';
 import styled from 'styled-components';
 import { CategorizeTransactionAISuggest } from './CategorizeTransactionAISuggest';
+import { CategorizeTransactionCreateRule } from './CategorizeTransactionCreateRule';
 import { useCategorizeTransactionBoot } from './CategorizeTransactionBoot';
 import type { CategorizeTransactionFormValues } from './_utils';
 import { Box, FFormGroup, FSelect } from '@/components';
@@ -47,6 +48,7 @@ export function CategorizeTransactionFormContent() {
       </FFormGroup>
 
       <CategorizeTransactionFormSubContent />
+      <CategorizeTransactionCreateRule />
     </Box>
   );
 }
