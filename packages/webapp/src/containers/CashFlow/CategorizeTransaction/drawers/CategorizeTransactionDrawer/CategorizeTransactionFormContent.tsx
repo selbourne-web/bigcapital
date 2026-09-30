@@ -2,6 +2,7 @@ import { FormGroup } from '@blueprintjs/core';
 import { useFormikContext } from 'formik';
 import React, { lazy } from 'react';
 import styled from 'styled-components';
+import { CategorizeTransactionAISuggest } from './CategorizeTransactionAISuggest';
 import { useCategorizeTransactionBoot } from './CategorizeTransactionBoot';
 import type { CategorizeTransactionFormValues } from './_utils';
 import { Box, FFormGroup, FSelect } from '@/components';
@@ -31,6 +32,8 @@ export function CategorizeTransactionFormContent() {
       <FormGroup label={'Amount'} inline>
         <Title>{formattedAmount}</Title>
       </FormGroup>
+
+      <CategorizeTransactionAISuggest />
 
       <FFormGroup name={'category'} label={'Category'} fastField inline>
         <FSelect
