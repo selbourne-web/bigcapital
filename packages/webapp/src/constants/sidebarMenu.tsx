@@ -22,6 +22,8 @@ import {
   TaxRateAction,
 } from '@/constants/abilityOption';
 import { Features } from '@/constants/features';
+import { ACCOUNT_TYPE } from './accountTypes';
+import { AccountDialogAction } from '@/containers/Dialogs/AccountDialog/utils';
 import {
   ISidebarMenuItemType,
   ISidebarMenuOverlayIds,
@@ -40,6 +42,7 @@ export interface SidebarMenuItem {
   matchExact?: boolean;
   overlayId?: ISidebarMenuOverlayIds;
   dialogName?: DialogsName;
+  dialogPayload?: Record<string, unknown>;
   divider?: boolean;
   feature?: string;
   permission?: SidebarMenuItemPermission;
@@ -567,6 +570,20 @@ export const SidebarMenu: SidebarMenuItem[] = [
             permission: {
               subject: AbilitySubject.Expense,
               ability: ExpenseAction.Create,
+            },
+          },
+          {
+            text: <T id={'sidebar.new_expense_category'} />,
+            href: '/expenses',
+            type: ISidebarMenuItemType.Dialog,
+            dialogName: DialogsName.AccountForm,
+            dialogPayload: {
+              action: AccountDialogAction.NewDefinedType,
+              accountType: ACCOUNT_TYPE.EXPENSE,
+            },
+            permission: {
+              subject: AbilitySubject.Account,
+              ability: AccountAction.Create,
             },
           },
         ],

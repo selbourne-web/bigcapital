@@ -2210,6 +2210,7 @@
   "sidebar.preferences": "Preferences",
   "sidebar.expenses": "Expenses",
   "sidebar.new_expense": "New Expense",
+  "sidebar.new_expense_category": "New Expense Category",
   "sidebar.cash_bank_accounts": "Cash/Bank Accounts",
   "sidebar.add_money_in": "Add Money In",
   "sidebar.add_money_out": "Add Money Out",
