@@ -23,7 +23,7 @@ class BankRuleConditionResponseDto {
       'equals',
       'equal',
       'contains',
-      'not_contain',
+      'not_contains',
       'bigger',
       'bigger_or_equal',
       'smaller',

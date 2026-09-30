@@ -75,8 +75,9 @@ const matchTextCondition = (
       const conditionValue = lowerCase(condition.value);
 
       return fieldValue.includes(conditionValue);
+    // Compared the same way as Contains, so "not contains" is its exact inverse.
     case BankRuleConditionComparator.NotContain:
-      return !transactionValue?.includes(condition.value.toString());
+      return !lowerCase(transactionValue).includes(lowerCase(condition.value));
     default:
       return false;
   }
