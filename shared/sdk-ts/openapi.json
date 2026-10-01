@@ -15320,6 +15320,55 @@
         ]
       }
     },
+    "/api/banking-ai/classify": {
+      "post": {
+        "operationId": "BankingAIController_classify",
+        "summary": "Propose a category for an uncategorized bank transaction",
+        "description": "Sends the transaction (description, amount, date) and the chart of accounts to the Claude API and returns a proposed account with a confidence score and reasoning. Nothing is saved or posted; the bookkeeper reviews the proposal before categorizing.",
+        "parameters": [
+          {
+            "name": "Authorization",
+            "in": "header",
+            "description": "Value must be 'Bearer <token>' where <token> is an API key prefixed with 'bc_' or a JWT token.",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "Bearer bc_1234567890abcdef"
+            }
+          },
+          {
+            "name": "organization-id",
+            "in": "header",
+            "description": "Required if Authorization is a JWT token. The organization ID to operate within.",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ClassifyBankTransactionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The proposed classification"
+          },
+          "503": {
+            "description": "AI categorization is not configured"
+          }
+        },
+        "tags": [
+          "Banking AI"
+        ]
+      }
+    },
     "/api/transactions-locking/lock": {
       "put": {
         "operationId": "TransactionsLockingController_commandTransactionsLocking",
@@ -37940,6 +37989,11 @@
           "memo": {
             "type": "string",
             "description": "Assigned memo from recognition"
+          },
+          "bankDescription": {
+            "type": "string",
+            "description": "Description exactly as the bank statement gave it",
+            "example": "POS PURCHASE STARBUCKS #1234"
           }
         },
         "required": [
@@ -38215,7 +38269,7 @@
               "equals",
               "equal",
               "contains",
-              "not_contain",
+              "not_contains",
               "bigger",
               "bigger_or_equal",
               "smaller",
@@ -38760,6 +38814,24 @@
         "required": [
           "uncategorizedTransactions",
           "matchedTransactions"
+        ]
+      },
+      "ClassifyBankTransactionDto": {
+        "type": "object",
+        "properties": {
+          "uncategorizedTransactionIds": {
+            "description": "Uncategorized bank transaction ids to classify together",
+            "example": [
+              1001
+            ],
+            "type": "array",
+            "items": {
+              "type": "number"
+            }
+          }
+        },
+        "required": [
+          "uncategorizedTransactionIds"
         ]
       },
       "TransactionLockingResponseDto": {

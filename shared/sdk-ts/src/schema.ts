@@ -3863,6 +3863,26 @@ export interface paths {
         patch: operations["BankingMatchingController_unmatchMatchedTransaction"];
         trace?: never;
     };
+    "/api/banking-ai/classify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Propose a category for an uncategorized bank transaction
+         * @description Sends the transaction (description, amount, date) and the chart of accounts to the Claude API and returns a proposed account with a confidence score and reasoning. Nothing is saved or posted; the bookkeeper reviews the proposal before categorizing.
+         */
+        post: operations["BankingAIController_classify"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/transactions-locking/lock": {
         parameters: {
             query?: never;
@@ -14029,6 +14049,11 @@ export interface components {
             payee?: string;
             /** @description Assigned memo from recognition */
             memo?: string;
+            /**
+             * @description Description exactly as the bank statement gave it
+             * @example POS PURCHASE STARBUCKS #1234
+             */
+            bankDescription?: string;
         };
         GetPendingTransactionResponseDto: {
             /** @description Transaction amount */
@@ -14202,7 +14227,7 @@ export interface components {
              * @example contains
              * @enum {string}
              */
-            comparator: "equals" | "equal" | "contains" | "not_contain" | "bigger" | "bigger_or_equal" | "smaller" | "smaller_or_equal";
+            comparator: "equals" | "equal" | "contains" | "not_contains" | "bigger" | "bigger_or_equal" | "smaller" | "smaller_or_equal";
             /**
              * @description The value to compare against
              * @example Salary
@@ -14549,6 +14574,15 @@ export interface components {
              *     ]
              */
             matchedTransactions: string[];
+        };
+        ClassifyBankTransactionDto: {
+            /**
+             * @description Uncategorized bank transaction ids to classify together
+             * @example [
+             *       1001
+             *     ]
+             */
+            uncategorizedTransactionIds: number[];
         };
         TransactionLockingResponseDto: {
             /**
@@ -26428,6 +26462,40 @@ export interface operations {
         requestBody?: never;
         responses: {
             200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    BankingAIController_classify: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Value must be 'Bearer <token>' where <token> is an API key prefixed with 'bc_' or a JWT token. */
+                Authorization: string;
+                /** @description Required if Authorization is a JWT token. The organization ID to operate within. */
+                "organization-id": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ClassifyBankTransactionDto"];
+            };
+        };
+        responses: {
+            /** @description The proposed classification */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description AI categorization is not configured */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };
