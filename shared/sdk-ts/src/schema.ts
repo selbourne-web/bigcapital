@@ -9169,6 +9169,23 @@ export interface components {
              */
             skipUndeletable: boolean;
         };
+        ExpenseTaxResponseDto: {
+            /** @example 1 */
+            taxRateId: number;
+            /** @example 17.5 */
+            taxRate: number;
+            /**
+             * @description The amount the tax is calculated on (tax excluded)
+             * @example 37.4
+             */
+            taxableAmount: number;
+            /** @example 6.55 */
+            taxAmount: number;
+            /** @example $37.40 */
+            formattedTaxableAmount: string;
+            /** @example $6.55 */
+            formattedTaxAmount: string;
+        };
         ExpenseCategoryResponseDto: {
             /**
              * @description The unique identifier of the expense category
@@ -9212,8 +9229,25 @@ export interface components {
              * @example $100.00
              */
             amountFormatted?: string;
+            /**
+             * @description The tax rate applied to the line
+             * @example 1
+             */
+            taxRateId?: number | null;
+            /**
+             * @description The tax rate (%) at the time the expense was saved
+             * @example 17.5
+             */
+            taxRate?: number | null;
         };
         ExpenseResponseDto: {
+            /**
+             * @description Whether the line amounts already include their tax
+             * @example false
+             */
+            isInclusiveTax?: boolean;
+            /** @description The tax per tax rate */
+            taxes?: components["schemas"]["ExpenseTaxResponseDto"][];
             /**
              * @description The unique identifier of the expense
              * @example 1
@@ -9405,6 +9439,11 @@ export interface components {
              */
             publish: boolean;
             /**
+             * @description Whether the line amounts already include their tax
+             * @example false
+             */
+            isInclusiveTax: boolean;
+            /**
              * @description The payee id of the expense
              * @example 1
              */
@@ -9475,6 +9514,11 @@ export interface components {
              * @example true
              */
             publish: boolean;
+            /**
+             * @description Whether the line amounts already include their tax
+             * @example false
+             */
+            isInclusiveTax: boolean;
             /**
              * @description The payee id of the expense
              * @example 1
