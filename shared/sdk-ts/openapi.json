@@ -30966,6 +30966,44 @@
           "ids"
         ]
       },
+      "ExpenseTaxResponseDto": {
+        "type": "object",
+        "properties": {
+          "taxRateId": {
+            "type": "number",
+            "example": 1
+          },
+          "taxRate": {
+            "type": "number",
+            "example": 17.5
+          },
+          "taxableAmount": {
+            "type": "number",
+            "example": 37.4,
+            "description": "The amount the tax is calculated on (tax excluded)"
+          },
+          "taxAmount": {
+            "type": "number",
+            "example": 6.55
+          },
+          "formattedTaxableAmount": {
+            "type": "string",
+            "example": "$37.40"
+          },
+          "formattedTaxAmount": {
+            "type": "string",
+            "example": "$6.55"
+          }
+        },
+        "required": [
+          "taxRateId",
+          "taxRate",
+          "taxableAmount",
+          "taxAmount",
+          "formattedTaxableAmount",
+          "formattedTaxAmount"
+        ]
+      },
       "ExpenseCategoryResponseDto": {
         "type": "object",
         "properties": {
@@ -31016,6 +31054,18 @@
             "type": "string",
             "example": "$100.00",
             "description": "The formatted amount of the expense category"
+          },
+          "taxRateId": {
+            "type": "number",
+            "example": 1,
+            "description": "The tax rate applied to the line",
+            "nullable": true
+          },
+          "taxRate": {
+            "type": "number",
+            "example": 17.5,
+            "description": "The tax rate (%) at the time the expense was saved",
+            "nullable": true
           }
         },
         "required": [
@@ -31030,6 +31080,18 @@
       "ExpenseResponseDto": {
         "type": "object",
         "properties": {
+          "isInclusiveTax": {
+            "type": "boolean",
+            "example": false,
+            "description": "Whether the line amounts already include their tax"
+          },
+          "taxes": {
+            "description": "The tax per tax rate",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExpenseTaxResponseDto"
+            }
+          },
           "id": {
             "type": "number",
             "example": 1,
@@ -31258,6 +31320,11 @@
             "description": "The publish status of the expense",
             "example": true
           },
+          "isInclusiveTax": {
+            "type": "boolean",
+            "description": "Whether the line amounts already include their tax",
+            "example": false
+          },
           "payeeId": {
             "type": "number",
             "description": "The payee id of the expense",
@@ -31306,6 +31373,7 @@
           "exchangeRate",
           "currencyCode",
           "publish",
+          "isInclusiveTax",
           "payeeId",
           "branchId",
           "categories",
@@ -31351,6 +31419,11 @@
             "description": "The publish status of the expense",
             "example": true
           },
+          "isInclusiveTax": {
+            "type": "boolean",
+            "description": "Whether the line amounts already include their tax",
+            "example": false
+          },
           "payeeId": {
             "type": "number",
             "description": "The payee id of the expense",
@@ -31399,6 +31472,7 @@
           "exchangeRate",
           "currencyCode",
           "publish",
+          "isInclusiveTax",
           "payeeId",
           "branchId",
           "categories",
