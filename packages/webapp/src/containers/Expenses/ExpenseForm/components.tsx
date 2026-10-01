@@ -17,6 +17,7 @@ import {
   AccountsListFieldCell,
   CheckBoxFieldCell,
 } from '@/components/DataTableCells';
+import { TaxRatesSuggestInputCell } from '@/components/TaxRates/TaxRatesSuggestInputCell';
 import { CellType, Align } from '@/constants';
 import { useCurrentOrganizationBaseCurrency } from '@/hooks/query';
 
@@ -102,8 +103,13 @@ export function ExpenseAmountHeaderCell({
  */
 export function useExpenseFormTableColumns({
   landedCost,
+  salesTax,
+  legacyTaxLine,
 }: {
   landedCost: boolean;
+  salesTax: boolean;
+  /** Show the old "this line is the VAT" checkbox (older expenses only). */
+  legacyTaxLine: boolean;
 }) {
   return React.useMemo(
     () => [
@@ -135,15 +141,30 @@ export function useExpenseFormTableColumns({
         align: Align.Right,
         moneyInputGroupProps: { 'data-testId': 'expense-entry-amount-input' },
       },
-      {
-        Header: 'Tax',
-        accessor: 'isTax',
-        Cell: CheckBoxFieldCell,
-        disableSortBy: true,
-        disableResizing: true,
-        width: 50,
-        align: Align.Center,
-      },
+      ...(salesTax
+        ? [
+            {
+              Header: 'Tax',
+              accessor: 'taxRateId',
+              Cell: TaxRatesSuggestInputCell,
+              disableSortBy: true,
+              width: 60,
+            },
+          ]
+        : []),
+      ...(legacyTaxLine
+        ? [
+            {
+              Header: 'VAT line',
+              accessor: 'isTax',
+              Cell: CheckBoxFieldCell,
+              disableSortBy: true,
+              disableResizing: true,
+              width: 50,
+              align: Align.Center,
+            },
+          ]
+        : []),
       ...(landedCost
         ? [
             {
@@ -167,7 +188,7 @@ export function useExpenseFormTableColumns({
         align: Align.Center,
       },
     ],
-    [],
+    [landedCost, salesTax, legacyTaxLine],
   );
 }
 /**

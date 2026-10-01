@@ -1,7 +1,8 @@
+import { computeExpenseTax } from '@bigcapital/utils';
 import { Intent } from '@blueprintjs/core';
 import { useFormikContext } from 'formik';
 import * as FF from 'fp-ts/function';
-import { first, sumBy } from 'lodash';
+import { first, keyBy } from 'lodash';
 import moment from 'moment';
 import React from 'react';
 import intl from 'react-intl-universal';
@@ -18,6 +19,7 @@ import {
   transformAttachmentsToRequest,
 } from '@/containers/Attachments/utils';
 import { useCurrentOrganizationBaseCurrency } from '@/hooks/query';
+import { TaxType } from '@/interfaces/TaxRates';
 import {
   defaultFastFieldShouldUpdate,
   transformToForm,
@@ -41,6 +43,7 @@ export const defaultExpenseEntry: ExpenseEntry = {
   description: '',
   landedCost: 0,
   isTax: 0,
+  taxRateId: '',
 };
 
 export const defaultExpense: ExpenseFormValues = {
@@ -54,6 +57,7 @@ export const defaultExpense: ExpenseFormValues = {
   publish: '',
   branchId: '',
   exchangeRate: 1,
+  inclusiveExclusiveTax: TaxType.Exclusive,
   categories: [...repeatValue(defaultExpenseEntry, MIN_LINES_NUMBER)],
   attachments: [],
 };
@@ -112,6 +116,10 @@ export const transformToEditForm = (
 
   return {
     ...transformToForm(expense, defaultValues),
+    inclusiveExclusiveTax: (expense as { isInclusiveTax?: boolean })
+      .isInclusiveTax
+      ? TaxType.Inclusive
+      : TaxType.Exclusive,
     categories,
     attachments,
   } as ExpenseFormValues;
@@ -153,13 +161,21 @@ export const transformFormValuesToRequest = (values: ExpenseFormValues) => {
   const categories = filterNonZeroEntries(values.categories);
   const attachments = transformAttachmentsToRequest(values);
 
-  const { payeeId, ...rest } = values;
+  const { payeeId, inclusiveExclusiveTax, ...rest } = values;
 
   return {
     ...rest,
     // A blank payee is left out, not sent as an empty string.
     ...(payeeId !== '' && payeeId != null && { payeeId }),
-    categories: FF.pipe(categories, orderingLinesIndexes),
+    isInclusiveTax: inclusiveExclusiveTax === TaxType.Inclusive,
+    categories: FF.pipe(
+      categories.map(({ taxRateId, ...category }) => ({
+        ...category,
+        // A line without a tax rate is sent without one, not as ''.
+        ...(taxRateId !== '' && taxRateId != null && { taxRateId }),
+      })),
+      orderingLinesIndexes,
+    ),
     attachments,
   };
 };
@@ -180,15 +196,37 @@ export const useSetPrimaryBranchToForm = () => {
 };
 
 /**
- * Retrieves the expense subtotal.
+ * The expense's tax, worked out the same way the server posts it (shared
+ * `computeExpenseTax`), so the totals shown always match what is saved.
+ */
+export const useExpenseTax = () => {
+  const {
+    values: { categories, inclusiveExclusiveTax },
+  } = useFormikContext<ExpenseFormValues>();
+  const { taxRates } = useExpenseFormContext();
+
+  return React.useMemo(() => {
+    const ratesById = keyBy(taxRates, 'id');
+
+    return computeExpenseTax(
+      categories.map((category) => ({
+        amount: Number(category.amount) || 0,
+        taxRateId: category.taxRateId ? Number(category.taxRateId) : null,
+        taxRate: category.taxRateId
+          ? Number(ratesById[category.taxRateId]?.rate ?? 0)
+          : null,
+      })),
+      inclusiveExclusiveTax === TaxType.Inclusive,
+    );
+  }, [categories, inclusiveExclusiveTax, taxRates]);
+};
+
+/**
+ * Retrieves the expense subtotal (tax excluded).
  * @returns {number}
  */
 export const useExpenseSubtotal = () => {
-  const {
-    values: { categories },
-  } = useFormikContext<ExpenseFormValues>();
-
-  return React.useMemo(() => sumBy(categories, 'amount'), [categories]);
+  return useExpenseTax().subtotal;
 };
 
 /**
@@ -209,9 +247,7 @@ export const useExpenseSubtotalFormatted = () => {
  * @returns {number}
  */
 export const useExpenseTotal = () => {
-  const subtotal = useExpenseSubtotal();
-
-  return subtotal;
+  return useExpenseTax().total;
 };
 
 /**

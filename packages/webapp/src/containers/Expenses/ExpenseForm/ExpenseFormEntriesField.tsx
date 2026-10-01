@@ -1,5 +1,6 @@
 import { FastField } from 'formik';
 import React from 'react';
+import { ExpenseFormEntriesActions } from './ExpenseFormEntriesActions';
 import { ExpenseFormEntriesTable } from './ExpenseFormEntriesTable';
 import { useExpenseFormContext } from './ExpenseFormPageProvider';
 import { defaultExpenseEntry, accountsFieldShouldUpdate } from './utils';
@@ -20,29 +21,34 @@ export function ExpenseFormEntriesField({
   const { accounts } = useExpenseFormContext();
   const { featureCan } = useFeatureCan();
   const isLandedCostEnabled = featureCan(Features.LandedCost);
+  const isSalesTaxEnabled = featureCan(Features.SalesTax);
 
   return (
-    <FastField
-      name={'categories'}
-      accounts={accounts}
-      shouldUpdate={accountsFieldShouldUpdate}
-    >
-      {({
-        form: { values, setFieldValue },
-        field: { value },
-        meta: { error, touched },
-      }: any) => (
-        <ExpenseFormEntriesTable
-          entries={value}
-          error={error}
-          onChange={(entries: ExpenseEntry[]) => {
-            setFieldValue('categories', entries);
-          }}
-          defaultEntry={defaultExpenseEntry}
-          currencyCode={(values as ExpenseFormValues).currencyCode}
-          landedCost={isLandedCostEnabled}
-        />
-      )}
-    </FastField>
+    <>
+      {isSalesTaxEnabled && <ExpenseFormEntriesActions />}
+      <FastField
+        name={'categories'}
+        accounts={accounts}
+        shouldUpdate={accountsFieldShouldUpdate}
+      >
+        {({
+          form: { values, setFieldValue },
+          field: { value },
+          meta: { error },
+        }: any) => (
+          <ExpenseFormEntriesTable
+            entries={value}
+            error={error}
+            onChange={(entries: ExpenseEntry[]) => {
+              setFieldValue('categories', entries);
+            }}
+            defaultEntry={defaultExpenseEntry}
+            currencyCode={(values as ExpenseFormValues).currencyCode}
+            landedCost={isLandedCostEnabled}
+            salesTax={isSalesTaxEnabled}
+          />
+        )}
+      </FastField>
+    </>
   );
 }

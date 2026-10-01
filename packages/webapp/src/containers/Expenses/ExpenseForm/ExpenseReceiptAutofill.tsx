@@ -1,16 +1,20 @@
+import { computeExpenseTax } from '@bigcapital/utils';
 import { Button, Icon, Intent, Spinner } from '@blueprintjs/core';
 import { useFormikContext } from 'formik';
 import React, { useEffect, useRef, useState } from 'react';
+import { useExpenseFormContext } from './ExpenseFormPageProvider';
 import styles from './ExpenseReceiptAutofill.module.scss';
+import { useAttachMarkedUpCopy } from './ExpenseReceiptPreview';
 import type { ExpenseFormValues } from './types';
 import type {
   AutofillError,
   ReceiptAutofillResult,
 } from '@/hooks/query/expense-autofill';
 import { AppToaster } from '@/components';
-import { AttachmentPreviewDialog } from '@/components/Attachments/AttachmentPreviewDialog';
+import { ReceiptViewer } from '@/components/Attachments/ReceiptViewer/ReceiptViewer';
 import { useUploadAttachments } from '@/hooks/query/attachments';
 import { useExpenseAutofill } from '@/hooks/query/expense-autofill';
+import { TaxType } from '@/interfaces/TaxRates';
 
 const ACCEPTED_TYPES = [
   'application/pdf',
@@ -51,6 +55,7 @@ export const receiptToFormValues = (
   currencies: Account[] | undefined,
   current: Pick<ExpenseFormValues, 'currencyCode'>,
   vendors: Account[] = [],
+  taxRates: Account[] = [],
 ): { values: Partial<ExpenseFormValues>; notes: string[] } => {
   const values: Partial<ExpenseFormValues> = {};
   const notes = [...result.warnings];
@@ -95,19 +100,68 @@ export const receiptToFormValues = (
     }
   }
   if (result.lines.length) {
-    values.categories = result.lines.map((line, index) => ({
+    // Put the receipt's tax on the lines as a tax rate, when one of the
+    // organisation's rates reproduces the printed tax; otherwise keep it as
+    // its own line so the expense still adds up to the receipt.
+    const itemLines = result.lines.filter((line) => !line.isTax);
+    const taxRate = matchReceiptTaxRate(
+      itemLines.map((line) => line.amount),
+      result.taxTotal,
+      result.amountsIncludeTax,
+      taxRates,
+    );
+    const lines = taxRate ? itemLines : result.lines;
+
+    if (taxRate) {
+      values.inclusiveExclusiveTax = result.amountsIncludeTax
+        ? TaxType.Inclusive
+        : TaxType.Exclusive;
+    } else if (result.taxTotal) {
+      notes.push(
+        `The receipt shows ${result.taxTotal.toFixed(2)} tax, but none of your tax rates matches it, so it was added as its own line. Set up the rate under Tax Rates to have it worked out on the lines.`,
+      );
+    }
+    values.categories = lines.map((line, index) => ({
       index: index + 1,
       amount: line.amount,
       expenseAccountId: line.accountId ?? '',
       description: line.description,
       landedCost: 0,
       isTax: line.isTax ? 1 : 0,
+      taxRateId: taxRate ? taxRate.id : '',
     }));
-    if (result.lines.some((line) => line.accountId == null)) {
+    if (lines.some((line) => line.accountId == null)) {
       notes.push('Choose an account for the lines that have none.');
     }
   }
   return { values, notes };
+};
+
+/**
+ * The tax rate whose tax on these amounts comes to the printed tax (within a
+ * cent either way of rounding), or null when none or more than one does.
+ */
+export const matchReceiptTaxRate = (
+  amounts: number[],
+  taxTotal: number | null,
+  amountsIncludeTax: boolean,
+  taxRates: Account[],
+): Account | null => {
+  if (!taxTotal || taxTotal <= 0 || !amounts.length) return null;
+
+  const matches = taxRates.filter((rate) => {
+    if (!(Number(rate.rate) > 0) || rate.active === false) return false;
+    const { taxTotal: worked } = computeExpenseTax(
+      amounts.map((amount) => ({
+        amount,
+        taxRateId: Number(rate.id),
+        taxRate: Number(rate.rate),
+      })),
+      amountsIncludeTax,
+    );
+    return Math.abs(worked - taxTotal) <= 0.01;
+  });
+  return matches.length === 1 ? matches[0] : null;
 };
 
 interface ExpenseReceiptAutofillProps {
@@ -127,6 +181,7 @@ export function ExpenseReceiptAutofill({
   vendors,
 }: ExpenseReceiptAutofillProps) {
   const { values, setFieldValue } = useFormikContext<ExpenseFormValues>();
+  const { taxRates } = useExpenseFormContext();
   const valuesRef = useRef(values);
   valuesRef.current = values;
 
@@ -137,7 +192,7 @@ export function ExpenseReceiptAutofill({
   const [notes, setNotes] = useState<string[]>([]);
   const [filled, setFilled] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [enlarged, setEnlarged] = useState(false);
+  const attachCopy = useAttachMarkedUpCopy();
 
   const fileInput = useRef<HTMLInputElement>(null);
   const cameraInput = useRef<HTMLInputElement>(null);
@@ -191,6 +246,7 @@ export function ExpenseReceiptAutofill({
             currencies,
             valuesRef.current,
             vendors,
+            taxRates,
           );
           Object.entries(changes).forEach(([field, value]) =>
             setFieldValue(field, value),
@@ -333,35 +389,13 @@ export function ExpenseReceiptAutofill({
         />
 
         {file && previewUrl && (
-          <>
-            <button
-              type="button"
-              className={styles.thumb}
-              onClick={() => setEnlarged(true)}
-              aria-label={`Open a larger view of ${file.name}`}
-            >
-              {file.type === 'application/pdf' ? (
-                <iframe src={previewUrl} title="" tabIndex={-1} />
-              ) : (
-                <img src={previewUrl} alt="" />
-              )}
-              <span className={styles.thumbHint}>Click to enlarge</span>
-            </button>
-            <div className={styles.fileName}>{file.name}</div>
-            <AttachmentPreviewDialog
-              file={
-                enlarged
-                  ? {
-                      key: '',
-                      originName: file.name,
-                      mimeType: file.type,
-                      localUrl: previewUrl,
-                    }
-                  : null
-              }
-              onClose={() => setEnlarged(false)}
-            />
-          </>
+          <ReceiptViewer
+            name={file.name}
+            url={previewUrl}
+            kind={file.type === 'application/pdf' ? 'pdf' : 'image'}
+            onClose={clear}
+            onSaveCopy={attachCopy}
+          />
         )}
 
         {isReading && (

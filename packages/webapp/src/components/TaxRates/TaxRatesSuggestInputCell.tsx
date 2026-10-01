@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { FormGroup } from '@blueprintjs/core';
+import { FormGroup, Intent } from '@blueprintjs/core';
 import { Suggest } from '@blueprintjs-formik/select';
 import React, { useCallback } from 'react';
 import { CellType } from '@/constants';

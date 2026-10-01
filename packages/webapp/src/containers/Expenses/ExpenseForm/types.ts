@@ -1,3 +1,4 @@
+import type { TaxType } from '@/interfaces/TaxRates';
 import type {
   CreateExpenseBody,
   EditExpenseBody,
@@ -12,8 +13,10 @@ export type ExpenseEntry = {
   expenseAccountId: string | number;
   description: string;
   landedCost: boolean | number;
-  /** The line is the sales tax (VAT) charged on the other lines. */
+  /** Older expenses only: the line is the VAT charged on the other lines. */
   isTax?: boolean | number;
+  /** The tax rate charged on this line. */
+  taxRateId: string | number;
 };
 
 export type ExpenseFormValues = {
@@ -28,6 +31,8 @@ export type ExpenseFormValues = {
   publish: boolean | '';
   branchId: string | number;
   exchangeRate: number;
+  /** Whether line amounts are entered including or excluding their tax. */
+  inclusiveExclusiveTax: TaxType;
   categories: ExpenseEntry[];
   attachments: unknown[];
 };
@@ -53,6 +58,7 @@ export type ExpenseFormContext = {
   expense: Expense | undefined;
   accounts: Record<string, any>[];
   branches: Record<string, any>[];
+  taxRates: Record<string, any>[];
   isCurrenciesLoading: boolean;
   isExpenseLoading: boolean;
   isVendorsLoading: boolean;

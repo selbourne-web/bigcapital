@@ -15,6 +15,10 @@ export interface ReceiptAutofillResult {
     isTax: boolean;
   }>;
   total: number | null;
+  /** Total tax printed on the document, if any. */
+  taxTotal: number | null;
+  /** Whether the line amounts already include the tax. */
+  amountsIncludeTax: boolean;
   warnings: string[];
 }
 
@@ -49,6 +53,8 @@ const toResult = (data: Record<string, any>): ReceiptAutofillResult => ({
     isTax: !!line.is_tax,
   })),
   total: data.total ?? null,
+  taxTotal: data.tax_total ?? null,
+  amountsIncludeTax: !!data.amounts_include_tax,
   warnings: data.warnings ?? [],
 });
 

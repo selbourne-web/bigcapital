@@ -14,6 +14,7 @@ import {
   useEditExpense,
   useSettingsExpenses,
 } from '@/hooks/query';
+import { useTaxRates } from '@/hooks/query/tax-rates';
 import { useFeatureCan } from '@/hooks/state';
 
 const ExpenseFormPageContext = createContext<ExpenseFormContext | undefined>(
@@ -59,6 +60,12 @@ function ExpenseFormPageProvider({
   // Fetch accounts list.
   const { data: accounts, isLoading: isAccountsLoading } = useAccounts();
 
+  // Fetch tax rates.
+  const isSalesTaxFeatureCan = featureCan(Features.SalesTax);
+  const { data: taxRates, isLoading: isTaxRatesLoading } = useTaxRates({
+    enabled: isSalesTaxFeatureCan,
+  });
+
   // Create and edit expense mutate.
   const { mutateAsync: createExpenseMutate } = useCreateExpense();
   const { mutateAsync: editExpenseMutate } = useEditExpense();
@@ -93,6 +100,7 @@ function ExpenseFormPageProvider({
     expense,
     accounts: accounts ?? [],
     branches: branches ?? [],
+    taxRates: (taxRates as Record<string, any>[] | undefined) ?? [],
 
     isCurrenciesLoading,
     isExpenseLoading,
@@ -114,7 +122,8 @@ function ExpenseFormPageProvider({
         isCurrenciesLoading ||
         isExpenseLoading ||
         isVendorsLoading ||
-        isAccountsLoading
+        isAccountsLoading ||
+        (isSalesTaxFeatureCan && isTaxRatesLoading)
       }
       name={'expense-form'}
       className={css`

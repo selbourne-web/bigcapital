@@ -19,6 +19,7 @@ type ExpenseFormEntriesTableProps = {
   onChange: (entries: ExpenseEntry[]) => void;
   currencyCode: string;
   landedCost?: boolean;
+  salesTax?: boolean;
   minLines?: number;
 };
 
@@ -32,11 +33,20 @@ export function ExpenseFormEntriesTable({
   onChange,
   currencyCode,
   landedCost = true,
+  salesTax = false,
   minLines = 1,
 }: ExpenseFormEntriesTableProps) {
-  const { accounts } = useExpenseFormContext();
+  const { accounts, taxRates } = useExpenseFormContext();
 
-  const columns = useExpenseFormTableColumns({ landedCost });
+  // Older expenses record their VAT as a line ticked "Tax"; keep that column
+  // only where such a line exists so those expenses still read correctly.
+  const hasLegacyTaxLines = entries.some((entry) => !!entry.isTax);
+
+  const columns = useExpenseFormTableColumns({
+    landedCost,
+    salesTax,
+    legacyTaxLine: hasLegacyTaxLines,
+  });
 
   const handleUpdateData = useCallback(
     (rowIndex: number, columnId: string, value: unknown) => {
@@ -72,6 +82,7 @@ export function ExpenseFormEntriesTable({
       sticky={true}
       payload={{
         accounts: accounts,
+        taxRates,
         errors: error,
         updateData: handleUpdateData,
         removeRow: handleRemoveRow,
