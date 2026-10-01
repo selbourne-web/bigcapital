@@ -172,3 +172,47 @@
   color: #fff;
   font-size: 11px;
 }
+
+// Switches between several receipts on one expense.
+.fileTabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.fileTab {
+  max-width: 100%;
+  padding: 4px 10px;
+  border: 1px solid #c9ccd1;
+  border-radius: 999px;
+  background: #fff;
+  color: #2f3133;
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+
+  &[aria-selected='true'] {
+    border-color: #800000;
+    background: #f7eeee;
+    color: #800000;
+    font-weight: 600;
+  }
+  &:focus-visible {
+    outline: 2px solid #800000;
+    outline-offset: 2px;
+  }
+
+  :global(.bp4-dark) & {
+    background: transparent;
+    border-color: rgba(255, 255, 255, 0.2);
+    color: var(--color-light-gray4);
+
+    &[aria-selected='true'] {
+      border-color: #d40000;
+      color: #ff8a8a;
+      background: rgba(212, 0, 0, 0.12);
+    }
+  }
+}

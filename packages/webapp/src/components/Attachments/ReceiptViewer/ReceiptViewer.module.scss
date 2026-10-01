@@ -1,0 +1,197 @@
+// Receipt viewer: dark chrome around a grey reading area, the way desktop
+// PDF readers frame a page, so the white receipt stands out.
+.viewer {
+  --rv-chrome: #2f3133;
+  --rv-chrome-text: #f5f6f7;
+  --rv-chrome-muted: #b8bcc2;
+  --rv-stage: #e6e7e9;
+  --rv-divider: rgba(255, 255, 255, 0.16);
+
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1 1 auto;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid #c9ccd1;
+  background: var(--rv-stage);
+
+  :global(.bp4-dark) & {
+    --rv-stage: #1c2127;
+    border-color: rgba(255, 255, 255, 0.1);
+  }
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 4px 6px 4px 12px;
+  background: var(--rv-chrome);
+  color: var(--rv-chrome-text);
+}
+
+.name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: 0 0 auto;
+}
+
+// Blueprint's minimal buttons are dark-on-light; flip them for the chrome.
+.headerButton,
+.tool {
+  &:global(.bp4-button.bp4-minimal) {
+    color: var(--rv-chrome-text);
+
+    :global(.bp4-icon) {
+      color: inherit;
+    }
+    &:hover {
+      background: rgba(255, 255, 255, 0.12);
+    }
+    &:focus-visible {
+      outline: 2px solid #ffb347;
+      outline-offset: 1px;
+    }
+    &:global(.bp4-active) {
+      background: rgba(255, 221, 0, 0.28);
+      color: #ffe066;
+    }
+    &:global(.bp4-disabled) {
+      color: rgba(255, 255, 255, 0.35);
+    }
+  }
+}
+
+.headerButton:global(.bp4-button) {
+  text-decoration: none;
+}
+
+.divider,
+.toolDivider {
+  width: 1px;
+  height: 20px;
+  margin: 0 4px;
+  background: var(--rv-divider);
+}
+
+.stage {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 320px;
+  overflow: auto;
+  padding: 12px;
+}
+
+.message {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  text-align: center;
+  font-size: 13px;
+  color: #4c4c4c;
+
+  :global(.bp4-dark) & {
+    color: var(--color-light-gray1);
+  }
+}
+
+.page {
+  position: relative;
+  margin: 0 auto;
+  background: #fff;
+  box-shadow:
+    0 1px 2px rgba(16, 22, 26, 0.18),
+    0 6px 18px rgba(16, 22, 26, 0.14);
+}
+
+.canvas {
+  display: block;
+}
+
+.overlay {
+  position: absolute;
+  inset: 0;
+}
+
+.overlayActive {
+  cursor: crosshair;
+  touch-action: none;
+}
+
+.highlight {
+  position: absolute;
+  background: rgba(255, 221, 0, 0.38);
+  mix-blend-mode: multiply;
+  border-radius: 2px;
+  pointer-events: none;
+}
+
+.markupBar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px 10px;
+  border-top: 1px solid #c9ccd1;
+  background: #fff8d6;
+  font-size: 12px;
+  color: #4c4c4c;
+
+  > span {
+    flex: 1 1 100%;
+  }
+
+  :global(.bp4-dark) & {
+    background: #3b3520;
+    border-top-color: rgba(255, 255, 255, 0.1);
+    color: var(--color-light-gray4);
+  }
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 2px;
+  padding: 6px 8px;
+  background: var(--rv-chrome);
+  color: var(--rv-chrome-muted);
+}
+
+.pageInput {
+  width: 34px;
+  height: 24px;
+  padding: 0 4px;
+  border: 1px solid var(--rv-divider);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--rv-chrome-text);
+  font-size: 12px;
+  text-align: center;
+
+  &:focus-visible {
+    outline: 2px solid #ffb347;
+    outline-offset: 1px;
+  }
+}
+
+.pageCount {
+  margin: 0 6px 0 4px;
+  font-size: 12px;
+}
