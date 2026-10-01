@@ -5,6 +5,7 @@ export const TaxRatesSampleData = [
     Rate: '20',
     Description: 'Standard VAT rate applied to most goods and services.',
     'Is Non Recoverable': 'F',
+    'Is Compound': 'F',
     Active: 'T',
   },
   {
@@ -13,6 +14,7 @@ export const TaxRatesSampleData = [
     Rate: '25',
     Description: 'Tax imposed on the sale of luxury items.',
     'Is Non Recoverable': 'T',
+    'Is Compound': 'F',
     Active: 'T',
   },
 ];

@@ -30,12 +30,17 @@ export class ResourceService {
    */
   public getResourceModel(inputModelName: string) {
     const modelName = resourceToModelName(inputModelName);
-    const resourceModel = this.moduleRef.get(modelName, { strict: false });
-
-    if (!resourceModel) {
-      throw new ServiceError(ERRORS.RESOURCE_MODEL_NOT_FOUND);
+    // Some model classes carry a "Model" suffix (e.g. TaxRateModel for the
+    // "tax-rate" resource), so try that name too before giving up.
+    for (const name of [modelName, `${modelName}Model`]) {
+      try {
+        const resourceModel = this.moduleRef.get(name, { strict: false });
+        if (resourceModel) return resourceModel;
+      } catch {
+        // Not registered under this name; try the next one.
+      }
     }
-    return resourceModel;
+    throw new ServiceError(ERRORS.RESOURCE_MODEL_NOT_FOUND);
   }
 
   /**

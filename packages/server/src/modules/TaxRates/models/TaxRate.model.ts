@@ -1,13 +1,16 @@
-// import TenantModel from 'models/TenantModel';
-// import ModelSearchable from './ModelSearchable';
-// import SoftDeleteQueryBuilder from '@/collection/SoftDeleteQueryBuilder';
-// import TaxRateMeta from './TaxRate.settings';
-// import ModelSetting from './ModelSetting';
-import { BaseModel } from '@/models/Model';
+import { TenantBaseModel } from '@/modules/System/models/TenantBaseModel';
 import { ExportableModel } from '@/modules/Export/decorators/ExportableModel.decorator';
+import { ImportableModel } from '@/modules/Import/decorators/Import.decorator';
+import { InjectModelMeta } from '@/modules/Tenancy/TenancyModels/decorators/InjectModelMeta.decorator';
+import { TaxRateMeta } from './TaxRate.meta';
+
+/** Resource name the import/export screens use ("tax-rate" / "tax_rate"). */
+export const TAX_RATE_RESOURCE = 'TaxRate';
 
 @ExportableModel()
-export class TaxRateModel extends BaseModel {
+@ImportableModel()
+@InjectModelMeta(TaxRateMeta)
+export class TaxRateModel extends TenantBaseModel {
   active!: boolean;
   code!: string;
   name!: string;
@@ -34,13 +37,6 @@ export class TaxRateModel extends BaseModel {
   get timestamps() {
     return ['createdAt', 'updatedAt'];
   }
-
-  /**
-   * Retrieves the tax rate meta.
-   */
-  // static get meta() {
-  // return TaxRateMeta;
-  // }
 
   /**
    * Virtual attributes.

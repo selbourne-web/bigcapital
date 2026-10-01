@@ -4,8 +4,11 @@ import { Importable } from '../Import/Importable';
 import { TaxRatesSampleData } from './TaxRatesImportable.SampleData';
 import { CreateTaxRateDto } from './dtos/TaxRate.dto';
 import { Injectable } from '@nestjs/common';
+import { ImportableService } from '../Import/decorators/Import.decorator';
+import { TAX_RATE_RESOURCE } from './models/TaxRate.model';
 
 @Injectable()
+@ImportableService({ name: TAX_RATE_RESOURCE })
 export class TaxRatesImportable extends Importable {
   constructor(private readonly createTaxRateService: CreateTaxRate) {
     super();
