@@ -20,9 +20,18 @@ import { ExpensesExportable } from './ExpensesExportable';
 import { ExpensesImportable } from './ExpensesImportable';
 import { BulkDeleteExpensesService } from './BulkDeleteExpenses.service';
 import { ValidateBulkDeleteExpensesService } from './ValidateBulkDeleteExpenses.service';
+import { TaxRatesModule } from '../TaxRates/TaxRate.module';
+import { AccountsModule } from '../Accounts/Accounts.module';
 
 @Module({
-  imports: [TenancyModule, LedgerModule, BranchesModule, DynamicListModule],
+  imports: [
+    TenancyModule,
+    LedgerModule,
+    BranchesModule,
+    DynamicListModule,
+    TaxRatesModule,
+    AccountsModule,
+  ],
   controllers: [ExpensesController],
   exports: [CreateExpense, ExpensesExportable, ExpensesImportable],
   providers: [

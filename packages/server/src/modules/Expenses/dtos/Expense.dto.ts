@@ -77,6 +77,15 @@ export class ExpenseCategoryDto {
   @IsOptional()
   @ApiProperty({
     example: 1,
+    description: 'The tax rate applied to the line, if any',
+  })
+  taxRateId?: number;
+
+  @ToNumber()
+  @IsInt()
+  @IsOptional()
+  @ApiProperty({
+    example: 1,
     description: 'The project id of the expense category',
   })
   projectId?: number;
@@ -142,6 +151,15 @@ export class CommandExpenseDto {
     example: true,
   })
   publish?: boolean;
+
+  @IsBoolean()
+  @Transform(({ value }) => parseBoolean(value, false))
+  @IsOptional()
+  @ApiProperty({
+    description: 'Whether the line amounts already include their tax',
+    example: false,
+  })
+  isInclusiveTax?: boolean;
 
   @IsOptional()
   @ToNumber()

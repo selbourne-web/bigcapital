@@ -71,6 +71,9 @@ export class EditExpense {
     // Validate the given expense categories not equal zero.
     this.validator.validateCategoriesNotEqualZero(expenseDTO);
 
+    // Validate the lines' tax rates exist.
+    await this.validator.validateTaxRatesExist(expenseDTO);
+
     // Validate expense entries that have allocated landed cost cannot be deleted.
     // this.entriesService.validateLandedCostEntriesNotDeleted(
     //   oldExpense.categories,

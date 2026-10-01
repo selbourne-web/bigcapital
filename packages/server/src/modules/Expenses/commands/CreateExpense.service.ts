@@ -69,6 +69,9 @@ export class CreateExpense {
 
     // Validate the given expense categories not equal zero.
     this.validator.validateCategoriesNotEqualZero(expenseDTO);
+
+    // Validate the lines' tax rates exist.
+    await this.validator.validateTaxRatesExist(expenseDTO);
   };
 
   /**

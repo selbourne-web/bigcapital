@@ -34,6 +34,8 @@ export class Expense extends TenantBaseModel {
   invoicedAmount: number;
   branchId!: number;
   createdAt!: Date;
+  /** Whether line amounts already include their tax. */
+  isInclusiveTax!: boolean;
 
   categories!: ExpenseCategory[];
   paymentAccount!: Account;

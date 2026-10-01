@@ -1,5 +1,5 @@
-import { Injectable } from '@nestjs/common';
-import { omit, sumBy } from 'lodash';
+import { Inject, Injectable } from '@nestjs/common';
+import { keyBy, omit, sumBy, uniq } from 'lodash';
 import * as moment from 'moment';
 import * as R from 'ramda';
 import * as composeAsync from 'async/compose';
@@ -8,6 +8,9 @@ import { Expense } from '../models/Expense.model';
 import { assocItemEntriesDefaultIndex } from '@/utils/associate-item-entries-index';
 import { TenancyContext } from '@/modules/Tenancy/TenancyContext.service';
 import { CreateExpenseDto, EditExpenseDto } from '../dtos/Expense.dto';
+import { TaxRateModel } from '@/modules/TaxRates/models/TaxRate.model';
+import { TenantModelProxy } from '@/modules/System/models/TenantBaseModel';
+import { computeExpenseTax } from '@bigcapital/utils';
 
 @Injectable()
 export class ExpenseDTOTransformer {
@@ -18,30 +21,10 @@ export class ExpenseDTOTransformer {
   constructor(
     private readonly branchDTOTransform: BranchTransactionDTOTransformer,
     private readonly tenancyContext: TenancyContext,
+
+    @Inject(TaxRateModel.name)
+    private readonly taxRateModel: TenantModelProxy<typeof TaxRateModel>,
   ) {}
-
-  /**
-   * Retrieve the expense landed cost amount.
-   * @param  {IExpenseDTO} expenseDTO
-   * @return {number}
-   */
-  private getExpenseLandedCostAmount = (
-    expenseDTO: CreateExpenseDto | EditExpenseDto,
-  ): number => {
-    const landedCostEntries = expenseDTO.categories.filter((entry) => {
-      return entry.landedCost === true;
-    });
-    return this.getExpenseCategoriesTotal(landedCostEntries);
-  };
-
-  /**
-   * Retrieve the given expense categories total.
-   * @param   {IExpenseCategory} categories
-   * @returns {number}
-   */
-  private getExpenseCategoriesTotal = (categories): number => {
-    return sumBy(categories, 'amount');
-  };
 
   /**
    * Mapping expense DTO to model.
@@ -52,16 +35,46 @@ export class ExpenseDTOTransformer {
   private async expenseDTOToModel(
     expenseDTO: CreateExpenseDto | EditExpenseDto,
   ): Promise<Expense> {
-    const landedCostAmount = this.getExpenseLandedCostAmount(expenseDTO);
-    const totalAmount = this.getExpenseCategoriesTotal(expenseDTO.categories);
+    const isInclusiveTax = !!expenseDTO.isInclusiveTax;
+
+    // Snapshot each line's tax rate (%) as it is today, like bills do; a
+    // line keeps its rate even if the tax rate is edited later.
+    const dtoLines = expenseDTO.categories || [];
+    const taxRateIds = uniq(
+      dtoLines.map((line) => line.taxRateId).filter(Boolean),
+    );
+    const taxRates = taxRateIds.length
+      ? await this.taxRateModel().query().whereIn('id', taxRateIds)
+      : [];
+    const taxRatesById = keyBy(taxRates, 'id');
+
+    const withTaxRates = dtoLines.map((line) => ({
+      ...line,
+      taxRateId: line.taxRateId || null,
+      taxRate: line.taxRateId
+        ? (taxRatesById[line.taxRateId]?.rate ?? null)
+        : null,
+    }));
+    const tax = computeExpenseTax(withTaxRates, isInclusiveTax);
+
+    // Landed cost is allocated on what the goods cost, tax excluded.
+    const landedCostAmount = sumBy(
+      withTaxRates.map((line, index) => ({
+        ...line,
+        netAmount: tax.lines[index].netAmount,
+      })),
+      (line) => (line.landedCost === true ? line.netAmount : 0),
+    );
+    const totalAmount = tax.total;
 
     const categories = R.compose(
       // Associate the default index to categories lines.
       assocItemEntriesDefaultIndex,
-    )(expenseDTO.categories || []);
+    )(withTaxRates);
 
     const initialDTO = {
       ...omit(expenseDTO, ['publish', 'attachments']),
+      isInclusiveTax,
       categories,
       totalAmount,
       landedCostAmount,

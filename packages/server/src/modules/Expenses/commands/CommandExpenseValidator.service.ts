@@ -1,5 +1,8 @@
-import { sumBy, difference } from 'lodash';
+import { sumBy, difference, uniq } from 'lodash';
 import { Knex } from 'knex';
+import { Inject } from '@nestjs/common';
+import { TaxRateModel } from '@/modules/TaxRates/models/TaxRate.model';
+import { TenantModelProxy } from '@/modules/System/models/TenantBaseModel';
 import { ERRORS, SUPPORTED_EXPENSE_PAYMENT_ACCOUNT_TYPES } from '../constants';
 import { ACCOUNT_ROOT_TYPE } from '@/constants/accounts';
 import { Account } from '@/modules/Accounts/models/Account.model';
@@ -10,6 +13,33 @@ import { CreateExpenseDto, EditExpenseDto } from '../dtos/Expense.dto';
 
 @Injectable()
 export class CommandExpenseValidator {
+  constructor(
+    @Inject(TaxRateModel.name)
+    private readonly taxRateModel: TenantModelProxy<typeof TaxRateModel>,
+  ) {}
+
+  /**
+   * Validates every tax rate a line refers to exists.
+   * @param {CreateExpenseDto | EditExpenseDto} expenseDTO
+   * @throws {ServiceError}
+   */
+  public validateTaxRatesExist = async (
+    expenseDTO: CreateExpenseDto | EditExpenseDto,
+  ) => {
+    const taxRateIds = uniq(
+      (expenseDTO.categories || [])
+        .map((category) => category.taxRateId)
+        .filter(Boolean),
+    );
+    if (taxRateIds.length === 0) return;
+
+    const found = await this.taxRateModel().query().whereIn('id', taxRateIds);
+
+    if (found.length !== taxRateIds.length) {
+      throw new ServiceError(ERRORS.TAX_RATES_NOT_FOUND);
+    }
+  };
+
   /**
    * Validates expense categories not equals zero.
    * @param  {IExpenseCreateDTO | IExpenseEditDTO} expenseDTO

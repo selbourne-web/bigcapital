@@ -8,6 +8,9 @@ export class ExpenseCategory extends BaseModel {
   public projectId!: number;
   public description!: string;
   public isTax!: boolean;
+  public taxRateId!: number | null;
+  /** The rate (%) at the time the expense was saved. */
+  public taxRate!: number | null;
 
   /**
    * Table name

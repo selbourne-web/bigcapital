@@ -100,6 +100,8 @@ export const normalizeReceipt = (
     memo: cleanText(raw.memo, 500),
     lines,
     total,
+    taxTotal,
+    amountsIncludeTax: !!raw.amounts_include_tax,
     warnings,
   };
 };

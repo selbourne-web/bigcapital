@@ -118,6 +118,10 @@ export interface ReceiptAutofill {
     isTax: boolean;
   }>;
   total: number | null;
+  /** Total tax printed on the document, if any. */
+  taxTotal: number | null;
+  /** Whether the line amounts already include the tax. */
+  amountsIncludeTax: boolean;
   /** Things the person should double-check before saving. */
   warnings: string[];
 }

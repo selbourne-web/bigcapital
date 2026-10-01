@@ -66,9 +66,69 @@ export class ExpenseCategoryResponseDto {
   @IsOptional()
   @IsString()
   amountFormatted?: string;
+
+  @ApiProperty({
+    example: 1,
+    description: 'The tax rate applied to the line',
+    required: false,
+    nullable: true,
+  })
+  @IsOptional()
+  taxRateId?: number | null;
+
+  @ApiProperty({
+    example: 17.5,
+    description: 'The tax rate (%) at the time the expense was saved',
+    required: false,
+    nullable: true,
+  })
+  @IsOptional()
+  taxRate?: number | null;
+}
+
+export class ExpenseTaxResponseDto {
+  @ApiProperty({ example: 1 })
+  taxRateId: number;
+
+  @ApiProperty({ example: 17.5 })
+  taxRate: number;
+
+  @ApiProperty({
+    example: 37.4,
+    description: 'The amount the tax is calculated on (tax excluded)',
+  })
+  taxableAmount: number;
+
+  @ApiProperty({ example: 6.55 })
+  taxAmount: number;
+
+  @ApiProperty({ example: '$37.40' })
+  formattedTaxableAmount: string;
+
+  @ApiProperty({ example: '$6.55' })
+  formattedTaxAmount: string;
 }
 
 export class ExpenseResponseDto {
+  @ApiProperty({
+    example: false,
+    description: 'Whether the line amounts already include their tax',
+    required: false,
+  })
+  @IsOptional()
+  isInclusiveTax?: boolean;
+
+  @ApiProperty({
+    type: [ExpenseTaxResponseDto],
+    description: 'The tax per tax rate',
+    required: false,
+  })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => ExpenseTaxResponseDto)
+  taxes?: ExpenseTaxResponseDto[];
+
   @ApiProperty({
     example: 1,
     description: 'The unique identifier of the expense',

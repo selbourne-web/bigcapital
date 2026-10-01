@@ -3,6 +3,7 @@ import { ExpenseCategoryTransformer } from './ExpenseCategory.transformer';
 // import { AttachmentTransformer } from '@/services/Attachments/AttachmentTransformer';
 import { Expense } from '../models/Expense.model';
 import { AttachmentTransformer } from '@/modules/Attachments/Attachment.transformer';
+import { computeExpenseTax } from '@bigcapital/utils';
 
 export class ExpenseTransfromer extends Transformer {
   /**
@@ -18,6 +19,7 @@ export class ExpenseTransfromer extends Transformer {
       'salesTaxAmount',
       'formattedSalesTaxAmount',
       'formattedAmountBeforeSalesTax',
+      'taxes',
       'formattedDate',
       'formattedCreatedAt',
       'formattedPublishedAt',
@@ -48,14 +50,47 @@ export class ExpenseTransfromer extends Transformer {
   };
 
   /**
-   * The sales tax of the expense: the sum of the lines marked as tax.
+   * The expense's tax worked out from the lines' tax rates.
+   * @param {Expense} expense - Expense.
+   */
+  private getTax = (expense: Expense) =>
+    computeExpenseTax(
+      (expense.categories ?? []).map((category) => ({
+        amount: Number(category.amount || 0),
+        taxRateId: category.taxRateId,
+        taxRate: category.taxRate ? Number(category.taxRate) : null,
+      })),
+      !!expense.isInclusiveTax,
+    );
+
+  /**
+   * The sales tax of the expense: tax from the lines' tax rates, plus any
+   * line recorded the older way, as its own line marked as tax.
    * @param {Expense} expense - Expense.
    * @returns {number}
    */
   protected salesTaxAmount = (expense: Expense): number => {
-    return (expense.categories ?? [])
+    const taxLinesAmount = (expense.categories ?? [])
       .filter((category) => category.isTax)
       .reduce((sum, category) => sum + Number(category.amount || 0), 0);
+
+    return taxLinesAmount + this.getTax(expense).taxTotal;
+  };
+
+  /**
+   * The tax per tax rate, e.g. "17.5% on 37.40 = 6.55".
+   * @param {Expense} expense - Expense.
+   */
+  protected taxes = (expense: Expense) => {
+    return this.getTax(expense).groups.map((group) => ({
+      ...group,
+      formattedTaxableAmount: this.formatNumber(group.taxableAmount, {
+        currencyCode: expense.currencyCode,
+      }),
+      formattedTaxAmount: this.formatNumber(group.taxAmount, {
+        currencyCode: expense.currencyCode,
+      }),
+    }));
   };
 
   /**
