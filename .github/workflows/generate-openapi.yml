@@ -67,6 +67,11 @@ jobs:
     name: Generate OpenAPI and SDK Types
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    # Needed to push the update branch and open its PR; the repo default
+    # token is read-only.
+    permissions:
+      contents: write
+      pull-requests: write
 
     services:
       mysql:
