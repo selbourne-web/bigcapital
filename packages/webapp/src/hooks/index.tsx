@@ -1,7 +1,7 @@
 import { useRef, useEffect, useMemo, useState } from 'react';
-import type { SyntheticEvent } from 'react';
 import useAutofocus from './useAutofocus';
 import { useLocalStorage } from './utils/useLocalStorage';
+import type { SyntheticEvent } from 'react';
 import type { RefObject } from 'react';
 
 export * from './utils';

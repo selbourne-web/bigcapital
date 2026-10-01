@@ -4,11 +4,11 @@ import React, { useState } from 'react';
 import styled from 'styled-components';
 import { useCategorizeTransactionBoot } from './CategorizeTransactionBoot';
 import type { CategorizeTransactionFormValues } from './_utils';
-import { useCategorizeTransactionTabsBoot } from '@/containers/CashFlow/CategorizeTransactionAside/CategorizeTransactionTabsBoot';
 import type {
   ClassificationError,
   TransactionClassificationResult,
 } from '@/hooks/query/banking-ai';
+import { useCategorizeTransactionTabsBoot } from '@/containers/CashFlow/CategorizeTransactionAside/CategorizeTransactionTabsBoot';
 import { useClassifyBankTransaction } from '@/hooks/query/banking-ai';
 
 const RISK_INTENT: Record<TransactionClassificationResult['risk'], Intent> = {

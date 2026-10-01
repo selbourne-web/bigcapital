@@ -21,11 +21,11 @@ import type {
   CreateBankRuleBody,
 } from '@bigcapital/sdk-ts';
 import { AppToaster } from '@/components';
-import { useCreateBankRule } from '@/hooks/query/banking';
-import { transfromToSnakeCase } from '@/utils';
 import { useCategorizeTransactionTabsBoot } from '@/containers/CashFlow/CategorizeTransactionAside/CategorizeTransactionTabsBoot';
 import { withBankingActions } from '@/containers/CashFlow/withBankingActions';
+import { useCreateBankRule } from '@/hooks/query/banking';
 import { useApiFetcher } from '@/hooks/useRequest';
+import { transfromToSnakeCase } from '@/utils';
 
 interface CategorizeTransactionFormRootProps
   extends Pick<WithBankingActionsProps, 'closeMatchingTransactionAside'> {}

@@ -1,4 +1,5 @@
 import React from 'react';
+import { ACCOUNT_TYPE } from './accountTypes';
 import { DialogsName } from './dialogs';
 import { FormattedMessage as T } from '@/components';
 import {
@@ -22,12 +23,11 @@ import {
   TaxRateAction,
 } from '@/constants/abilityOption';
 import { Features } from '@/constants/features';
-import { ACCOUNT_TYPE } from './accountTypes';
-import { AccountDialogAction } from '@/containers/Dialogs/AccountDialog/utils';
 import {
   ISidebarMenuItemType,
   ISidebarMenuOverlayIds,
 } from '@/containers/Dashboard/Sidebar/interfaces';
+import { AccountDialogAction } from '@/containers/Dialogs/AccountDialog/utils';
 
 export interface SidebarMenuItemPermission {
   subject: string;
