@@ -14,7 +14,7 @@ export default registerAs('crypto', () => {
   return {
     encryptionKeys,
     currentKeyVersion: 1,
-    syncIntervalMs: parseInt(process.env.CRYPTO_SYNC_INTERVAL_MS, 10) || 900000,
+    syncIntervalMs: parseInt(process.env.CRYPTO_SYNC_INTERVAL_MS, 10) || 300000,
     allowedOrigin: process.env.CRYPTO_ALLOWED_ORIGIN || '',
   };
 });
