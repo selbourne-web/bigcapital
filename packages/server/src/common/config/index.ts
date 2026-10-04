@@ -26,6 +26,7 @@ import bullBoard from './bull-board';
 import clickhouse from './clickhouse';
 import microsoftSso from './microsoft-sso';
 import mfa from './mfa';
+import crypto from './crypto';
 
 export const config = [
   app,
@@ -56,4 +57,5 @@ export const config = [
   clickhouse,
   microsoftSso,
   mfa,
+  crypto,
 ];
