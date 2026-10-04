@@ -1,0 +1,18 @@
+{
+  "error": [],
+  "result": {
+    "apiKeyName": "my-api-key",
+    "apiKey": "4/SDrDBcOOPnm3nPlNfEMMJDeRcIVqPz+QhRxIodyZbI9po/aVRiHsgX",
+    "nonce": "1772627060997",
+    "nonceWindow": 0,
+    "permissions": ["query-funds", "query-open-trades", "query-closed-trades", "query-ledger"],
+    "iban": "AA88 N84G WOAK NMOI",
+    "validUntil": "0",
+    "queryFrom": "0",
+    "queryTo": "0",
+    "createdTime": "1772542900",
+    "modifiedTime": "1772543095",
+    "ipAllowlist": [],
+    "lastUsed": "1772627061"
+  }
+}

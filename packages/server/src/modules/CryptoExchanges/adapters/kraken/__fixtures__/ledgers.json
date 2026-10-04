@@ -1,0 +1,63 @@
+{
+  "error": [],
+  "result": {
+    "ledger": {
+      "L4UESK-KG3EQ-UFO4T5": {
+        "refid": "TJKLXF-PGMUI-4NTLXU",
+        "time": 1688464484.1787,
+        "type": "trade",
+        "subtype": "",
+        "aclass": "currency",
+        "asset": "ZGBP",
+        "amount": "-24.5000",
+        "fee": "0.0490",
+        "balance": "459567.9171"
+      },
+      "LDEP01-AAAAA-BBBBB1": {
+        "refid": "FTDEP1-AAAAA-BBBBB1",
+        "time": 1688464000.5,
+        "type": "deposit",
+        "subtype": "",
+        "aclass": "currency",
+        "asset": "XXBT",
+        "amount": "0.5000000000",
+        "fee": "0.0000000000",
+        "balance": "0.5000000000"
+      },
+      "LWDR01-AAAAA-BBBBB2": {
+        "refid": "FTWDR1-AAAAA-BBBBB2",
+        "time": 1688465000.25,
+        "type": "withdrawal",
+        "subtype": "",
+        "aclass": "currency",
+        "asset": "XETH",
+        "amount": "-1.0000000000",
+        "fee": "0.0050000000",
+        "balance": "2.0000000000"
+      },
+      "LSTK01-AAAAA-BBBBB3": {
+        "refid": "STKREW-AAAAA-BBBBB3",
+        "time": 1688466000.75,
+        "type": "staking",
+        "subtype": "",
+        "aclass": "currency",
+        "asset": "DOT.S",
+        "amount": "0.0123000000",
+        "fee": "0.0000000000",
+        "balance": "1.5123000000"
+      },
+      "LXFR01-AAAAA-BBBBB4": {
+        "refid": "XFER01-AAAAA-BBBBB4",
+        "time": 1688467000.0,
+        "type": "transfer",
+        "subtype": "spottostaking",
+        "aclass": "currency",
+        "asset": "DOT",
+        "amount": "-1.5000000000",
+        "fee": "0.0000000000",
+        "balance": "2.5000000000"
+      }
+    },
+    "count": 5
+  }
+}
