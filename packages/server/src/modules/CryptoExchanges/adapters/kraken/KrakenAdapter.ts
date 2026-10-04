@@ -82,7 +82,12 @@ export class KrakenAdapter implements ExchangeAdapter {
   constructor(
     private readonly fetchImpl: typeof fetch = (...args) => fetch(...args),
     private readonly now: () => number = Date.now,
-  ) {}
+    options: { requestTimeoutMs?: number } = {},
+  ) {
+    this.requestTimeoutMs = options.requestTimeoutMs ?? 30_000;
+  }
+
+  private readonly requestTimeoutMs: number;
 
   async inspectKey(c: Credentials): Promise<KeyInspection> {
     const creds = this.trim(c);
@@ -300,6 +305,12 @@ export class KrakenAdapter implements ExchangeAdapter {
     }
     const nonce = this.nextNonce();
     const body = new URLSearchParams({ nonce, ...params }).toString();
+    // One deadline covers connect, headers and body so a hung socket cannot wedge the queue.
+    const signal = AbortSignal.timeout(this.requestTimeoutMs);
+    const timedOut = () =>
+      new ExchangeNetworkError(
+        `Kraken request timed out after ${this.requestTimeoutMs}ms`,
+      );
     let res: Response;
     try {
       res = await this.fetchImpl(`${HOST}${path}`, {
@@ -310,8 +321,10 @@ export class KrakenAdapter implements ExchangeAdapter {
           'Content-Type': 'application/x-www-form-urlencoded',
         },
         body,
+        signal,
       });
     } catch (err) {
+      if (signal.aborted) throw timedOut();
       throw new ExchangeNetworkError(
         `Kraken request failed: ${this.sanitize((err as Error)?.message, creds)}`,
       );
@@ -321,6 +334,7 @@ export class KrakenAdapter implements ExchangeAdapter {
       throw new ExchangeRateLimitError();
     }
     const text = await res.text().catch(() => '');
+    if (signal.aborted) throw timedOut();
     if (res.status >= 500) {
       throw new ExchangeNetworkError(`Kraken returned HTTP ${res.status}`);
     }

@@ -258,6 +258,45 @@ describe('KrakenAdapter', () => {
     });
   });
 
+  describe('timeout', () => {
+    it('aborts a hung request with a retryable ExchangeNetworkError and does not wedge the queue', async () => {
+      let n = 0;
+      let sawSignal = false;
+      const fn = jest.fn((_url: any, init: any) => {
+        n += 1;
+        if (n === 1) {
+          sawSignal = init.signal instanceof AbortSignal;
+          // First call hangs until the adapter aborts it.
+          return new Promise((_resolve, reject) => {
+            init.signal.addEventListener('abort', () =>
+              reject(new Error('aborted')),
+            );
+          });
+        }
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          text: async () => fixture('balance.json'),
+        });
+      }) as unknown as typeof fetch;
+
+      const a = new KrakenAdapter(fn, undefined, { requestTimeoutMs: 50 });
+      const first = a.fetchBalances(creds);
+      const second = a.fetchBalances(creds); // queued behind the hung one
+
+      const err = await first.catch((e) => e);
+      expect(sawSignal).toBe(true);
+      expect(err).toBeInstanceOf(ExchangeNetworkError);
+      expect(err.retryable).toBe(true);
+      expect(err.message).toMatch(/timed out/);
+      expect(err.message).not.toContain('TESTKEY123');
+
+      const balances = await second;
+      expect(balances.length).toBeGreaterThan(0);
+      expect(n).toBe(2);
+    });
+  });
+
   describe('nonce', () => {
     it('strictly increases across sequential calls even with a frozen clock', async () => {
       const { fn, calls } = makeFetch(() => ok(fixture('balance.json')));
