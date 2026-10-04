@@ -72,6 +72,7 @@ export enum AbilitySubject {
   Warehouse = 'Warehouse',
   Branch = 'Branch',
   Attachment = 'Attachment',
+  CryptoExchange = 'CryptoExchange',
 }
 
 export interface IRoleCreatedPayload {

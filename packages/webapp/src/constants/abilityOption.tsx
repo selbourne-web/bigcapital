@@ -22,6 +22,7 @@ export const AbilitySubject = {
   TaxRate: 'TaxRate',
   BankRule: 'BankRule',
   AuditLog: 'AuditLog',
+  CryptoExchange: 'CryptoExchange',
 } as const;
 
 export const ItemAction = {
@@ -190,6 +191,13 @@ export const TaxRateAction = {
 } as const;
 
 export const BankRuleAction = {
+  View: 'View',
+  Create: 'Create',
+  Edit: 'Edit',
+  Delete: 'Delete',
+} as const;
+
+export const CryptoExchangeAction = {
   View: 'View',
   Create: 'Create',
   Edit: 'Edit',

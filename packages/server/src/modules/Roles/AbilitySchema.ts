@@ -27,6 +27,7 @@ import { PreferencesAction } from '../Settings/Settings.types';
 import { AuditLogAction } from '../EE/AuditLogs/types/AuditLogs.types';
 import { AttachmentAction } from '../Attachments/Attachments.types';
 import { WarehouseTransferAction } from '../Warehouses/Warehouse.types';
+import { CryptoExchangeAction } from '../CryptoExchanges/CryptoExchanges.constants';
 
 export const AbilitySchema: ISubjectAbilitiesSchema[] = [
   {
@@ -375,6 +376,24 @@ export const AbilitySchema: ISubjectAbilitiesSchema[] = [
         key: WarehouseTransferAction.DELETE,
         label: 'ability.delete',
         default: true,
+      },
+    ],
+  },
+  {
+    subject: AbilitySubject.CryptoExchange,
+    subjectLabel: 'ability.crypto_exchanges',
+    abilities: [
+      { key: CryptoExchangeAction.View, label: 'ability.view', default: false },
+      {
+        key: CryptoExchangeAction.Create,
+        label: 'ability.create',
+        default: false,
+      },
+      { key: CryptoExchangeAction.Edit, label: 'ability.edit', default: false },
+      {
+        key: CryptoExchangeAction.Delete,
+        label: 'ability.delete',
+        default: false,
       },
     ],
   },
