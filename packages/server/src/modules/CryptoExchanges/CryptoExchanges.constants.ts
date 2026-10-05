@@ -12,7 +12,9 @@ export type CryptoRecordType =
   | 'deposit'
   | 'withdrawal'
   | 'fee'
-  | 'reward';
+  | 'reward'
+  /** Response that did not match the documented shape; stored so no data is lost. */
+  | 'unparsed';
 
 export type CryptoSyncKind = 'initial' | 'incremental' | 'manual';
 

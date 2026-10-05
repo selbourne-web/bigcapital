@@ -17,6 +17,11 @@ export class CryptoConnection extends TenantBaseModel {
   lastSyncAt?: Date | null;
   lastError?: string | null;
   accountId?: number | null;
+  /** Opaque adapter cursor of an interrupted history slice. */
+  syncCursor?: string | null;
+  /** Start of the last completed (or first initial) sync; incremental windows begin here. */
+  lastSeenAt?: Date | null;
+  initialSyncCompletedAt?: Date | null;
   createdAt?: Date;
   updatedAt?: Date;
 
