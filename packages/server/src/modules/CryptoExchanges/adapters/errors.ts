@@ -22,11 +22,16 @@ export class ExchangeAuthError extends ExchangeError {
 }
 
 export class ExchangeRateLimitError extends ExchangeError {
+  /** Wait requested by the exchange (Retry-After), when it sent one. */
+  readonly retryAfterMs?: number;
+
   constructor(
     message = 'Exchange rate limit exceeded',
     userMessage = 'The exchange is rate limiting requests. The sync will retry shortly.',
+    retryAfterMs?: number,
   ) {
     super(message, userMessage, true);
+    this.retryAfterMs = retryAfterMs;
   }
 }
 

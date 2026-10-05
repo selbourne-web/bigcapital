@@ -17,6 +17,7 @@ import {
   ExchangeRateLimitError,
   ExchangeSchemaError,
 } from '../errors';
+import { addDecimal, isDecimal, isZero, sanitizeText } from '../shared';
 import { signKraken } from './kraken.signing';
 
 const HOST = 'https://api.kraken.com';
@@ -41,33 +42,9 @@ const READ_PERMISSIONS = new Set([
   'export-data',
 ]);
 
-const MAX_ERROR_TEXT = 300;
-
 type Phase = 'trades' | 'ledger';
 
 type Json = Record<string, any>;
-
-/** Add non-negative decimal strings exactly (no float rounding). */
-function addDecimal(a: string, b: string): string {
-  const [ai, af = ''] = a.split('.');
-  const [bi, bf = ''] = b.split('.');
-  const scale = Math.max(af.length, bf.length);
-  const total =
-    BigInt(ai + af.padEnd(scale, '0')) + BigInt(bi + bf.padEnd(scale, '0'));
-  return formatDecimal(total, scale);
-}
-
-function formatDecimal(scaled: bigint, scale: number): string {
-  const digits = scaled.toString().padStart(scale + 1, '0');
-  const int = digits.slice(0, digits.length - scale);
-  const frac = digits.slice(digits.length - scale).replace(/0+$/, '');
-  return frac ? `${int}.${frac}` : int;
-}
-
-const isZero = (v: string) => /^0*\.?0*$/.test(v);
-
-const isDecimal = (v: unknown): v is string =>
-  typeof v === 'string' && /^\d+(\.\d+)?$/.test(v);
 
 export class KrakenAdapter implements ExchangeAdapter {
   readonly id: CryptoExchangeId = 'kraken';
@@ -392,12 +369,10 @@ export class KrakenAdapter implements ExchangeAdapter {
 
   /** Strip credentials from text and bound its length. */
   private sanitize(text: unknown, creds: Credentials): string {
-    let out = typeof text === 'string' ? text : '';
-    for (const secret of [creds.apiKey, creds.apiSecret, creds.passphrase]) {
-      if (secret) out = out.split(secret).join('[REDACTED]');
-    }
-    return out.length > MAX_ERROR_TEXT
-      ? `${out.slice(0, MAX_ERROR_TEXT)}...`
-      : out;
+    return sanitizeText(text, [
+      creds.apiKey,
+      creds.apiSecret,
+      creds.passphrase,
+    ]);
   }
 }

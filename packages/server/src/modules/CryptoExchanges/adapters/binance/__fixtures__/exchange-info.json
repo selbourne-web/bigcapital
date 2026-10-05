@@ -1,0 +1,48 @@
+{
+  "timezone": "UTC",
+  "serverTime": 1565246363776,
+  "symbols": [
+    {
+      "symbol": "BTCUSDT",
+      "status": "TRADING",
+      "baseAsset": "BTC",
+      "quoteAsset": "USDT"
+    },
+    {
+      "symbol": "BTCEUR",
+      "status": "TRADING",
+      "baseAsset": "BTC",
+      "quoteAsset": "EUR"
+    },
+    {
+      "symbol": "LTCBTC",
+      "status": "TRADING",
+      "baseAsset": "LTC",
+      "quoteAsset": "BTC"
+    },
+    {
+      "symbol": "LTCUSDT",
+      "status": "TRADING",
+      "baseAsset": "LTC",
+      "quoteAsset": "USDT"
+    },
+    {
+      "symbol": "BNBBTC",
+      "status": "TRADING",
+      "baseAsset": "BNB",
+      "quoteAsset": "BTC"
+    },
+    {
+      "symbol": "ETHUSDT",
+      "status": "TRADING",
+      "baseAsset": "ETH",
+      "quoteAsset": "USDT"
+    },
+    {
+      "symbol": "BTCXYZ",
+      "status": "TRADING",
+      "baseAsset": "BTC",
+      "quoteAsset": "XYZ"
+    }
+  ]
+}

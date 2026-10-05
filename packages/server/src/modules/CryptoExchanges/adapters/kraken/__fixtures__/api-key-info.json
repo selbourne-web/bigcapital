@@ -5,7 +5,12 @@
     "apiKey": "4/SDrDBcOOPnm3nPlNfEMMJDeRcIVqPz+QhRxIodyZbI9po/aVRiHsgX",
     "nonce": "1772627060997",
     "nonceWindow": 0,
-    "permissions": ["query-funds", "query-open-trades", "query-closed-trades", "query-ledger"],
+    "permissions": [
+      "query-funds",
+      "query-open-trades",
+      "query-closed-trades",
+      "query-ledger"
+    ],
     "iban": "AA88 N84G WOAK NMOI",
     "validUntil": "0",
     "queryFrom": "0",

@@ -1,0 +1,32 @@
+[
+  {
+    "symbol": "BNBBTC",
+    "id": 28457,
+    "orderId": 100234,
+    "orderListId": -1,
+    "price": "4.00000100",
+    "qty": "12.00000000",
+    "quoteQty": "48.000012",
+    "commission": "10.10000000",
+    "commissionAsset": "BNB",
+    "time": 1499865549590,
+    "isBuyer": true,
+    "isMaker": false,
+    "isBestMatch": true
+  },
+  {
+    "symbol": "BNBBTC",
+    "id": 28458,
+    "orderId": 100235,
+    "orderListId": -1,
+    "price": "4.00000200",
+    "qty": "1.00000000",
+    "quoteQty": "4.000002",
+    "commission": "0.00000000",
+    "commissionAsset": "BNB",
+    "time": 1499865649590,
+    "isBuyer": false,
+    "isMaker": true,
+    "isBestMatch": true
+  }
+]
