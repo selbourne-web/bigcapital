@@ -33,10 +33,7 @@ import {
   CRYPTO_SYNC_JOB_OPTIONS,
   CRYPTO_SYNC_KRAKEN_QUEUE,
 } from './CryptoExchanges.constants';
-import {
-  CRYPTO_LIVE_EMITTER,
-  NoopCryptoLiveEmitter,
-} from './CryptoExchanges.types';
+import { CRYPTO_LIVE_EMITTER } from './CryptoExchanges.types';
 import { AdapterRegistry } from './adapters/AdapterRegistry';
 import { CryptoConnectionValidators } from './commands/CryptoConnectionValidators.service';
 import { CryptoVault } from './vault/CryptoVault.service';
@@ -68,8 +65,12 @@ const modelProviderTokens = (module: DynamicModule) =>
   (module.providers ?? []).map(token);
 
 /** Everything outside this module that its providers need, as inert stubs. */
+const liveEmitterStub = { connectionSynced: jest.fn() };
+
 const stubs = (key: string | null): Provider[] => [
   { provide: ConfigService, useValue: config(key) },
+  // Provided globally by CryptoLiveModule in the app.
+  { provide: CRYPTO_LIVE_EMITTER, useValue: liveEmitterStub },
   { provide: RedisService, useValue: { getOrThrow: () => ({}) } },
   { provide: UnitOfWork, useValue: {} },
   { provide: CreateAccountService, useValue: {} },
@@ -141,8 +142,18 @@ describe('CryptoExchangesModule wiring', () => {
         CryptoSyncService,
         CryptoSyncScheduler,
         CryptoSyncProcessor,
-        CRYPTO_LIVE_EMITTER,
       ]),
+    );
+    // The real emitter comes from CryptoLiveModule (global); this module must not
+    // provide or re-export the token, and must not import the live module (no cycle).
+    expect(tokens).not.toContain(CRYPTO_LIVE_EMITTER);
+    const exported = Reflect.getMetadata(
+      MODULE_METADATA.EXPORTS,
+      CryptoExchangesModule,
+    ) as unknown[];
+    expect(exported).not.toContain(CRYPTO_LIVE_EMITTER);
+    expect(imports.map((i: any) => i?.name ?? i?.module?.name)).not.toContain(
+      'CryptoLiveModule',
     );
     for (const other of [AccountsModule, AuditLogsModule]) {
       const providers = Reflect.getMetadata(
@@ -181,8 +192,9 @@ describe('CryptoExchangesModule dependency injection (stubbed externals)', () =>
       registry,
     );
     expect((moduleRef.get(CryptoSyncService) as any).adapters).toBe(registry);
-    expect(moduleRef.get(CRYPTO_LIVE_EMITTER)).toBeInstanceOf(
-      NoopCryptoLiveEmitter,
+    // The sync processor receives whatever provides the token (the real emitter in the app).
+    expect((moduleRef.get(CryptoSyncProcessor) as any).liveEmitter).toBe(
+      liveEmitterStub,
     );
     expect(moduleRef.get(CryptoExchangesController)).toBeDefined();
     await moduleRef.close();

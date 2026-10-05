@@ -9,7 +9,9 @@ export interface CryptoSyncJobData {
 
 /**
  * Tells connected browsers that a connection finished a sync. Carries ids and
- * status only: never balances, never credentials. Implemented by Task 11.
+ * status only: never balances, never credentials. Implemented by
+ * `CryptoLiveEmitterService` (CryptoLive module), which provides this token globally.
+ * The token and interface live here, in a leaf file, so neither module imports the other.
  */
 export interface CryptoLiveEmitter {
   connectionSynced(
@@ -20,10 +22,3 @@ export interface CryptoLiveEmitter {
 }
 
 export const CRYPTO_LIVE_EMITTER = 'CRYPTO_LIVE_EMITTER';
-
-/** Default provider until the real emitter exists. */
-export class NoopCryptoLiveEmitter implements CryptoLiveEmitter {
-  connectionSynced(): void {
-    // intentionally empty
-  }
-}

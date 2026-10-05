@@ -12,10 +12,6 @@ import {
   CRYPTO_SYNC_JOB_OPTIONS,
   CRYPTO_SYNC_QUEUE_NAMES,
 } from './CryptoExchanges.constants';
-import {
-  CRYPTO_LIVE_EMITTER,
-  NoopCryptoLiveEmitter,
-} from './CryptoExchanges.types';
 import { CryptoConnection } from './models/CryptoConnection';
 import { CryptoRawRecord } from './models/CryptoRawRecord';
 import { CryptoBalanceSnapshot } from './models/CryptoBalanceSnapshot';
@@ -85,8 +81,7 @@ export const cryptoExchangesProviders: Provider[] = [
   GetCryptoConnectionsService,
   GetCryptoBalancesService,
   GetCryptoSyncRunsService,
-  // Task 11 replaces the no-op with the real Socket.IO emitter.
-  { provide: CRYPTO_LIVE_EMITTER, useClass: NoopCryptoLiveEmitter },
+  // CRYPTO_LIVE_EMITTER is provided globally by CryptoLiveModule (real Socket.IO emitter).
 ];
 
 @Module({
@@ -108,13 +103,7 @@ export const cryptoExchangesProviders: Provider[] = [
   ],
   controllers: [CryptoExchangesController],
   providers: cryptoExchangesProviders,
-  // The live emitter token is what Task 11 overrides; the vault and models are
-  // what later pieces (valuation, journals) read from.
-  exports: [
-    CRYPTO_LIVE_EMITTER,
-    CryptoVault,
-    CryptoConnectionRepository,
-    ...models,
-  ],
+  // The vault and models are what later pieces (valuation, journals) read from.
+  exports: [CryptoVault, CryptoConnectionRepository, ...models],
 })
 export class CryptoExchangesModule {}

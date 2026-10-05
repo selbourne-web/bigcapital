@@ -104,6 +104,7 @@ import { ContactsModule } from '../Contacts/Contacts.module';
 import { BankingPlaidModule } from '../BankingPlaid/BankingPlaid.module';
 import { CryptoExchangesModule } from '../CryptoExchanges/CryptoExchanges.module';
 import { CryptoPricesModule } from '../CryptoPrices/CryptoPrices.module';
+import { CryptoLiveModule } from '../CryptoLive/CryptoLive.module';
 import { BankingCategorizeModule } from '../BankingCategorize/BankingCategorize.module';
 import { BankingAIModule } from '../BankingAI/BankingAI.module';
 import { ExchangeRatesModule } from '../ExchangeRates/ExchangeRates.module';
@@ -273,6 +274,7 @@ import { AppThrottleModule } from './AppThrottle.module';
     ExchangeRatesModule,
     CryptoExchangesModule,
     CryptoPricesModule,
+    CryptoLiveModule,
   ],
   controllers: [AppController],
   providers: [
