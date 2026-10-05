@@ -102,6 +102,7 @@ import { MiscellaneousModule } from '../Miscellaneous/Miscellaneous.module';
 import { UsersModule } from '../UsersModule/Users.module';
 import { ContactsModule } from '../Contacts/Contacts.module';
 import { BankingPlaidModule } from '../BankingPlaid/BankingPlaid.module';
+import { CryptoExchangesModule } from '../CryptoExchanges/CryptoExchanges.module';
 import { BankingCategorizeModule } from '../BankingCategorize/BankingCategorize.module';
 import { BankingAIModule } from '../BankingAI/BankingAI.module';
 import { ExchangeRatesModule } from '../ExchangeRates/ExchangeRates.module';
@@ -269,6 +270,7 @@ import { AppThrottleModule } from './AppThrottle.module';
     EEModule,
     AnalyticsModule,
     ExchangeRatesModule,
+    CryptoExchangesModule,
   ],
   controllers: [AppController],
   providers: [
