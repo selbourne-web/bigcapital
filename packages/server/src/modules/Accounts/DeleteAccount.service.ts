@@ -1,5 +1,5 @@
 import { Knex } from 'knex';
-import { Inject, Injectable } from '@nestjs/common';
+import { Inject, Injectable, Optional } from '@nestjs/common';
 import { CommandAccountValidators } from './CommandAccountValidators.service';
 import { Account } from './models/Account.model';
 import { EventEmitter2 } from '@nestjs/event-emitter';
@@ -8,6 +8,8 @@ import { events } from '@/common/events/events';
 import { IAccountEventDeletedPayload } from './Accounts.types';
 import { TenantModelProxy } from '../System/models/TenantBaseModel';
 import { ERRORS } from './constants';
+import { ServiceError } from '../Items/ServiceError';
+import { CryptoConnection } from '../CryptoExchanges/models/CryptoConnection';
 
 @Injectable()
 export class DeleteAccount {
@@ -18,6 +20,11 @@ export class DeleteAccount {
     private eventEmitter: EventEmitter2,
     private uow: UnitOfWork,
     private validator: CommandAccountValidators,
+
+    // Optional: only present once the crypto exchanges module registers its models.
+    @Optional()
+    @Inject(CryptoConnection.name)
+    private cryptoConnectionModel?: TenantModelProxy<typeof CryptoConnection>,
   ) {}
 
   /**
@@ -27,7 +34,30 @@ export class DeleteAccount {
   private authorize = async (accountId: number, oldAccount: Account) => {
     // Throw error if the account was predefined.
     this.validator.throwErrorIfAccountPredefined(oldAccount);
+
+    await this.validateNotMappedToCryptoConnection(accountId);
   };
+
+  /**
+   * An account mapped to a crypto connection cannot be deleted (the FK would
+   * reject it with a raw database error). Archived connections no longer map.
+   */
+  private async validateNotMappedToCryptoConnection(accountId: number) {
+    if (!this.cryptoConnectionModel) return;
+
+    const connection = await this.cryptoConnectionModel()
+      .query()
+      .where('accountId', accountId)
+      .whereNull('deletedAt')
+      .first();
+
+    if (connection) {
+      throw new ServiceError(
+        ERRORS.ACCOUNT_MAPPED_TO_CRYPTO_CONNECTION,
+        `This account is mapped to crypto connection ${connection.label}`,
+      );
+    }
+  }
 
   /**
    * Unlink the given parent account with children accounts.

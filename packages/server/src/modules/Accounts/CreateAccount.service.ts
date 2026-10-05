@@ -139,7 +139,7 @@ export class CreateAccountService {
 
       // Inserts account to the storage.
       const account = await this.accountModel()
-        .query()
+        .query(trx)
         .insert({
           ...accountInputModel,
         });

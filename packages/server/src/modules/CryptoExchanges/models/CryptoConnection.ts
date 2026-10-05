@@ -22,6 +22,12 @@ export class CryptoConnection extends TenantBaseModel {
   /** Start of the last completed (or first initial) sync; incremental windows begin here. */
   lastSeenAt?: Date | null;
   initialSyncCompletedAt?: Date | null;
+  /**
+   * Set when the user removed the connection but kept its data: credentials and
+   * account mapping are wiped, the row stays so the cascading child rows survive.
+   * Every connection query must filter `deleted_at IS NULL`.
+   */
+  deletedAt?: Date | null;
   createdAt?: Date;
   updatedAt?: Date;
 

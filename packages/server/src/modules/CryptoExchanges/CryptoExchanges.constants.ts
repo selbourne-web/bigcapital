@@ -18,6 +18,43 @@ export type CryptoRecordType =
 
 export type CryptoSyncKind = 'initial' | 'incremental' | 'manual';
 
+/** Exchanges with an adapter in piece 1; validated at the DTO layer. */
+export const SUPPORTED_CRYPTO_EXCHANGES: readonly CryptoExchangeId[] = [
+  'kraken',
+  'binance',
+];
+
+export const CRYPTO_CONNECTION_STATUSES: readonly CryptoConnectionStatus[] = [
+  'active',
+  'paused',
+  'error',
+];
+
+/** Statuses a user may set; `error` is only ever set by the system. */
+export const CRYPTO_USER_SETTABLE_STATUSES = ['active', 'paused'] as const;
+
+export const CRYPTO_SYNC_KINDS: readonly CryptoSyncKind[] = [
+  'initial',
+  'incremental',
+  'manual',
+];
+
+/** Account type used for accounts created on behalf of a connection (current asset). */
+export const CRYPTO_ACCOUNT_TYPE = 'other-current-asset';
+
+export const CRYPTO_CONNECTION_ERRORS = {
+  NOT_FOUND: 'CRYPTO_CONNECTION_NOT_FOUND',
+  EXCHANGE_NOT_SUPPORTED: 'CRYPTO_EXCHANGE_NOT_SUPPORTED',
+  IN_ERROR: 'CRYPTO_CONNECTION_IN_ERROR',
+  CREDENTIALS_REQUIRED: 'CRYPTO_CREDENTIALS_REQUIRED',
+  ACCOUNT_NOT_FOUND: 'CRYPTO_ACCOUNT_NOT_FOUND',
+  ACCOUNT_NOT_ASSET: 'CRYPTO_ACCOUNT_NOT_ASSET',
+  ACCOUNT_INACTIVE: 'CRYPTO_ACCOUNT_INACTIVE',
+  ACCOUNT_CURRENCY_MISMATCH: 'CRYPTO_ACCOUNT_CURRENCY_MISMATCH',
+  ACCOUNT_ALREADY_MAPPED: 'CRYPTO_ACCOUNT_ALREADY_MAPPED',
+  ACCOUNT_MAPPING_CONFLICT: 'CRYPTO_ACCOUNT_MAPPING_CONFLICT',
+} as const;
+
 /** Permission actions for the CryptoExchange ability subject. */
 export const CryptoExchangeAction = {
   View: 'View',
