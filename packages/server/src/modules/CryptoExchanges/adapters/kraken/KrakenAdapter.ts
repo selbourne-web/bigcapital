@@ -49,7 +49,11 @@ type Json = Record<string, any>;
 export class KrakenAdapter implements ExchangeAdapter {
   readonly id: CryptoExchangeId = 'kraken';
   /** Starter tier: counter max 15, decays 0.33/s. Ledger/trade history calls cost 2. */
-  readonly rateLimit = { capacity: 15, refillPerSec: 0.33 };
+  readonly rateLimit = {
+    capacity: 15,
+    refillPerSec: 0.33,
+    historyPageCost: 2, // history calls cost 2 on the call counter
+  };
 
   /** Shared so several adapter instances in one process never reuse a nonce. */
   private static lastNonce = BigInt(0);

@@ -97,7 +97,11 @@ export class BinanceAdapter implements ExchangeAdapter {
    * X-MBX-USED-WEIGHT-1m). account and myTrades cost 20 each, deposit history 1.
    * Budget 2 calls/s sustained (about 40 weight/s), burst 10.
    */
-  readonly rateLimit = { capacity: 10, refillPerSec: 2 };
+  readonly rateLimit = {
+    capacity: 10,
+    refillPerSec: 2,
+    historyPageCost: 3, // one fetchHistory page can make up to 3 HTTP calls
+  };
 
   private readonly requestTimeoutMs: number;
   private readonly initialLookbackMs?: number;

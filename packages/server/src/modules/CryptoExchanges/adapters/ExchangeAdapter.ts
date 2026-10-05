@@ -26,7 +26,15 @@ export type RawRecordInput = {
 
 export interface ExchangeAdapter {
   readonly id: CryptoExchangeId;
-  readonly rateLimit: { capacity: number; refillPerSec: number };
+  /**
+   * Token bucket shared across tenants. `historyPageCost` is the token cost of one
+   * `fetchHistory` call (default 1 when absent).
+   */
+  readonly rateLimit: {
+    capacity: number;
+    refillPerSec: number;
+    historyPageCost?: number;
+  };
   inspectKey(c: Credentials): Promise<KeyInspection>;
   fetchBalances(c: Credentials): Promise<RawBalance[]>;
   /**
