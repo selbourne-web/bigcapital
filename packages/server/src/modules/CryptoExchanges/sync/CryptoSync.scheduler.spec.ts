@@ -24,6 +24,20 @@ class FakeQueue {
     }
     this.jobs.push({ name, data, opts });
   });
+  states = new Map<string, string>();
+  getJob = jest.fn(async (id: string) => {
+    const idx = this.jobs.findIndex((j) => j.opts?.jobId === id);
+    if (idx < 0) return undefined;
+    return {
+      id,
+      getState: async () => this.states.get(id) ?? 'waiting',
+      remove: async () => {
+        if (this.removeFails) throw new Error('job is locked');
+        this.jobs.splice(idx, 1);
+      },
+    };
+  });
+  removeFails = false;
   getJobs = jest.fn(async () =>
     this.jobs.map((j) => ({
       id: j.opts?.jobId,
@@ -133,6 +147,46 @@ describe('CryptoSyncScheduler', () => {
       },
     ] as any);
     await expect(scheduler.unschedule(7)).resolves.toBeUndefined();
+  });
+
+  describe('enqueue with an existing job of the same id', () => {
+    const conn = { id: 7, exchange: 'kraken' } as any;
+    const seed = async (state: string) => {
+      const t = makeScheduler();
+      await t.scheduler.enqueue(conn, '42', 'initial', 'job-1');
+      t.kraken.states.set('job-1', state);
+      return t;
+    };
+
+    it.each(['failed', 'completed'])(
+      'replaces a %s job so a rotation really re-syncs',
+      async (state) => {
+        const { scheduler, kraken } = await seed(state);
+        await scheduler.enqueue(conn, '42', 'initial', 'job-1');
+        expect(kraken.jobs).toHaveLength(1);
+        expect(kraken.add).toHaveBeenCalledTimes(2);
+        expect(kraken.jobs[0].data.kind).toBe('initial');
+      },
+    );
+
+    it.each(['waiting', 'active', 'delayed', 'something-else'])(
+      'leaves a %s job alone (dedupe)',
+      async (state) => {
+        const { scheduler, kraken } = await seed(state);
+        await scheduler.enqueue(conn, '42', 'initial', 'job-1');
+        expect(kraken.add).toHaveBeenCalledTimes(1);
+        expect(kraken.jobs).toHaveLength(1);
+      },
+    );
+
+    it('does not throw when the finished job cannot be removed (it just became locked)', async () => {
+      const { scheduler, kraken } = await seed('failed');
+      kraken.removeFails = true;
+      await expect(
+        scheduler.enqueue(conn, '42', 'initial', 'job-1'),
+      ).resolves.toBeUndefined();
+      expect(kraken.jobs).toHaveLength(1);
+    });
   });
 
   it('enqueue sets the retry policy and the payload without credentials', async () => {

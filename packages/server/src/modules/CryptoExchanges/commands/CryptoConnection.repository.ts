@@ -57,13 +57,15 @@ export class CryptoConnectionRepository {
 
   /**
    * Back to `active` with the error cleared (successful manual re-sync of an
-   * `error` connection). Never revives an archived row.
+   * `error` connection). Atomic: only an `error` row is flipped, so it never overrides a concurrent pause or
+   * drift flip, and never revives an archived row.
    */
   async markActive(id: number, trx?: Knex.Transaction): Promise<void> {
     await this.connectionModel()
       .query(trx)
       .findById(id)
       .whereNull('deletedAt')
+      .where('status', 'error')
       .patch({ status: 'active', lastError: null });
   }
 

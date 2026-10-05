@@ -115,7 +115,11 @@ export class CryptoSyncProcessor {
       return { status: result.status, continued: false };
     }
 
-    if (kind === 'manual' && connection.status === 'error') {
+    if (
+      kind === 'manual' &&
+      connection.status === 'error' &&
+      result.status === 'succeeded'
+    ) {
       await this.connections.markActive(connectionId);
     }
     await this.publishHeldAssets(connectionId);

@@ -90,7 +90,26 @@ export class CryptoSyncScheduler {
       organizationId,
       kind,
     };
-    await this.queueFor(connection.exchange).add(CRYPTO_SYNC_JOB, data, {
+    const queue = this.queueFor(connection.exchange);
+    // BullMQ ignores add() while a job with this id still exists, and finished
+    // jobs are kept for a while: drop a finished one so this run really happens
+    // (e.g. a rotation after an auth failure). Pending/running jobs are the
+    // intended dedupe and stay.
+    const existing = await queue.getJob(jobId);
+    if (existing) {
+      const state = await existing.getState();
+      if (state !== 'completed' && state !== 'failed') return;
+      try {
+        await existing.remove();
+      } catch (error) {
+        // Just became active/locked: the running job covers this request.
+        this.logger.debug(
+          `Crypto sync job ${jobId} could not be replaced: ${(error as Error).message}`,
+        );
+        return;
+      }
+    }
+    await queue.add(CRYPTO_SYNC_JOB, data, {
       ...CRYPTO_SYNC_JOB_OPTIONS,
       jobId,
     });

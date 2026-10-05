@@ -395,6 +395,15 @@ describe('CryptoSyncProcessor', () => {
       expect(t.connections.markActive).not.toHaveBeenCalled();
     });
 
+    it('a manual partial run WITH fetched records (maybe schema-blocked, drift flip) does not touch the status', async () => {
+      const t = setup(
+        connectionRow({ status: 'error' }),
+        run({ status: 'partial', fetchedCount: 5, insertedCount: 5 }),
+      );
+      await t.processor.process(job('manual'));
+      expect(t.connections.markActive).not.toHaveBeenCalled();
+    });
+
     it('a manual partial run without progress does not reset the error state', async () => {
       const t = setup(
         connectionRow({ status: 'error' }),
