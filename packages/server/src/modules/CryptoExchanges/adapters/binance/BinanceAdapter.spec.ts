@@ -79,7 +79,7 @@ async function drain(a: BinanceAdapter, since?: Date) {
   const records: any[] = [];
   const cursors: (string | undefined)[] = [];
   let cursor: string | undefined;
-  for (let i = 0; i < 50; i++) {
+  for (let i = 0; i < 200; i++) {
     const page = await a.fetchHistory(creds, { since, cursor });
     records.push(...page.records);
     cursor = page.nextCursor;
@@ -283,16 +283,18 @@ describe('BinanceAdapter', () => {
   describe('fetchHistory', () => {
     const since = new Date(NOW - 100 * DAY);
     const sinceMs = since.getTime();
+    // Incremental scans re-read deposits/withdrawals from since minus 14 days.
+    const originMs = sinceMs - 14 * DAY;
 
     const historyRouter = () =>
       router({
         '/sapi/v1/capital/deposit/hisrec': (c) =>
           // Only the first window has data so duplicates do not mask window handling.
-          c.params.get('startTime') === String(sinceMs)
+          c.params.get('startTime') === String(originMs)
             ? { json: fixture('deposits.json') }
             : { json: [] },
         '/sapi/v1/capital/withdraw/history': (c) =>
-          c.params.get('startTime') === String(sinceMs)
+          c.params.get('startTime') === String(originMs)
             ? { json: fixture('withdrawals.json') }
             : { json: [] },
         '/api/v3/myTrades': (c) =>
@@ -307,22 +309,23 @@ describe('BinanceAdapter', () => {
             : { json: [] },
       });
 
-    it('walks deposit and withdrawal windows of at most 90 days, then trades per held symbol', async () => {
+    it('walks deposit and withdrawal windows of at most 90 days from since minus 14 days, then trades', async () => {
       const { fn, calls } = makeFetch(historyRouter());
       const { records, cursors } = await drain(adapterWith(fn), since);
 
-      const dep = calls.filter(
-        (c) => c.path === '/sapi/v1/capital/deposit/hisrec',
-      );
+      // The first two calls per path are the history stage; later ones are symbol seeding.
+      const dep = calls
+        .filter((c) => c.path === '/sapi/v1/capital/deposit/hisrec')
+        .slice(0, 2);
       expect(
         dep.map((c) => [c.params.get('startTime'), c.params.get('endTime')]),
       ).toEqual([
-        [String(sinceMs), String(sinceMs + WINDOW - 1)],
-        [String(sinceMs + WINDOW), String(NOW)],
+        [String(originMs), String(originMs + WINDOW - 1)],
+        [String(originMs + WINDOW), String(NOW)],
       ]);
-      const wd = calls.filter(
-        (c) => c.path === '/sapi/v1/capital/withdraw/history',
-      );
+      const wd = calls
+        .filter((c) => c.path === '/sapi/v1/capital/withdraw/history')
+        .slice(0, 2);
       expect(wd).toHaveLength(2);
       for (const c of [...dep, ...wd]) {
         expect(c.params.get('limit')).toBe('1000');
@@ -332,11 +335,21 @@ describe('BinanceAdapter', () => {
         ).toBeLessThan(WINDOW);
       }
 
-      // Symbols with a held base asset and a major (or held) quote, sorted; zero-balance ETH excluded.
+      // Incremental: TRADING symbols whose base OR quote is in the seed set (balances
+      // BTC/LTC/LDBTC plus coins BNB/USDT seen in deposits/withdrawals), sorted.
+      // DOGEEUR/XRPEUR (unseeded) and the BREAK-status OLDBTC are not scanned.
       const traded = calls
         .filter((c) => c.path === '/api/v3/myTrades')
         .map((c) => c.params.get('symbol'));
-      expect(traded).toEqual(['BTCEUR', 'BTCUSDT', 'LTCBTC', 'LTCUSDT']);
+      expect(traded).toEqual([
+        'BNBBTC',
+        'BTCEUR',
+        'BTCUSDT',
+        'BTCXYZ',
+        'ETHUSDT',
+        'LTCBTC',
+        'LTCUSDT',
+      ]);
       expect(cursors[cursors.length - 1]).toBeUndefined();
 
       const byId = Object.fromEntries(
@@ -399,11 +412,11 @@ describe('BinanceAdapter', () => {
       const { fn } = makeFetch(historyRouter());
       const a = adapterWith(fn);
       const p1 = await a.fetchHistory(creds, { since });
-      expect(p1.nextCursor).toBe(`dep:${sinceMs + WINDOW}:0:${sinceMs}`);
+      expect(p1.nextCursor).toBe(`dep:${originMs + WINDOW}:0:${originMs}`);
       const p2 = await a.fetchHistory(creds, { since, cursor: p1.nextCursor });
-      expect(p2.nextCursor).toBe(`wd:${sinceMs}:0:${sinceMs}`);
+      expect(p2.nextCursor).toBe(`wd:${originMs}:0:${originMs}`);
       const p3 = await a.fetchHistory(creds, { since, cursor: p2.nextCursor });
-      expect(p3.nextCursor).toBe(`wd:${sinceMs + WINDOW}:0:${sinceMs}`);
+      expect(p3.nextCursor).toBe(`wd:${originMs + WINDOW}:0:${originMs}`);
       const p4 = await a.fetchHistory(creds, { since, cursor: p3.nextCursor });
       expect(p4.nextCursor).toBe('trd:>:0');
     });
@@ -419,13 +432,45 @@ describe('BinanceAdapter', () => {
       const a = adapterWith(fn);
       const page = await a.fetchHistory(creds, { since });
       expect(page.records).toHaveLength(1000);
-      expect(page.nextCursor).toBe(`dep:${sinceMs}:1000:${sinceMs}`);
+      expect(page.nextCursor).toBe(`dep:${originMs}:1000:${originMs}`);
       await a.fetchHistory(creds, { since, cursor: page.nextCursor });
       expect(calls[1].params.get('offset')).toBe('1000');
-      expect(calls[1].params.get('startTime')).toBe(String(sinceMs));
+      expect(calls[1].params.get('startTime')).toBe(String(originMs));
     });
 
-    it('defaults the lower bound to the configured lookback when since is missing', async () => {
+    it('incremental history starts 14 days before since', async () => {
+      const { fn, calls } = makeFetch(router());
+      await adapterWith(fn).fetchHistory(creds, { since });
+      expect(calls[0].params.get('startTime')).toBe(String(sinceMs - 14 * DAY));
+    });
+
+    it('initial history (no since) starts at the Binance launch, 2017-07-01 UTC', async () => {
+      const launch = Date.UTC(2017, 6, 1);
+      const { fn, calls } = makeFetch(router());
+      const a = adapterWith(fn);
+      const page = await a.fetchHistory(creds, {});
+      expect(calls[0].params.get('startTime')).toBe(String(launch));
+      expect(calls[0].params.get('endTime')).toBe(String(launch + WINDOW - 1));
+      expect(page.nextCursor).toBe(`dep:${launch + WINDOW}:0:${launch}`);
+      // About 26 windows per stage from launch to the fixed clock.
+      const { fn: fn2, calls: calls2 } = makeFetch(router());
+      let cursor: string | undefined;
+      let n = 0;
+      do {
+        const p = await adapterWith(fn2).fetchHistory(creds, {
+          cursor: cursor ?? undefined,
+        });
+        cursor = p.nextCursor;
+        n++;
+      } while (cursor && !cursor.startsWith('trd:'));
+      expect(
+        calls2.filter((c) => c.path === '/sapi/v1/capital/deposit/hisrec')
+          .length,
+      ).toBeGreaterThanOrEqual(25);
+      expect(n).toBeGreaterThanOrEqual(50);
+    });
+
+    it('lets an explicit initialLookbackDays override the launch default', async () => {
       const { fn, calls } = makeFetch(router());
       await adapterWith(fn, { initialLookbackDays: 10 }).fetchHistory(
         creds,
@@ -435,10 +480,122 @@ describe('BinanceAdapter', () => {
       expect(calls[0].params.get('endTime')).toBe(String(NOW));
     });
 
+    it('deep scan (no since) visits every TRADING symbol, including assets with zero balance, without account calls', async () => {
+      const { fn, calls } = makeFetch(router());
+      const { cursors } = await drain(adapterWith(fn), undefined);
+      const traded = calls
+        .filter((c) => c.path === '/api/v3/myTrades')
+        .map((c) => c.params.get('symbol'));
+      // ETH has zero balance in the account fixture; DOGE/XRP are never held; OLDBTC is BREAK.
+      expect(traded).toEqual([
+        'BNBBTC',
+        'BTCEUR',
+        'BTCUSDT',
+        'BTCXYZ',
+        'DOGEEUR',
+        'ETHUSDT',
+        'LTCBTC',
+        'LTCUSDT',
+        'XRPEUR',
+      ]);
+      expect(calls.some((c) => c.path === '/api/v3/account')).toBe(false);
+      expect(cursors[cursors.length - 1]).toBeUndefined();
+    });
+
+    it('deep scan resumes from a mid-list cursor, by symbol name', async () => {
+      const { fn, calls } = makeFetch(router());
+      const a = adapterWith(fn);
+      const page = await a.fetchHistory(creds, { cursor: 'trd:>BTCUSDT:0' });
+      const t = calls.filter((c) => c.path === '/api/v3/myTrades');
+      expect(t).toHaveLength(1);
+      expect(t[0].params.get('symbol')).toBe('BTCXYZ');
+      expect(page.nextCursor).toBe('trd:>BTCXYZ:0');
+      // A symbol cursor continues on that exact symbol even if it is not listed any more.
+      const { fn: fn2, calls: calls2 } = makeFetch(router());
+      await adapterWith(fn2).fetchHistory(creds, { cursor: 'trd:GONEUSDT:42' });
+      const t2 = calls2.filter((c) => c.path === '/api/v3/myTrades');
+      expect(t2[0].params.get('symbol')).toBe('GONEUSDT');
+      expect(t2[0].params.get('fromId')).toBe('42');
+    });
+
+    it('computes the symbol list once, not on every symbol transition', async () => {
+      const { fn, calls } = makeFetch(router());
+      await drain(adapterWith(fn), undefined);
+      expect(
+        calls.filter((c) => c.path === '/api/v3/exchangeInfo'),
+      ).toHaveLength(1);
+      const inc = makeFetch(router());
+      await drain(adapterWith(inc.fn), since);
+      expect(
+        inc.calls.filter((c) => c.path === '/api/v3/account'),
+      ).toHaveLength(1);
+    });
+
+    it('incremental scan seeds from balances, deposit/withdraw coins and knownAssets (base or quote)', async () => {
+      // No balances, no history: only knownAssets seeds.
+      const bare = router({
+        '/api/v3/account': () => ({ json: { balances: [] } }),
+      });
+      const { fn, calls } = makeFetch(bare);
+      const recent = new Date(NOW - 2 * 3_600_000);
+      await adapterWith(fn).fetchHistory(creds, {
+        since: recent,
+        cursor: 'trd:>:0',
+        knownAssets: ['doge', 'XYZ', 'not valid!', 42 as any],
+      });
+      const t = calls.filter((c) => c.path === '/api/v3/myTrades');
+      // XYZ matches as a QUOTE (BTCXYZ) and DOGE as a BASE (DOGEEUR); sorted, BTCXYZ first.
+      expect(t[0].params.get('symbol')).toBe('BTCXYZ');
+
+      const { fn: fn2, calls: calls2 } = makeFetch(bare);
+      const a = adapterWith(fn2);
+      const p = await a.fetchHistory(creds, {
+        since: recent,
+        cursor: 'trd:>BTCXYZ:0',
+        knownAssets: ['DOGE'],
+      });
+      expect(
+        calls2.find((c) => c.path === '/api/v3/myTrades')!.params.get('symbol'),
+      ).toBe('DOGEEUR');
+      expect(p.nextCursor).toBe('trd:>DOGEEUR:0');
+      const p2 = await a.fetchHistory(creds, {
+        since: recent,
+        cursor: p.nextCursor,
+        knownAssets: ['DOGE'],
+      });
+      expect(p2).toEqual({ records: [], nextCursor: undefined });
+
+      // Without knownAssets nothing is seeded, so no symbol is scanned.
+      const { fn: fn3, calls: calls3 } = makeFetch(bare);
+      const none = await adapterWith(fn3).fetchHistory(creds, {
+        since: recent,
+        cursor: 'trd:>:0',
+      });
+      expect(none).toEqual({ records: [], nextCursor: undefined });
+      expect(calls3.some((c) => c.path === '/api/v3/myTrades')).toBe(false);
+    });
+
+    it('incremental scan also seeds from coins in deposit/withdraw history', async () => {
+      const r = router({
+        '/api/v3/account': () => ({ json: { balances: [] } }),
+        '/sapi/v1/capital/deposit/hisrec': () => ({
+          json: [{ ...fixture('deposits.json')[0], coin: 'xrp' }],
+        }),
+      });
+      const { fn, calls } = makeFetch(r);
+      await adapterWith(fn).fetchHistory(creds, {
+        since: new Date(NOW - 3_600_000),
+        cursor: 'trd:>:0',
+      });
+      expect(
+        calls.find((c) => c.path === '/api/v3/myTrades')!.params.get('symbol'),
+      ).toBe('XRPEUR');
+    });
+
     it('pages trades by fromId and moves to the next symbol afterwards', async () => {
       const rows = Array.from({ length: 1000 }, (_, i) => ({
         ...fixture('my-trades.json')[1],
-        symbol: 'BTCEUR',
+        symbol: 'BNBBTC',
         id: 500 + i,
       }));
       const { fn, calls } = makeFetch(
@@ -447,26 +604,26 @@ describe('BinanceAdapter', () => {
       const a = adapterWith(fn);
       const p1 = await a.fetchHistory(creds, { cursor: 'trd:>:0' });
       const first = calls.find((c) => c.path === '/api/v3/myTrades')!;
-      expect(first.params.get('symbol')).toBe('BTCEUR');
+      expect(first.params.get('symbol')).toBe('BNBBTC');
       expect(first.params.get('fromId')).toBe('0');
       expect(first.params.get('limit')).toBe('1000');
-      expect(p1.nextCursor).toBe('trd:BTCEUR:1500');
+      expect(p1.nextCursor).toBe('trd:BNBBTC:1500');
 
       const { fn: fn2, calls: calls2 } = makeFetch(router());
       const b = adapterWith(fn2);
-      const p2 = await b.fetchHistory(creds, { cursor: 'trd:BTCEUR:1500' });
+      const p2 = await b.fetchHistory(creds, { cursor: 'trd:BNBBTC:1500' });
       const trades2 = () => calls2.filter((c) => c.path === '/api/v3/myTrades');
       expect(trades2()[0].params.get('fromId')).toBe('1500');
-      expect(p2.nextCursor).toBe('trd:>BTCEUR:0');
+      expect(p2.nextCursor).toBe('trd:>BNBBTC:0');
       const p3 = await b.fetchHistory(creds, { cursor: p2.nextCursor });
-      expect(trades2().pop()!.params.get('symbol')).toBe('BTCUSDT');
-      expect(p3.nextCursor).toBe('trd:>BTCUSDT:0');
+      expect(trades2().pop()!.params.get('symbol')).toBe('BTCEUR');
+      expect(p3.nextCursor).toBe('trd:>BTCEUR:0');
     });
 
     it('finishes without a myTrades call when no symbol follows the cursor', async () => {
       const { fn, calls } = makeFetch(router());
       const page = await adapterWith(fn).fetchHistory(creds, {
-        cursor: 'trd:>LTCUSDT:0',
+        cursor: 'trd:>XRPEUR:0',
       });
       expect(page).toEqual({ records: [], nextCursor: undefined });
       expect(calls.some((c) => c.path === '/api/v3/myTrades')).toBe(false);

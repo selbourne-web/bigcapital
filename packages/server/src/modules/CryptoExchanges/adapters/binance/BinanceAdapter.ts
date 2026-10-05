@@ -60,26 +60,25 @@ const NEUTRAL_BOOLEAN = ['ipRestrict', 'enableFixReadOnly'];
 /** Harmless numbers (not permissions). */
 const NEUTRAL_NUMBER = ['createTime'];
 
-/** Quote assets considered when deriving the symbols to pull trade history for. */
-const MAJOR_QUOTES = new Set([
-  'USDT',
-  'USDC',
-  'FDUSD',
-  'BUSD',
-  'TUSD',
-  'BTC',
-  'ETH',
-  'BNB',
-  'EUR',
-  'GBP',
-]);
-
 const RECV_WINDOW_MS = 10_000; // docs: default 5000, max 60000
 const DAY_MS = 86_400_000;
 /** Deposit/withdraw history: start..end span must not exceed 90 days. */
 const WINDOW_MS = 90 * DAY_MS;
 const PAGE_LIMIT = 1000; // deposit/withdraw/myTrades max page size
 const EXCHANGE_INFO_TTL_MS = 3_600_000;
+const SYMBOL_LIST_TTL_MS = 300_000;
+/** Binance launch (2017-07-01 UTC): lower bound of an initial sync's deposit/withdraw scan. */
+const BINANCE_LAUNCH_MS = Date.UTC(2017, 6, 1);
+/**
+ * Incremental syncs re-scan deposits/withdrawals from `since` minus this, because
+ * those are windowed by insertTime/applyTime while we only record them once
+ * completed: a withdrawal applied before `since` that completes after it must
+ * still be picked up. Duplicates are absorbed by the stable record ids.
+ */
+const IN_FLIGHT_LOOKBACK_MS = 14 * DAY_MS;
+const MAX_SEED_WINDOWS = 100;
+const MAX_SEED_PAGES = 50;
+const MAX_KNOWN_ASSETS = 5000;
 
 type Json = Record<string, any>;
 type Stage = 'dep' | 'wd';
@@ -101,11 +100,12 @@ export class BinanceAdapter implements ExchangeAdapter {
   readonly rateLimit = { capacity: 10, refillPerSec: 2 };
 
   private readonly requestTimeoutMs: number;
-  private readonly initialLookbackMs: number;
+  private readonly initialLookbackMs?: number;
   private symbolCache?: {
     at: number;
-    list: { symbol: string; base: string; quote: string }[];
+    list: { symbol: string; base: string; quote: string; status: string }[];
   };
+  private tradeSymbolCache?: { key: string; at: number; symbols: string[] };
 
   constructor(
     private readonly fetchImpl: typeof fetch = (...args) => fetch(...args),
@@ -113,7 +113,10 @@ export class BinanceAdapter implements ExchangeAdapter {
     options: { requestTimeoutMs?: number; initialLookbackDays?: number } = {},
   ) {
     this.requestTimeoutMs = options.requestTimeoutMs ?? 30_000;
-    this.initialLookbackMs = (options.initialLookbackDays ?? 365) * DAY_MS;
+    this.initialLookbackMs =
+      options.initialLookbackDays === undefined
+        ? undefined
+        : options.initialLookbackDays * DAY_MS;
   }
 
   async inspectKey(c: Credentials): Promise<KeyInspection> {
@@ -174,28 +177,42 @@ export class BinanceAdapter implements ExchangeAdapter {
    *   trd:<SYMBOL>:<fromId>                     myTrades for SYMBOL from trade id
    *   trd:><SYMBOL>:0                           myTrades for the first symbol after SYMBOL
    *                                             (`trd:>:0` = the first symbol)
-   * `originMs` is the lower bound chosen on the first call (since, else now minus
-   * the lookback) so the withdraw stage starts where the deposit stage did.
+   * `originMs` is the lower bound chosen on the first call so the withdraw stage
+   * starts where the deposit stage did: with `since` it is `since` minus 14 days
+   * (IN_FLIGHT_LOOKBACK_MS); without `since` (initial sync) it is the Binance launch,
+   * 2017-07-01 UTC (or now minus `initialLookbackDays` when that override is set).
    * Order: deposits, withdrawals, trades; no cursor means start. A window moves
    * forward when a page is shorter than 1000; a full page continues by offset
    * (windows) or fromId (trades). Duplicates are absorbed by stable record ids.
+   * Trade symbols are visited in lexicographic order and the cursor carries the
+   * symbol itself, so a restart resumes at the same place even if the list changes.
+   * Initial sync (no `since`): EVERY symbol with status TRADING from exchangeInfo,
+   * any quote asset, so assets sold before the sync are still covered.
+   * Incremental sync (`since`): only TRADING symbols whose base OR quote asset is in
+   * the seed set = current balances + coins in deposit/withdraw history since
+   * `since` minus 14 days + `q.knownAssets`. Limitation: an asset whose whole
+   * lifecycle (buy and sell) falls between two syncs, with no balance, deposit or
+   * withdrawal, and that the caller does not list in `knownAssets`, is not
+   * discovered by an incremental sync. Delisted (non-TRADING) symbols are skipped.
    */
   async fetchHistory(
     c: Credentials,
-    q: { since?: Date; cursor?: string },
+    q: { since?: Date; cursor?: string; knownAssets?: string[] },
   ): Promise<{ records: RawRecordInput[]; nextCursor?: string }> {
     const creds = this.trim(c);
     let cursor: Cursor;
     if (q.cursor === undefined) {
       const origin = q.since
-        ? q.since.getTime()
-        : this.now() - this.initialLookbackMs;
+        ? Math.max(0, q.since.getTime() - IN_FLIGHT_LOOKBACK_MS)
+        : this.initialLookbackMs !== undefined
+          ? this.now() - this.initialLookbackMs
+          : BINANCE_LAUNCH_MS;
       cursor = { stage: 'dep', start: origin, offset: 0, origin };
     } else {
       cursor = this.parseCursor(q.cursor);
     }
     if (cursor.stage === 'trd') {
-      return this.tradesPage(creds, cursor, q.since);
+      return this.tradesPage(creds, cursor, q.since, q.knownAssets);
     }
     return this.windowPage(creds, cursor);
   }
@@ -316,10 +333,11 @@ export class BinanceAdapter implements ExchangeAdapter {
     creds: Credentials,
     cur: Extract<Cursor, { stage: 'trd' }>,
     since?: Date,
+    knownAssets?: string[],
   ): Promise<{ records: RawRecordInput[]; nextCursor?: string }> {
     let symbol = cur.symbol;
     if (cur.after) {
-      const symbols = await this.tradeSymbols(creds);
+      const symbols = await this.tradeSymbols(creds, since, knownAssets);
       const next = symbols.find((s) => s > cur.symbol);
       if (!next) return { records: [], nextCursor: undefined };
       symbol = next;
@@ -398,25 +416,94 @@ export class BinanceAdapter implements ExchangeAdapter {
   }
 
   /**
-   * Symbols to pull trade history for: listed symbols whose base asset is currently
-   * held and whose quote is a major quote or also held. Sorted for stable cursors.
-   * Assets fully sold before the sync (zero balance) are not discovered.
+   * Symbols to pull trade history for, sorted for stable cursors (see fetchHistory
+   * for the deep/incremental rules). Cached briefly so a symbol transition does not
+   * repeat the account / history discovery calls.
    */
-  private async tradeSymbols(creds: Credentials): Promise<string[]> {
-    const balances = await this.balances(creds);
-    const held = new Set(balances.map((b) => b.asset));
-    const list = await this.listedSymbols();
-    return [
-      ...new Set(
-        list
-          .filter(
-            (s) =>
-              held.has(s.base) &&
-              (MAJOR_QUOTES.has(s.quote) || held.has(s.quote)),
-          )
-          .map((s) => s.symbol),
-      ),
-    ].sort();
+  private async tradeSymbols(
+    creds: Credentials,
+    since?: Date,
+    knownAssets?: string[],
+  ): Promise<string[]> {
+    const known = this.cleanAssets(knownAssets);
+    const sinceMs = since?.getTime();
+    const key = JSON.stringify([creds.apiKey, sinceMs ?? null, known]);
+    const t = this.now();
+    if (
+      this.tradeSymbolCache &&
+      this.tradeSymbolCache.key === key &&
+      t - this.tradeSymbolCache.at < SYMBOL_LIST_TTL_MS
+    ) {
+      return this.tradeSymbolCache.symbols;
+    }
+    const list = (await this.listedSymbols()).filter(
+      (s) => s.status === 'TRADING',
+    );
+    let chosen = list;
+    if (sinceMs !== undefined) {
+      const seed = new Set<string>(known);
+      for (const b of await this.balances(creds)) seed.add(b.asset);
+      const seen = await this.seenCoins(
+        creds,
+        Math.max(0, sinceMs - IN_FLIGHT_LOOKBACK_MS),
+      );
+      for (const coin of seen) seed.add(coin);
+      chosen = list.filter((s) => seed.has(s.base) || seed.has(s.quote));
+    }
+    const symbols = [...new Set(chosen.map((s) => s.symbol))].sort();
+    this.tradeSymbolCache = { key, at: t, symbols };
+    return symbols;
+  }
+
+  private cleanAssets(assets?: string[]): string[] {
+    if (!Array.isArray(assets)) return [];
+    const out = new Set<string>();
+    for (const a of assets.slice(0, MAX_KNOWN_ASSETS)) {
+      if (typeof a !== 'string') continue;
+      const n = normalizeAsset('binance', a);
+      if (/^[A-Z0-9]{1,20}$/.test(n)) out.add(n);
+    }
+    return [...out].sort();
+  }
+
+  /** Coins appearing in deposit/withdraw history (any status) from `fromMs` to now. */
+  private async seenCoins(
+    creds: Credentials,
+    fromMs: number,
+  ): Promise<Set<string>> {
+    const nowMs = this.now();
+    const coins = new Set<string>();
+    for (const path of [
+      '/sapi/v1/capital/deposit/hisrec',
+      '/sapi/v1/capital/withdraw/history',
+    ]) {
+      for (
+        let start = fromMs, w = 0;
+        start <= nowMs && w < MAX_SEED_WINDOWS;
+        start += WINDOW_MS, w++
+      ) {
+        const end = Math.min(start + WINDOW_MS - 1, nowMs);
+        for (let offset = 0, p = 0; p < MAX_SEED_PAGES; p++) {
+          const body = await this.call(creds, path, {
+            startTime: String(start),
+            endTime: String(end),
+            offset: String(offset),
+            limit: String(PAGE_LIMIT),
+          });
+          if (!Array.isArray(body)) {
+            throw this.schemaError(`${path} response is not an array`, body);
+          }
+          for (const row of body) {
+            if (isObject(row) && typeof row.coin === 'string') {
+              coins.add(normalizeAsset('binance', row.coin));
+            }
+          }
+          if (body.length < PAGE_LIMIT) break;
+          offset += body.length;
+        }
+      }
+    }
+    return coins;
   }
 
   private async listedSymbols() {
@@ -448,6 +535,7 @@ export class BinanceAdapter implements ExchangeAdapter {
         symbol: s.symbol.toUpperCase(),
         base: normalizeAsset('binance', s.baseAsset),
         quote: normalizeAsset('binance', s.quoteAsset),
+        status: typeof s.status === 'string' ? s.status : '',
       };
     });
     this.symbolCache = { at: t, list };

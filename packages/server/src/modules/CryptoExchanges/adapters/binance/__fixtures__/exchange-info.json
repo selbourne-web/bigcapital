@@ -43,6 +43,24 @@
       "status": "TRADING",
       "baseAsset": "BTC",
       "quoteAsset": "XYZ"
+    },
+    {
+      "symbol": "DOGEEUR",
+      "status": "TRADING",
+      "baseAsset": "DOGE",
+      "quoteAsset": "EUR"
+    },
+    {
+      "symbol": "XRPEUR",
+      "status": "TRADING",
+      "baseAsset": "XRP",
+      "quoteAsset": "EUR"
+    },
+    {
+      "symbol": "OLDBTC",
+      "status": "BREAK",
+      "baseAsset": "OLD",
+      "quoteAsset": "BTC"
     }
   ]
 }
