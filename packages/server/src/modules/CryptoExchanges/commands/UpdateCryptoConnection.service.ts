@@ -64,10 +64,17 @@ export class UpdateCryptoConnectionService {
 
     if (dto.status && dto.status !== connection.status) {
       if (dto.status === 'paused') {
+        // Pausing an errored connection would let resume launder the error.
+        if (connection.status === 'error') {
+          throw new ServiceError(
+            ERRORS.IN_ERROR,
+            'This connection has an error. Rotate its credentials or delete it instead of pausing.',
+          );
+        }
         patch.status = 'paused';
         event = cryptoEvents.connection.paused;
       } else {
-        if (connection.status === 'error') {
+        if (connection.status === 'error' || connection.lastError) {
           throw new ServiceError(
             ERRORS.IN_ERROR,
             'This connection has an error. Replace its credentials to reconnect.',

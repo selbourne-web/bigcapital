@@ -66,15 +66,55 @@ describe('UpdateCryptoConnectionService', () => {
     ]);
   });
 
-  it('resumes a paused connection, clears last_error and emits resumed', async () => {
+  it('resumes a paused connection (no last_error) and emits resumed', async () => {
     const t = setup();
-    const c = t.repo.seed({ status: 'paused', lastError: 'old' });
+    const c = t.repo.seed({ status: 'paused' });
 
     const view = await t.service.execute(c.id, { status: 'active' });
 
     expect(view.status).toBe('active');
     expect(view.lastError).toBeNull();
     expect(t.events.emitted[0].name).toBe(cryptoEvents.connection.resumed);
+  });
+
+  it('rejects pausing an error connection (error -> paused -> active bypass)', async () => {
+    const t = setup();
+    const c = t.repo.seed({ status: 'error', lastError: 'bad key' });
+
+    await expect(
+      t.service.execute(c.id, { status: 'paused' }),
+    ).rejects.toMatchObject({ errorType: 'CRYPTO_CONNECTION_IN_ERROR' });
+    expect(t.repo.rows.get(c.id)).toMatchObject({
+      status: 'error',
+      lastError: 'bad key',
+    });
+    expect(t.events.emitted).toHaveLength(0);
+    expect(t.audit.rows).toHaveLength(0);
+  });
+
+  it('refuses to resume a paused connection that still has a last_error', async () => {
+    const t = setup();
+    const c = t.repo.seed({ status: 'paused', lastError: 'bad key' });
+
+    await expect(
+      t.service.execute(c.id, { status: 'active' }),
+    ).rejects.toMatchObject({ errorType: 'CRYPTO_CONNECTION_IN_ERROR' });
+    expect(t.repo.rows.get(c.id)).toMatchObject({
+      status: 'paused',
+      lastError: 'bad key',
+    });
+    expect(t.events.emitted).toHaveLength(0);
+  });
+
+  it('still pauses and resumes a healthy connection', async () => {
+    const t = setup();
+    const c = t.repo.seed({});
+    expect((await t.service.execute(c.id, { status: 'paused' })).status).toBe(
+      'paused',
+    );
+    expect((await t.service.execute(c.id, { status: 'active' })).status).toBe(
+      'active',
+    );
   });
 
   it('does not resume an error connection (needs rotated credentials)', async () => {
