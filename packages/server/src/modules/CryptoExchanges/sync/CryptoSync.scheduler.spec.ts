@@ -32,12 +32,14 @@ class FakeQueue {
       id,
       getState: async () => this.states.get(id) ?? 'waiting',
       remove: async () => {
+        this.removeCalls.push(id);
         if (this.removeFails) throw new Error('job is locked');
         this.jobs.splice(idx, 1);
       },
     };
   });
   removeFails = false;
+  removeCalls: string[] = [];
   getJobs = jest.fn(async () =>
     this.jobs.map((j) => ({
       id: j.opts?.jobId,
@@ -151,10 +153,12 @@ describe('CryptoSyncScheduler', () => {
 
   describe('enqueue with an existing job of the same id', () => {
     const conn = { id: 7, exchange: 'kraken' } as any;
+    /** Seeds an OLD job (kind manual) in the given state; tests re-enqueue as initial. */
     const seed = async (state: string) => {
       const t = makeScheduler();
-      await t.scheduler.enqueue(conn, '42', 'initial', 'job-1');
+      await t.scheduler.enqueue(conn, '42', 'manual', 'job-1');
       t.kraken.states.set('job-1', state);
+      t.kraken.add.mockClear();
       return t;
     };
 
@@ -163,8 +167,9 @@ describe('CryptoSyncScheduler', () => {
       async (state) => {
         const { scheduler, kraken } = await seed(state);
         await scheduler.enqueue(conn, '42', 'initial', 'job-1');
+        expect(kraken.removeCalls).toEqual(['job-1']);
+        expect(kraken.add).toHaveBeenCalledTimes(1);
         expect(kraken.jobs).toHaveLength(1);
-        expect(kraken.add).toHaveBeenCalledTimes(2);
         expect(kraken.jobs[0].data.kind).toBe('initial');
       },
     );
@@ -174,8 +179,10 @@ describe('CryptoSyncScheduler', () => {
       async (state) => {
         const { scheduler, kraken } = await seed(state);
         await scheduler.enqueue(conn, '42', 'initial', 'job-1');
-        expect(kraken.add).toHaveBeenCalledTimes(1);
+        expect(kraken.removeCalls).toEqual([]);
+        expect(kraken.add).not.toHaveBeenCalled();
         expect(kraken.jobs).toHaveLength(1);
+        expect(kraken.jobs[0].data.kind).toBe('manual');
       },
     );
 
@@ -185,7 +192,10 @@ describe('CryptoSyncScheduler', () => {
       await expect(
         scheduler.enqueue(conn, '42', 'initial', 'job-1'),
       ).resolves.toBeUndefined();
+      expect(kraken.removeCalls).toEqual(['job-1']);
+      expect(kraken.add).not.toHaveBeenCalled();
       expect(kraken.jobs).toHaveLength(1);
+      expect(kraken.jobs[0].data.kind).toBe('manual');
     });
   });
 
