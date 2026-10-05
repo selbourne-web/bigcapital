@@ -62,3 +62,43 @@ export const CryptoExchangeAction = {
   Edit: 'Edit',
   Delete: 'Delete',
 } as const;
+
+/** One BullMQ queue per exchange so one exchange outage or rate limit never blocks the other. */
+export const CRYPTO_SYNC_QUEUES: Readonly<Record<string, string>> = {
+  kraken: 'crypto-sync-kraken',
+  binance: 'crypto-sync-binance',
+};
+export const CRYPTO_SYNC_KRAKEN_QUEUE = CRYPTO_SYNC_QUEUES.kraken;
+export const CRYPTO_SYNC_BINANCE_QUEUE = CRYPTO_SYNC_QUEUES.binance;
+export const CRYPTO_SYNC_QUEUE_NAMES = [
+  CRYPTO_SYNC_KRAKEN_QUEUE,
+  CRYPTO_SYNC_BINANCE_QUEUE,
+] as const;
+
+/** Name of the queue that syncs `exchange`; throws for exchanges without an adapter. */
+export const queueNameFor = (exchange: CryptoExchangeId | string): string => {
+  const name = CRYPTO_SYNC_QUEUES[exchange];
+  if (!name) {
+    throw new Error(`No crypto sync queue for exchange "${exchange}"`);
+  }
+  return name;
+};
+
+/** BullMQ job name used on every crypto sync queue. */
+export const CRYPTO_SYNC_JOB = 'crypto-sync';
+
+/** Retry policy of every sync job (rate-limit/network errors back off exponentially). */
+export const CRYPTO_SYNC_JOB_OPTIONS = {
+  attempts: 5,
+  backoff: { type: 'exponential', delay: 30000 },
+  removeOnComplete: { age: 3600, count: 1000 },
+  removeOnFail: { age: 24 * 3600, count: 1000 },
+} as const;
+
+/** Redis set of asset symbols held on any connection; feeds the price feed (Task 10). */
+export const CRYPTO_HELD_ASSETS_KEY = 'crypto:held-assets';
+export const CRYPTO_HELD_ASSETS_TTL_SECONDS = 24 * 3600;
+
+/** Id of the repeatable (scheduler) job of a connection. */
+export const cryptoScheduleId = (connectionId: number) =>
+  `crypto-sync:${connectionId}`;

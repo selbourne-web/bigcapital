@@ -56,6 +56,18 @@ export class CryptoConnectionRepository {
   }
 
   /**
+   * Back to `active` with the error cleared (successful manual re-sync of an
+   * `error` connection). Never revives an archived row.
+   */
+  async markActive(id: number, trx?: Knex.Transaction): Promise<void> {
+    await this.connectionModel()
+      .query(trx)
+      .findById(id)
+      .whereNull('deletedAt')
+      .patch({ status: 'active', lastError: null });
+  }
+
+  /**
    * Soft delete: wipes the encrypted credentials and the account mapping and
    * marks the row deleted, but keeps the row so the raw records, balance
    * snapshots and sync runs (which cascade from it) survive. Needed because
