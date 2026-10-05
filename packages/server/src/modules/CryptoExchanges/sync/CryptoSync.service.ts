@@ -19,6 +19,7 @@ import { normalizeAsset } from '../adapters/assets';
 import {
   ExchangeAuthError,
   ExchangeError,
+  ExchangeNetworkError,
   ExchangeSchemaError,
   KeyHasExtraPermissionsError,
 } from '../adapters/errors';
@@ -37,7 +38,29 @@ export interface CryptoSyncOptions {
   maxPagesPerRun?: number;
   /** Wait between looks for the in-flight run when the lock is taken. Default 100 ms. */
   lockPollMs?: number;
+  /** Stop a slice (partial, cursor saved) once it has run this long. Default 7 min. */
+  sliceBudgetMs?: number;
   now?: () => Date;
+}
+
+/** Result of `syncConnection`. `continuation` is not persisted. */
+export type CryptoSyncResult = CryptoSyncRun & {
+  /**
+   * True only when more history remains (a cursor was saved), this slice made
+   * progress and it was not blocked by a schema error. Queue layers re-enqueue
+   * a follow-up slice only when this is true.
+   */
+  continuation: boolean;
+};
+
+/** Lost the sync lock (expired or taken over): abort, another worker may be running. */
+class SyncLockLostError extends ExchangeNetworkError {
+  constructor() {
+    super(
+      'Crypto sync lock lost',
+      'The sync lost its lock and will retry shortly.',
+    );
+  }
 }
 
 const LOCK_TTL_MS = 10 * 60_000;
@@ -51,12 +74,21 @@ const KNOWN_ASSET_SCAN_PAGE = 1000;
 const KNOWN_ASSET_SCAN_PAGES = 10;
 const MAX_UNPARSED_BYTES = 64 * 1024;
 const LOCK_POLL_ATTEMPTS = 50;
+const SLICE_BUDGET_MS = 7 * 60_000;
+/** Extends the lock TTL only if it still holds our token. */
+const EXTEND_LOCK_LUA = `if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('pexpire', KEYS[1], ARGV[2]) else return 0 end`;
+const SCHEMA_DRIFT = 'SCHEMA_DRIFT';
+const BLOCKED_RUNS_BEFORE_ERROR = 3;
+const SCHEMA_ERROR_MESSAGE = 'Exchange response format not recognised';
 
 type RunError = {
   name: string;
   message: string;
   retryable: boolean;
   at: string;
+  code?: string;
+  /** Cursor the schema error occurred at (SCHEMA_DRIFT only). */
+  cursor?: string | null;
 };
 type RunState = {
   fetched: number;
@@ -64,8 +96,10 @@ type RunState = {
   pages: number;
   errors: RunError[];
   schemaIssue: boolean;
-  /** History hit a schema error, so the window cannot be marked complete. */
-  historyBlocked: boolean;
+  /** A schema error (balances or history) means the window cannot be marked complete. */
+  blocked: boolean;
+  /** Cursor at which history was blocked (null = start). */
+  blockedCursor?: string | null;
 };
 
 @Injectable()
@@ -73,6 +107,7 @@ export class CryptoSyncService {
   private readonly logger = new Logger(CryptoSyncService.name);
   private readonly maxPagesPerRun: number;
   private readonly lockPollMs: number;
+  private readonly sliceBudgetMs: number;
   private readonly now: () => Date;
 
   constructor(
@@ -96,6 +131,7 @@ export class CryptoSyncService {
   ) {
     this.maxPagesPerRun = options?.maxPagesPerRun ?? 40;
     this.lockPollMs = options?.lockPollMs ?? 100;
+    this.sliceBudgetMs = options?.sliceBudgetMs ?? SLICE_BUDGET_MS;
     this.now = options?.now ?? (() => new Date());
   }
 
@@ -109,23 +145,40 @@ export class CryptoSyncService {
   async syncConnection(
     connectionId: number,
     kind: CryptoSyncKind,
-  ): Promise<CryptoSyncRun> {
+  ): Promise<CryptoSyncResult> {
     const connection = await this.connectionModel()
       .query()
       .findById(connectionId);
     if (!connection) {
       throw new Error(`Crypto connection ${connectionId} not found`);
     }
+    if (
+      connection.status === 'paused' ||
+      (connection.status === 'error' && kind !== 'manual')
+    ) {
+      throw new ExchangeError(
+        `Crypto connection ${connectionId} is ${connection.status}`,
+        `This connection is ${connection.status}; syncing is not running.`,
+        false,
+      );
+    }
 
+    const attemptedAt = this.now();
     const redis = this.redisService.getOrThrow();
     const key = LOCK_KEY(connectionId);
     const token = randomBytes(16).toString('hex');
     const locked = await redis.set(key, token, 'PX', LOCK_TTL_MS, 'NX');
     if (locked !== 'OK') {
-      return this.awaitInFlightRun(connectionId);
+      return this.awaitInFlightRun(connectionId, attemptedAt);
     }
+    const extendLock = async () => {
+      const ok = await redis
+        .eval(EXTEND_LOCK_LUA, 1, key, token, LOCK_TTL_MS)
+        .catch(() => 0);
+      if (Number(ok) !== 1) throw new SyncLockLostError();
+    };
     try {
-      return await this.runLocked(connection, kind);
+      return await this.runLocked(connection, kind, extendLock);
     } finally {
       await redis.eval(RELEASE_LOCK_LUA, 1, key, token).catch(() => undefined);
     }
@@ -140,14 +193,33 @@ export class CryptoSyncService {
       .sort();
   }
 
-  private async awaitInFlightRun(connectionId: number): Promise<CryptoSyncRun> {
+  /**
+   * The lock is held elsewhere: return its run. A holder may finish between our
+   * failed SET NX and this poll, so a run that finished since we tried also counts
+   * (1 s slack: DATETIME columns truncate to whole seconds). `running` rows older
+   * than the lock TTL belong to a crashed worker and are ignored.
+   */
+  private async awaitInFlightRun(
+    connectionId: number,
+    attemptedAt: Date,
+  ): Promise<CryptoSyncResult> {
     for (let i = 0; i < LOCK_POLL_ATTEMPTS; i++) {
-      const run = await this.syncRunModel()
+      const staleBefore = new Date(this.now().getTime() - LOCK_TTL_MS);
+      const running = await this.syncRunModel()
         .query()
         .where({ connectionId, status: 'running' })
+        .where('startedAt', '>=', staleBefore)
         .orderBy('id', 'desc')
         .first();
-      if (run) return run;
+      if (running) return Object.assign(running, { continuation: false });
+      const latest = await this.syncRunModel()
+        .query()
+        .where({ connectionId })
+        .whereNot('status', 'running')
+        .where('finishedAt', '>=', new Date(attemptedAt.getTime() - 1000))
+        .orderBy('id', 'desc')
+        .first();
+      if (latest) return Object.assign(latest, { continuation: false });
       await new Promise((resolve) => setTimeout(resolve, this.lockPollMs));
     }
     throw new Error(
@@ -158,7 +230,8 @@ export class CryptoSyncService {
   private async runLocked(
     connection: CryptoConnection,
     kind: CryptoSyncKind,
-  ): Promise<CryptoSyncRun> {
+    extendLock: () => Promise<void>,
+  ): Promise<CryptoSyncResult> {
     const startedAt = this.now();
     // Initial mode lasts until the adapter reports no further cursor, however many
     // slices that takes; `kind` only labels the run.
@@ -209,7 +282,7 @@ export class CryptoSyncService {
       pages: 0,
       errors: [],
       schemaIssue: false,
-      historyBlocked: false,
+      blocked: false,
     };
     let credentials: Credentials | undefined;
     let remainingCursor: string | undefined;
@@ -217,6 +290,7 @@ export class CryptoSyncService {
       credentials = this.decryptCredentials(connection);
       const adapter = this.adapters.get(connection.exchange);
 
+      await extendLock();
       await this.syncBalances(adapter, credentials, connection, state);
       remainingCursor = await this.syncHistory(
         adapter,
@@ -225,13 +299,15 @@ export class CryptoSyncService {
         state,
         since,
         initialMode,
+        startedAt,
+        extendLock,
       );
     } catch (error) {
       return this.failRun(run, connection, state, error, credentials);
     }
 
     // Slice finished without a thrown error.
-    const complete = !remainingCursor && !state.historyBlocked;
+    const complete = !remainingCursor && !state.blocked;
     if (complete) {
       await this.patchConnection(connection.id, {
         syncCursor: null,
@@ -247,12 +323,55 @@ export class CryptoSyncService {
         ? (state.errors[state.errors.length - 1]?.message ?? null)
         : null,
     });
-    return this.finishRun(
+    if (state.blocked) {
+      await this.flipStatusAfterRepeatedDrift(connection, state);
+    }
+    const finished = await this.finishRun(
       run,
       state,
       complete ? 'succeeded' : 'partial',
       finishedAt,
     );
+    return Object.assign(finished, {
+      continuation:
+        remainingCursor !== undefined &&
+        !state.blocked &&
+        (state.pages > 0 || state.fetched > 0),
+    });
+  }
+
+  /**
+   * A permanent schema change would otherwise retry forever. After three blocked
+   * runs in a row at the same cursor the connection goes to `error` (the one
+   * non-auth case that does).
+   */
+  private async flipStatusAfterRepeatedDrift(
+    connection: CryptoConnection,
+    state: RunState,
+  ): Promise<void> {
+    // The current run is still `running` in the table; count it as blocked.
+    const previous = await this.syncRunModel()
+      .query()
+      .where({ connectionId: connection.id })
+      .whereNot('status', 'running')
+      .orderBy('id', 'desc')
+      .limit(BLOCKED_RUNS_BEFORE_ERROR - 1);
+    const cursor = state.blockedCursor ?? null;
+    const sameBlock = (r: CryptoSyncRun) => {
+      const errors = r.errors ? (JSON.parse(r.errors) as RunError[]) : [];
+      return errors.some(
+        (e) => e.code === SCHEMA_DRIFT && (e.cursor ?? null) === cursor,
+      );
+    };
+    if (
+      previous.length === BLOCKED_RUNS_BEFORE_ERROR - 1 &&
+      previous.every(sameBlock)
+    ) {
+      await this.patchConnection(connection.id, {
+        status: 'error',
+        lastError: SCHEMA_ERROR_MESSAGE,
+      });
+    }
   }
 
   private async syncBalances(
@@ -267,7 +386,15 @@ export class CryptoSyncService {
       balances = await adapter.fetchBalances(credentials);
     } catch (error) {
       if (error instanceof ExchangeSchemaError) {
-        await this.storeUnparsed(connection.id, error, credentials, state);
+        await this.storeUnparsed(
+          connection.id,
+          error,
+          credentials,
+          state,
+          connection.syncCursor ?? null,
+        );
+        state.blocked = true;
+        state.blockedCursor ??= connection.syncCursor ?? null;
         return;
       }
       throw error;
@@ -283,6 +410,8 @@ export class CryptoSyncService {
     state: RunState,
     since: Date | undefined,
     initialMode: boolean,
+    startedAt: Date,
+    extendLock: () => Promise<void>,
   ): Promise<string | undefined> {
     const knownAssets = initialMode
       ? undefined
@@ -291,6 +420,13 @@ export class CryptoSyncService {
     const pageCost = adapter.rateLimit.historyPageCost ?? 1;
 
     for (let page = 0; page < this.maxPagesPerRun; page++) {
+      if (
+        page > 0 &&
+        this.now().getTime() - startedAt.getTime() >= this.sliceBudgetMs
+      ) {
+        return cursor; // out of time: partial, cursor already saved
+      }
+      await extendLock();
       await this.rateLimiter.acquire(adapter.id, pageCost);
       let result: { records: RawRecordInput[]; nextCursor?: string };
       try {
@@ -301,8 +437,15 @@ export class CryptoSyncService {
         });
       } catch (error) {
         if (error instanceof ExchangeSchemaError) {
-          await this.storeUnparsed(connection.id, error, credentials, state);
-          state.historyBlocked = true;
+          await this.storeUnparsed(
+            connection.id,
+            error,
+            credentials,
+            state,
+            cursor ?? null,
+          );
+          state.blocked = true;
+          state.blockedCursor = cursor ?? null;
           return cursor;
         }
         throw error;
@@ -325,8 +468,19 @@ export class CryptoSyncService {
     state: RunState,
     error: unknown,
     credentials: Credentials | undefined,
-  ): Promise<CryptoSyncRun> {
+  ): Promise<CryptoSyncResult> {
     const finishedAt = this.now();
+    if (error instanceof SyncLockLostError) {
+      // Another worker may own the connection now: do not touch its state.
+      state.errors.push(
+        this.runError(error.name, error.userMessage, true, finishedAt),
+      );
+      this.logger.warn(
+        `Crypto sync for connection ${connection.id} lost its lock`,
+      );
+      await this.finishRun(run, state, 'failed', finishedAt);
+      throw error;
+    }
     const authFailure =
       error instanceof ExchangeAuthError ||
       error instanceof KeyHasExtraPermissionsError;
@@ -354,7 +508,10 @@ export class CryptoSyncService {
         status: 'error',
         lastError: message,
       });
-      return this.finishRun(run, state, 'failed', finishedAt);
+      return Object.assign(
+        await this.finishRun(run, state, 'failed', finishedAt),
+        { continuation: false },
+      );
     }
 
     await this.patchConnection(connection.id, { lastError: message });
@@ -381,8 +538,9 @@ export class CryptoSyncService {
     message: string,
     retryable: boolean,
     at: Date,
+    extra: Pick<RunError, 'code' | 'cursor'> = {},
   ): RunError {
-    return { name, message, retryable, at: at.toISOString() };
+    return { name, message, retryable, at: at.toISOString(), ...extra };
   }
 
   private async finishRun(
@@ -411,6 +569,7 @@ export class CryptoSyncService {
     error: ExchangeSchemaError,
     credentials: Credentials,
     state: RunState,
+    cursor: string | null,
   ): Promise<void> {
     let json = scrub(
       JSON.stringify(redactSecrets(error.rawBody ?? null)) ?? 'null',
@@ -433,7 +592,12 @@ export class CryptoSyncService {
       },
     ]);
     state.schemaIssue = true;
-    state.errors.push(this.runError(error.name, error.userMessage, false, at));
+    state.errors.push(
+      this.runError(error.name, error.userMessage, false, at, {
+        code: SCHEMA_DRIFT,
+        cursor,
+      }),
+    );
   }
 
   // ----------------------------------------------------------- persistence

@@ -2,7 +2,7 @@ import knex, { Knex } from 'knex';
 import { knexSnakeCaseMappers } from 'objection';
 import { createHash } from 'crypto';
 import { Logger } from '@nestjs/common';
-import { CryptoSyncService } from './CryptoSync.service';
+import { CryptoSyncOptions, CryptoSyncService } from './CryptoSync.service';
 import { CryptoVault } from '../vault/CryptoVault.service';
 import { CryptoConnection } from '../models/CryptoConnection';
 import { CryptoRawRecord } from '../models/CryptoRawRecord';
@@ -16,6 +16,7 @@ import {
 } from '../adapters/ExchangeAdapter';
 import {
   ExchangeAuthError,
+  ExchangeError,
   ExchangeNetworkError,
   ExchangeRateLimitError,
   ExchangeSchemaError,
@@ -54,6 +55,8 @@ class StubAdapter implements ExchangeAdapter {
   balances: RawBalance[] = [];
   balanceError?: Error;
   balanceDelayMs = 0;
+  /** Runs after each successful history page (e.g. to advance a fake clock). */
+  onHistory?: () => void;
   /** Keyed by the cursor the service passes ('start' when none). */
   pages: Record<string, Page> = {};
   calls: string[] = [];
@@ -85,6 +88,7 @@ class StubAdapter implements ExchangeAdapter {
     const page = this.pages[q.cursor ?? 'start'];
     if (!page) throw new Error(`no stub page for cursor ${q.cursor}`);
     if (page instanceof Error) throw page;
+    this.onHistory?.();
     return page;
   }
 }
@@ -114,17 +118,16 @@ suite('CryptoSyncService (integration, scratch DB)', () => {
       redisStore.set(key, value);
       return 'OK';
     },
-    // Compare-and-delete release script: eval(script, 1, key, token).
-    eval: async (_script: string, _n: number, key: string, token: string) => {
-      if (redisStore.get(key) === token) {
-        redisStore.delete(key);
-        return 1;
-      }
-      return 0;
+    // eval(script, 1, key, token[, ttl]): compare-then-pexpire or compare-and-delete.
+    eval: async (script: string, _n: number, key: string, token: string) => {
+      if (redisStore.get(key) !== token) return 0;
+      if (script.includes('pexpire')) return 1; // lock extension
+      redisStore.delete(key); // release
+      return 1;
     },
   });
 
-  const make = (options: { maxPagesPerRun?: number } = {}) =>
+  const make = (options: CryptoSyncOptions = {}) =>
     new CryptoSyncService(
       (() => CryptoConnection) as any,
       (() => CryptoRawRecord) as any,
@@ -616,5 +619,160 @@ suite('CryptoSyncService (integration, scratch DB)', () => {
     const conn = await connection();
     expect(conn.lastSyncAt).not.toBeNull();
     expect(conn.lastError).toBeNull();
+  });
+
+  describe('review fixes', () => {
+    const lockKey = () => `crypto:sync:lock:${connectionId}`;
+    const insertRun = (extra: Record<string, unknown>) =>
+      db('crypto_sync_runs').insert({
+        connection_id: connectionId,
+        kind: 'manual',
+        status: 'succeeded',
+        started_at: new Date(),
+        ...extra,
+      });
+
+    it('I1: a balances schema error stores unparsed, keeps history going, and leaves the run partial and initial incomplete', async () => {
+      adapter.balanceError = new ExchangeSchemaError('bad', { odd: true });
+      adapter.pages = { start: { records: [rec(1)] } };
+      const run = await make().syncConnection(connectionId, 'initial');
+      expect(run.status).toBe('partial');
+      expect(run.continuation).toBe(false);
+      expect(adapter.calls).toEqual(['balances', 'history']);
+      expect((await rawRecords()).map((r) => r.record_type).sort()).toEqual([
+        'trade',
+        'unparsed',
+      ]);
+      expect((await connection()).initialSyncCompletedAt).toBeNull();
+    });
+
+    it('I2: aborts retryably when the lock extension fails, failing the run without touching status', async () => {
+      adapter.pages = {
+        start: { records: [rec(1)], nextCursor: 'c2' },
+        c2: { records: [rec(2)] },
+      };
+      // After page 1 another worker "owns" the lock (ours expired).
+      adapter.onHistory = () => redisStore.set(lockKey(), 'someone-else');
+      await expect(
+        make().syncConnection(connectionId, 'initial'),
+      ).rejects.toBeInstanceOf(ExchangeNetworkError);
+      expect(adapter.queries).toHaveLength(1);
+      const [run] = await db('crypto_sync_runs').where({
+        connection_id: connectionId,
+      });
+      expect(run.status).toBe('failed');
+      const conn = await connection();
+      expect(conn.status).toBe('active');
+      expect(conn.lastError).toBeNull();
+      expect(redisStore.get(lockKey())).toBe('someone-else'); // not released by us
+    });
+
+    it('I2: stops at the slice time budget with a partial run, cursor saved and continuation true', async () => {
+      let t = Date.parse('2026-05-01T00:00:00Z');
+      adapter.pages = {
+        start: { records: [rec(1)], nextCursor: 'c2' },
+        c2: { records: [rec(2)], nextCursor: 'c3' },
+        c3: { records: [rec(3)] },
+      };
+      adapter.onHistory = () => {
+        t += 4 * 60_000;
+      };
+      const run = await make({
+        now: () => new Date(t),
+        sliceBudgetMs: 7 * 60_000,
+      }).syncConnection(connectionId, 'initial');
+      // Pages at +0 and +4 min are fetched; the check at +8 min stops the slice.
+      expect(adapter.queries.map((q) => q.cursor)).toEqual([undefined, 'c2']);
+      expect(run.status).toBe('partial');
+      expect(run.continuation).toBe(true);
+      expect((await connection()).syncCursor).toBe('c3');
+    });
+
+    it('I3: continuation is true for a page-budget partial and false for a finished sync', async () => {
+      adapter.pages = {
+        start: { records: [rec(1)], nextCursor: 'c2' },
+        c2: { records: [rec(2)] },
+      };
+      const slice = await make({ maxPagesPerRun: 1 }).syncConnection(
+        connectionId,
+        'initial',
+      );
+      expect(slice.status).toBe('partial');
+      expect(slice.continuation).toBe(true);
+      const done = await make().syncConnection(connectionId, 'initial');
+      expect(done.status).toBe('succeeded');
+      expect(done.continuation).toBe(false);
+    });
+
+    it('I3: schema-blocked runs carry SCHEMA_DRIFT, have no continuation, and three in a row at one cursor flip status to error', async () => {
+      adapter.pages = { start: new ExchangeSchemaError('bad', { odd: 1 }) };
+      const service = make();
+      for (let i = 1; i <= 3; i++) {
+        const run = await service.syncConnection(connectionId, 'initial');
+        expect(run.status).toBe('partial');
+        expect(run.continuation).toBe(false);
+        expect(JSON.parse(run.errors)[0].code).toBe('SCHEMA_DRIFT');
+        expect((await connection()).status).toBe(i < 3 ? 'active' : 'error');
+      }
+      expect((await connection()).lastError).toBe(
+        'Exchange response format not recognised',
+      );
+    });
+
+    it('I3: blocked runs at different cursors do not flip the status', async () => {
+      adapter.pages = {
+        start: { records: [rec(1)], nextCursor: 'c2' },
+        c2: new ExchangeSchemaError('bad', { odd: 1 }),
+      };
+      const service = make({ maxPagesPerRun: 1 });
+      await service.syncConnection(connectionId, 'initial'); // advances to c2
+      await service.syncConnection(connectionId, 'initial'); // blocked at c2
+      await service.syncConnection(connectionId, 'initial'); // blocked at c2
+      // Only two blocked runs share a cursor (the first run was a good slice).
+      expect((await connection()).status).toBe('active');
+    });
+
+    it('I4: returns the just-finished run when the holder completes between the failed SET NX and the poll', async () => {
+      redisStore.set(lockKey(), 'holder');
+      const [runId] = await insertRun({
+        finished_at: new Date(Date.now() + 1000),
+      });
+      const run = await make().syncConnection(connectionId, 'manual');
+      expect(run.id).toBe(runId);
+      expect(run.continuation).toBe(false);
+      expect(adapter.calls).toEqual([]);
+    });
+
+    it('I4: ignores a stale running row older than the lock TTL', async () => {
+      redisStore.set(lockKey(), 'holder');
+      await insertRun({
+        status: 'running',
+        started_at: new Date(Date.now() - 20 * 60_000),
+      });
+      await expect(
+        make({ lockPollMs: 1 }).syncConnection(connectionId, 'manual'),
+      ).rejects.toThrow(/already starting/);
+    });
+
+    it('refuses paused connections for every kind and error connections unless manual', async () => {
+      adapter.pages = { start: { records: [] } };
+      await db('crypto_connections')
+        .where({ id: connectionId })
+        .update({ status: 'paused' });
+      for (const kind of ['initial', 'incremental', 'manual'] as const) {
+        await expect(
+          make().syncConnection(connectionId, kind),
+        ).rejects.toMatchObject({ retryable: false });
+      }
+      await db('crypto_connections')
+        .where({ id: connectionId })
+        .update({ status: 'error' });
+      await expect(
+        make().syncConnection(connectionId, 'incremental'),
+      ).rejects.toBeInstanceOf(ExchangeError);
+      expect(adapter.calls).toEqual([]);
+      const run = await make().syncConnection(connectionId, 'manual');
+      expect(run.status).toBe('succeeded');
+    });
   });
 });
