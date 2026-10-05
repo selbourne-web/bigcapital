@@ -46,6 +46,8 @@ export interface WebSocketLike {
   readyState: number;
   send(data: string): void;
   close(): void;
+  /** Present on `ws`: drops a dead peer immediately instead of waiting for the close handshake. */
+  terminate?(): void;
   onopen: ((ev: any) => void) | null;
   onmessage: ((ev: { data: unknown }) => void) | null;
   onclose: ((ev: any) => void) | null;
@@ -87,6 +89,10 @@ export const defaultWebSocketFactory: WebSocketFactory = (url) => {
 export type FeedOptions = {
   webSocketFactory?: WebSocketFactory;
   now?: () => number;
+  /** Socket must deliver something within this long once open. Default 60 s. */
+  inactivityTimeoutMs?: number;
+  /** Socket must reach `open` within this long of creation. Default 15 s. */
+  connectTimeoutMs?: number;
 };
 
 export type ParseResult = { ticks: SourceTick[]; reply?: unknown };
@@ -131,10 +137,16 @@ export abstract class WsTickerFeed implements PriceFeed {
   private desired = new Map<string, string>(); // asset -> pair
   private sent = new Set<string>(); // pairs already subscribed on this connection
   protected messageId = 0;
+  private readonly inactivityMs: number;
+  private readonly connectMs: number;
+  private connectTimer: ReturnType<typeof setTimeout> | undefined;
+  private activityTimer: ReturnType<typeof setTimeout> | undefined;
 
   constructor(options: FeedOptions = {}) {
     this.factory = options.webSocketFactory ?? defaultWebSocketFactory;
     this.now = options.now ?? Date.now;
+    this.inactivityMs = options.inactivityTimeoutMs ?? 60_000;
+    this.connectMs = options.connectTimeoutMs ?? 15_000;
   }
 
   start(onTick: (t: SourceTick) => void, onClose?: () => void): void {
@@ -149,8 +161,12 @@ export abstract class WsTickerFeed implements PriceFeed {
       return;
     }
     this.ws = ws;
+    // A half-open or never-opening socket never fires `close`, so watch it ourselves.
+    this.connectTimer = setTimeout(() => this.fail(ws), this.connectMs);
     ws.onopen = () => {
       if (this.ws !== ws) return;
+      this.clearTimer('connectTimer');
+      this.armInactivity(ws);
       if (this.openDelayMs > 0) {
         this.openTimer = setTimeout(
           () => this.becomeReady(ws),
@@ -161,8 +177,14 @@ export abstract class WsTickerFeed implements PriceFeed {
       }
     };
     ws.onmessage = (ev) => {
-      if (this.ws === ws) this.handleMessage(ev.data);
+      if (this.ws !== ws) return;
+      this.armInactivity(ws);
+      this.handleMessage(ev.data);
     };
+    // `ws` also surfaces protocol pings (Binance pings every 20 s); count them as activity.
+    (ws as { on?: (e: string, cb: () => void) => void }).on?.('ping', () => {
+      if (this.ws === ws) this.armInactivity(ws);
+    });
     // `error` is always followed by `close`; handling it only prevents an unhandled event.
     ws.onerror = () => undefined;
     ws.onclose = () => {
@@ -249,9 +271,27 @@ export abstract class WsTickerFeed implements PriceFeed {
     return undefined;
   }
 
+  private armInactivity(ws: WebSocketLike) {
+    this.clearTimer('activityTimer');
+    this.activityTimer = setTimeout(() => this.fail(ws), this.inactivityMs);
+  }
+
+  /** Watchdog expiry: drop the socket and let the owner's backoff reconnect. */
+  private fail(ws: WebSocketLike) {
+    if (this.ws !== ws) return;
+    this.teardown();
+    this.onClose?.();
+  }
+
+  private clearTimer(name: 'openTimer' | 'connectTimer' | 'activityTimer') {
+    if (this[name]) clearTimeout(this[name]);
+    this[name] = undefined;
+  }
+
   private teardown() {
-    if (this.openTimer) clearTimeout(this.openTimer);
-    this.openTimer = undefined;
+    this.clearTimer('openTimer');
+    this.clearTimer('connectTimer');
+    this.clearTimer('activityTimer');
     const ws = this.ws;
     this.ws = undefined;
     this.ready = false;
@@ -260,7 +300,8 @@ export abstract class WsTickerFeed implements PriceFeed {
       ws.onopen = ws.onmessage = ws.onclose = null;
       ws.onerror = () => undefined;
       try {
-        ws.close();
+        if (typeof ws.terminate === 'function') ws.terminate();
+        else ws.close();
       } catch {
         // already closed
       }

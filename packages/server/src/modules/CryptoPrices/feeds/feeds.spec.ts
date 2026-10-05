@@ -14,6 +14,7 @@ class FakeSocket implements WebSocketLike {
   readyState = 0;
   sent: any[] = [];
   closed = false;
+  terminated = false;
   onopen: any = null;
   onmessage: any = null;
   onclose: any = null;
@@ -21,6 +22,10 @@ class FakeSocket implements WebSocketLike {
   constructor(readonly url: string) {}
   send(data: string) {
     this.sent.push(JSON.parse(data));
+  }
+  terminate() {
+    this.terminated = true;
+    this.readyState = 3;
   }
   close() {
     this.closed = true;
@@ -353,7 +358,7 @@ describe.each([
     const ws = t.start();
     ws.open();
     t.feed.stop();
-    expect(ws.closed).toBe(true);
+    expect(ws.terminated || ws.closed).toBe(true);
     ws.serverClose();
     ws.message(fixture('kraken-ticker-snapshot.json'));
     expect(t.onClose).not.toHaveBeenCalled();
@@ -378,6 +383,82 @@ describe.each([
     });
     const onClose = jest.fn();
     expect(() => feed.start(() => undefined, onClose)).not.toThrow();
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe.each([
+  ['kraken', KrakenTickerFeed],
+  ['binance', BinanceTickerFeed],
+  ['crypto_com', CryptoComTickerFeed],
+])('%s feed watchdogs', (_source, Feed) => {
+  it('terminates and reports a close after 60 s of silence on an open socket', () => {
+    const t = setup(Feed);
+    const ws = t.start();
+    ws.open();
+    jest.advanceTimersByTime(59_999);
+    expect(t.onClose).not.toHaveBeenCalled();
+    jest.advanceTimersByTime(2);
+    expect(t.onClose).toHaveBeenCalledTimes(1);
+    expect(ws.terminated).toBe(true);
+    expect(ws.closed).toBe(false);
+    expect(jest.getTimerCount()).toBe(0);
+    ws.serverClose(); // late event from the old socket is ignored
+    expect(t.onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('is kept alive by inbound messages', () => {
+    const t = setup(Feed);
+    const ws = t.start();
+    ws.open();
+    jest.advanceTimersByTime(59_000);
+    ws.message(fixture('kraken-heartbeat.json'));
+    jest.advanceTimersByTime(59_000);
+    expect(t.onClose).not.toHaveBeenCalled();
+    jest.advanceTimersByTime(2_000);
+    expect(t.onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('gives up when the socket never opens within 15 s', () => {
+    const t = setup(Feed);
+    const ws = t.start();
+    jest.advanceTimersByTime(14_999);
+    expect(t.onClose).not.toHaveBeenCalled();
+    jest.advanceTimersByTime(2);
+    expect(t.onClose).toHaveBeenCalledTimes(1);
+    expect(ws.terminated).toBe(true);
+    expect(jest.getTimerCount()).toBe(0);
+  });
+
+  it('leaves no timers after stop() and starts fresh ones on reconnect', () => {
+    const t = setup(Feed);
+    const ws = t.start();
+    ws.open();
+    t.feed.stop();
+    expect(jest.getTimerCount()).toBe(0);
+    const ws2 = t.start();
+    expect(ws2).not.toBe(ws);
+    ws2.open();
+    jest.advanceTimersByTime(61_000);
+    expect(t.onClose).toHaveBeenCalledTimes(1);
+    expect(ws2.terminated).toBe(true);
+  });
+
+  it('honours injected timeouts', () => {
+    const sockets: FakeSocket[] = [];
+    const feed = new (Feed as any)({
+      webSocketFactory: (u: string) => {
+        const s = new FakeSocket(u);
+        sockets.push(s);
+        return s;
+      },
+      inactivityTimeoutMs: 1000,
+      connectTimeoutMs: 500,
+    });
+    const onClose = jest.fn();
+    feed.start(() => undefined, onClose);
+    sockets[0].open();
+    jest.advanceTimersByTime(1000);
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 });

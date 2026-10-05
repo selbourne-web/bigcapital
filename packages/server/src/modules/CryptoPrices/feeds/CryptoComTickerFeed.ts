@@ -7,6 +7,14 @@ import {
 } from './PriceFeed';
 
 /**
+ * VERIFICATION STATUS (recorded 2026-10-05): the official Crypto.com docs page is
+ * JS-rendered and could not be read. The ticker field names (`i`, `a`, `c`, `t`), the
+ * `result.channel` / `result.data[]` envelope and the ~1 s post-connect wait are
+ * UNVERIFIED against the official docs. Only the endpoint, the `ticker.<INSTRUMENT>`
+ * channel naming and the `public/heartbeat` -> `public/respond-heartbeat` reply with the
+ * same id were cross-checked, via the ccxt source (ts/src/pro/cryptocom.ts).
+ * A one-time live check is required before relying on this source.
+ *
  * Crypto.com Exchange v1 public market-data WebSocket (no credentials).
  * Docs: https://exchange-docs.crypto.com/exchange/v1/rest-ws/index.html (market data section).
  *
