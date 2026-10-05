@@ -95,6 +95,35 @@ describe('createPriceThrottle', () => {
     expect(emit).not.toHaveBeenCalled();
   });
 
+  it('a throwing emit does not escape the timer callback and the throttle keeps working', () => {
+    const emit = jest
+      .fn()
+      .mockImplementationOnce(() => {
+        throw new Error('socket exploded');
+      })
+      .mockImplementation(() => undefined);
+    const onError = jest.fn();
+    const throttle = createPriceThrottle(emit, 1000, undefined, onError);
+
+    throttle.push(quote('BTC', 1));
+    expect(() => jest.advanceTimersByTime(1000)).not.toThrow();
+    expect(onError).toHaveBeenCalledTimes(1);
+    expect(jest.getTimerCount()).toBe(0);
+
+    throttle.push(quote('BTC', 2));
+    jest.advanceTimersByTime(1000);
+    expect(emit).toHaveBeenCalledTimes(2);
+    expect(emit.mock.calls[1][0][0].usd).toBe(2);
+  });
+
+  it('swallows a throwing emit even without an error callback', () => {
+    const throttle = createPriceThrottle(() => {
+      throw new Error('boom');
+    });
+    throttle.push(quote('BTC', 1));
+    expect(() => jest.advanceTimersByTime(1000)).not.toThrow();
+  });
+
   it('uses injected timers', () => {
     const handle = {} as any;
     const timers = {

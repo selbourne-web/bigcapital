@@ -31,6 +31,8 @@ export const createPriceThrottle = (
   emit: (ticks: PriceQuote[]) => void,
   intervalMs = 1000,
   timers: ThrottleTimers = defaultTimers,
+  /** Called (no arguments, so no payload can leak) when `emit` throws. */
+  onError?: () => void,
 ): PriceThrottle => {
   const pending = new Map<string, PriceQuote>();
   let handle: unknown;
@@ -40,7 +42,12 @@ export const createPriceThrottle = (
     if (pending.size === 0) return;
     const ticks = [...pending.values()];
     pending.clear();
-    emit(ticks);
+    // Runs inside a timer callback: a throw here would be an uncaught exception.
+    try {
+      emit(ticks);
+    } catch {
+      onError?.();
+    }
   };
 
   return {

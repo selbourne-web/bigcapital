@@ -7,6 +7,8 @@ import { TenantModel } from '../System/models/TenantModel';
 import { SystemUser } from '../System/models/SystemUser';
 import { UserTenant } from '../System/models/UserTenant.model';
 import { PriceFeedManager } from '../CryptoPrices/PriceFeedManager.service';
+import { PriceCache } from '../CryptoPrices/PriceCache.service';
+import { SocketGateway } from '../Socket/Socket.gateway';
 import { PriceQuote } from '../CryptoPrices/feeds/PriceFeed';
 import { CRYPTO_LIVE_EMITTER } from '../CryptoExchanges/CryptoExchanges.types';
 import {
@@ -109,9 +111,18 @@ const fakeAuth = () =>
       const row = table[token];
       if (!row) throw new CryptoLiveAuthError('invalid-token');
       if (row.exp <= NOW) throw new CryptoLiveAuthError('token-expired');
-      const tenantId = row.orgs[organizationId];
-      if (!tenantId) throw new CryptoLiveAuthError('not-member');
-      return { userId: row.userId, tenantId, expiresAt: row.exp };
+      // Like MySQL, the organization lookup is case-insensitive and yields the
+      // canonical spelling stored in the tenants table.
+      const canonical = Object.keys(row.orgs).find(
+        (k) => k.toLowerCase() === organizationId.toLowerCase(),
+      );
+      if (!canonical) throw new CryptoLiveAuthError('not-member');
+      return {
+        userId: row.userId,
+        tenantId: row.orgs[canonical],
+        organizationId: canonical,
+        expiresAt: row.exp,
+      };
     }),
   }) as unknown as CryptoLiveAuth & { authenticate: jest.Mock };
 
@@ -120,10 +131,16 @@ const setup = (options: Record<string, unknown> = {}) => {
   const ns = new FakeNamespace();
   const prices = fakePrices();
   const auth = fakeAuth();
-  const gateway = new CryptoLiveGateway(auth, prices.manager, {
-    allowedOrigin: () => 'https://app.example.com',
-    ...options,
-  });
+  const cache = { all: jest.fn(async (): Promise<PriceQuote[]> => []) };
+  const gateway = new CryptoLiveGateway(
+    auth,
+    prices.manager,
+    cache as unknown as PriceCache,
+    {
+      allowedOrigin: () => 'https://app.example.com',
+      ...options,
+    },
+  );
   (gateway as any).namespace = ns;
   gateway.afterInit(ns as any);
   gateway.onModuleInit();
@@ -133,10 +150,14 @@ const setup = (options: Record<string, unknown> = {}) => {
     const next = jest.fn();
     await ns.middleware!(socket, next);
     const error: Error | undefined = next.mock.calls[0]?.[0];
-    if (!error) gateway.handleConnection(socket);
+    if (!error) {
+      gateway.handleConnection(socket);
+      // let the async price snapshot settle
+      for (let i = 0; i < 5; i++) await Promise.resolve();
+    }
     return { error, next };
   };
-  return { gateway, ns, prices, auth, connect };
+  return { gateway, ns, prices, auth, cache, connect };
 };
 
 beforeAll(() => Logger.overrideLogger(false));
@@ -190,7 +211,7 @@ describe('CORS origin rules', () => {
     expect(resolveAllowedOrigin({} as any)).toBe('');
   });
 
-  it('declares the /crypto namespace on the shared /socket path with an origin FUNCTION (not *)', () => {
+  it('declares the /crypto namespace on the shared /socket path', () => {
     const options = Reflect.getMetadata(
       'websockets:gateway_options',
       CryptoLiveGateway,
@@ -198,19 +219,41 @@ describe('CORS origin rules', () => {
     expect(options.namespace).toBe(CRYPTO_LIVE_NAMESPACE);
     expect(options.namespace).toBe('/crypto');
     expect(options.path).toBe('/socket');
-    expect(typeof options.cors.origin).toBe('function');
-    expect(options.maxHttpBufferSize).toBeLessThanOrEqual(10 * 1024);
+  });
 
-    const decide = (origin?: string) =>
-      new Promise<unknown>((resolve) =>
-        options.cors.origin(origin, (_e: unknown, ok: unknown) => resolve(ok)),
+  it('declares the SAME engine-level options as the legacy gateway, so Nest scan order cannot change either namespace', () => {
+    // Nest keeps one socket.io Server per path; the first-scanned gateway's
+    // options become server-wide. Both must therefore be equivalent.
+    const engineOptions = (gateway: unknown) => {
+      const { namespace: _n, ...rest } = Reflect.getMetadata(
+        'websockets:gateway_options',
+        gateway as object,
       );
-    return Promise.all([decide(undefined), decide('https://evil.test')]).then(
-      ([noOrigin, evil]) => {
-        expect(noOrigin).toBe(true);
-        expect(evil).toBe(false);
-      },
+      return rest;
+    };
+    const legacy = engineOptions(SocketGateway);
+    expect(legacy.path).toBe('/socket');
+    expect(engineOptions(CryptoLiveGateway)).toEqual(legacy);
+    expect(engineOptions(CryptoLiveGateway)).not.toHaveProperty(
+      'maxHttpBufferSize',
     );
+  });
+
+  it('does not honour a wildcard Origin in the middleware (authoritative check)', async () => {
+    const { connect, auth } = setup();
+    const s = makeSocket(
+      { token: 'tok-u1', organizationId: 'org-a' },
+      { origin: '*' },
+    );
+    expect((await connect(s)).error).toBeInstanceOf(Error);
+    expect(auth.authenticate).not.toHaveBeenCalled();
+    // and with a wildcard configured, any present Origin is still refused
+    const wild = setup({ allowedOrigin: () => '*' });
+    const s2 = makeSocket(
+      { token: 'tok-u1', organizationId: 'org-a' },
+      { origin: 'https://app.example.com' },
+    );
+    expect((await wild.connect(s2)).error).toBeInstanceOf(Error);
   });
 });
 
@@ -393,6 +436,7 @@ describe('connection limits and cleanup', () => {
     auth.authenticate.mockResolvedValueOnce({
       userId: 5,
       tenantId: 50,
+      organizationId: 'org-x',
       expiresAt: NOW + THIRTY_DAYS,
     });
     const s = makeSocket({ token: 'whatever', organizationId: 'org-x' });
@@ -548,7 +592,9 @@ describe('connection-synced events', () => {
   });
 
   it('never throws into the sync processor when the server is not ready', () => {
-    const gateway = new CryptoLiveGateway(fakeAuth(), fakePrices().manager);
+    const gateway = new CryptoLiveGateway(fakeAuth(), fakePrices().manager, {
+      all: async () => [],
+    } as unknown as PriceCache);
     expect(() =>
       new CryptoLiveEmitterService(gateway).connectionSynced(
         'org-a',
@@ -625,6 +671,106 @@ describe('lifecycle', () => {
   });
 });
 
+describe('organization id case', () => {
+  it('reaches the tenant room whatever the spelling of the client or of the sync job', async () => {
+    const { connect, gateway, ns } = setup();
+    // client connects with a different spelling than the canonical 'org-a'
+    await connect(makeSocket({ token: 'tok-u1', organizationId: 'ORG-A' }));
+
+    gateway.emitConnectionSynced('org-a', 1, 'active');
+    gateway.emitConnectionSynced('ORG-A', 2, 'active');
+
+    expect(
+      ns.emitted.map((m) => [m.room, (m.payload as any).connectionId]),
+    ).toEqual([
+      [tenantRoom(10), 1],
+      [tenantRoom(10), 2],
+    ]);
+  });
+
+  it('counts sockets of one organization connecting with different spellings together', async () => {
+    const { connect, gateway, ns } = setup();
+    const a = makeSocket({ token: 'tok-u1', organizationId: 'ORG-A' });
+    const b = makeSocket({ token: 'tok-u1', organizationId: 'org-a' });
+    await connect(a);
+    await connect(b);
+    gateway.handleDisconnect(a);
+    gateway.emitConnectionSynced('org-a', 1, 'active');
+    expect(ns.emitted).toHaveLength(1); // still reachable through b
+    gateway.handleDisconnect(b);
+    gateway.emitConnectionSynced('org-a', 1, 'active');
+    expect(ns.emitted).toHaveLength(1);
+  });
+});
+
+describe('price snapshot on connect', () => {
+  it('sends the cached prices to the connecting socket only', async () => {
+    const { connect, cache } = setup();
+    const first = makeSocket({ token: 'tok-u2', organizationId: 'org-b' });
+    first.emit = jest.fn();
+    await connect(first);
+    expect(first.emit).not.toHaveBeenCalled(); // empty cache: nothing sent
+
+    cache.all.mockResolvedValue([
+      quote('BTC', 100, { balance: 9, free: '1' }),
+      quote('ETH', 10, { change24hPct: 1.5 }),
+    ]);
+    const second = makeSocket({ token: 'tok-u1', organizationId: 'org-a' });
+    second.emit = jest.fn();
+    await connect(second);
+
+    expect(second.emit).toHaveBeenCalledTimes(1);
+    const [event, ticks] = second.emit.mock.calls[0];
+    expect(event).toBe(EVENTS.PRICES_TICK);
+    expect(ticks).toEqual([
+      {
+        asset: 'BTC',
+        usd: 100,
+        source: 'kraken',
+        asOf: NOW,
+        stale: false,
+        quote: 'USD',
+      },
+      {
+        asset: 'ETH',
+        usd: 10,
+        source: 'kraken',
+        asOf: NOW,
+        stale: false,
+        quote: 'USD',
+        change24hPct: 1.5,
+      },
+    ]);
+    expect(first.emit).not.toHaveBeenCalled(); // the already-connected socket gets nothing
+  });
+
+  it('survives a failing cache and does not send to a socket that left meanwhile', async () => {
+    const { connect, gateway, cache } = setup();
+    cache.all.mockRejectedValueOnce(new Error('redis down'));
+    const s = makeSocket({ token: 'tok-u1', organizationId: 'org-a' });
+    s.emit = jest.fn();
+    expect((await connect(s)).error).toBeUndefined();
+    expect(s.emit).not.toHaveBeenCalled();
+
+    cache.all.mockResolvedValueOnce([quote('BTC', 1)]);
+    const t = makeSocket({ token: 'tok-u1', organizationId: 'org-a' });
+    t.emit = jest.fn();
+    await connect(t);
+    // connect() already settled; simulate leaving before the snapshot resolves
+    const u = makeSocket({ token: 'tok-u1', organizationId: 'org-a' });
+    u.emit = jest.fn();
+    let release!: (q: PriceQuote[]) => void;
+    cache.all.mockReturnValueOnce(new Promise((r) => (release = r)));
+    const next = jest.fn();
+    await (gateway as any).authenticateHandshake(u, next);
+    gateway.handleConnection(u);
+    gateway.handleDisconnect(u);
+    release([quote('BTC', 1)]);
+    for (let i = 0; i < 5; i++) await Promise.resolve();
+    expect(u.emit).not.toHaveBeenCalled();
+  });
+});
+
 describe('Nest wiring (real providers, stubbed externals)', () => {
   const compile = () =>
     Test.createTestingModule({
@@ -635,6 +781,7 @@ describe('Nest wiring (real providers, stubbed externals)', () => {
         { provide: TenantModel.name, useValue: {} },
         { provide: UserTenant.name, useValue: {} },
         { provide: PriceFeedManager, useValue: fakePrices().manager },
+        { provide: PriceCache, useValue: { all: async () => [] } },
       ],
     }).compile();
 

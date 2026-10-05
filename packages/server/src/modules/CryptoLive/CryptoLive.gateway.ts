@@ -15,16 +15,15 @@ import {
 } from '@nestjs/websockets';
 import { Namespace, Socket } from 'socket.io';
 import { PriceFeedManager } from '../CryptoPrices/PriceFeedManager.service';
+import { PriceCache } from '../CryptoPrices/PriceCache.service';
 import { PriceQuote } from '../CryptoPrices/feeds/PriceFeed';
 import {
   CRYPTO_LIVE_NAMESPACE,
   CRYPTO_LIVE_OPTIONS,
   CRYPTO_LIVE_PATH,
-  cryptoLiveCorsOrigin,
   DEFAULT_THROTTLE_MS,
   EVENTS,
   isOriginAllowed,
-  MAX_HTTP_BUFFER_SIZE,
   MAX_ORGANIZATION_ID_LENGTH,
   MAX_SOCKETS_PER_USER,
   MAX_TOKEN_LENGTH,
@@ -71,10 +70,23 @@ interface SocketState {
  * Authenticated live channel for the crypto feature.
  *
  * Isolated from the legacy `SocketGateway` (namespace `/`, no auth): same engine path
- * `/socket`, different namespace `/crypto`. Nest shares one socket.io Server per path,
- * so the Server-level options of whichever gateway is created first (CORS, buffer size)
- * win; therefore the Origin rule is ALSO enforced here, in the namespace middleware
- * (it covers the websocket transport, which browsers do not subject to CORS).
+ * `/socket`, different namespace `/crypto`.
+ *
+ * ENGINE-LEVEL OPTIONS ARE SHARED PER PATH. Nest keeps one socket.io Server per
+ * (port, path); only the gateway scanned first creates it with its `cors` /
+ * `maxHttpBufferSize`, later gateways on that path just call `server.of(namespace)`
+ * and their options are dropped. They cannot be controlled per namespace. So this
+ * decorator declares exactly the legacy gateway's engine options (a spec asserts they
+ * stay equal): whichever is scanned first, the resulting Server is equivalent and
+ * neither namespace is affected by the order. Payload size is bounded only by the
+ * engine default; handshake fields are length-checked below.
+ *
+ * The AUTHORITATIVE protection for `/crypto` is therefore the namespace middleware:
+ *  1. Origin check, before any auth work: exact match on `allowedOrigin || BASE_URL`,
+ *     `*` is never honoured, nothing configured = every present Origin is refused.
+ *     (This also covers the websocket transport, which CORS never protects.)
+ *  2. The credential is a bearer JWT in the handshake `auth`, not a cookie, so a
+ *     cross-site page cannot authenticate even if engine-level CORS is permissive.
  *
  * A socket joins only `prices` and `tenant:<tenantId>`, decided server-side from the
  * verified JWT and organization membership. There are no client-callable message
@@ -84,8 +96,8 @@ interface SocketState {
 @WebSocketGateway({
   namespace: CRYPTO_LIVE_NAMESPACE,
   path: CRYPTO_LIVE_PATH,
-  cors: { origin: cryptoLiveCorsOrigin, methods: ['GET', 'POST'] },
-  maxHttpBufferSize: MAX_HTTP_BUFFER_SIZE,
+  // MUST equal the legacy SocketGateway's engine-level options (see above).
+  cors: { origin: '*', methods: ['GET', 'POST'] },
 })
 export class CryptoLiveGateway
   implements
@@ -118,6 +130,7 @@ export class CryptoLiveGateway
   constructor(
     private readonly auth: CryptoLiveAuth,
     private readonly priceFeedManager: PriceFeedManager,
+    private readonly priceCache: PriceCache,
     @Optional()
     @Inject(CRYPTO_LIVE_OPTIONS)
     options: CryptoLiveOptions = {},
@@ -142,6 +155,8 @@ export class CryptoLiveGateway
           .emit(EVENTS.PRICES_TICK, ticks.map(toWireQuote)),
       options.throttleMs ?? DEFAULT_THROTTLE_MS,
       this.timers,
+      // Category only: never the payload or the error object.
+      () => this.logger.warn('Price broadcast failed'),
     );
   }
 
@@ -201,7 +216,8 @@ export class CryptoLiveGateway
       this.states.set(socket, {
         userId: identity.userId,
         tenantId: identity.tenantId,
-        organizationId,
+        // Canonical spelling from the tenant row, not the client's.
+        organizationId: identity.organizationId,
         expiresAt: identity.expiresAt,
         reserved: true,
         connected: false,
@@ -227,16 +243,27 @@ export class CryptoLiveGateway
     }
     state.connected = true;
     this.connected += 1;
-    const org = this.organizations.get(state.organizationId);
+    const key = orgKey(state.organizationId);
+    const org = this.organizations.get(key);
     if (org) org.sockets += 1;
     else {
-      this.organizations.set(state.organizationId, {
-        tenantId: state.tenantId,
-        sockets: 1,
-      });
+      this.organizations.set(key, { tenantId: state.tenantId, sockets: 1 });
     }
     void client.join([PRICES_ROOM, tenantRoom(state.tenantId)]);
     this.armExpiry(client, state);
+    if (this.states.has(client)) void this.sendPriceSnapshot(client);
+  }
+
+  /** Current prices to the connecting socket only (never broadcast). */
+  private async sendPriceSnapshot(client: Socket) {
+    try {
+      const quotes = await this.priceCache.all();
+      // The socket may have left (or expired) while the cache was read.
+      if (quotes.length === 0 || !this.states.has(client)) return;
+      client.emit(EVENTS.PRICES_TICK, quotes.map(toWireQuote));
+    } catch {
+      this.logger.warn('Price snapshot failed');
+    }
   }
 
   handleDisconnect(client: Socket) {
@@ -253,7 +280,7 @@ export class CryptoLiveGateway
     connectionId: number,
     status: string,
   ): void {
-    const org = this.organizations.get(organizationId);
+    const org = this.organizations.get(orgKey(organizationId));
     if (!org || !this.namespace) return;
     this.namespace
       .to(tenantRoom(org.tenantId))
@@ -291,13 +318,16 @@ export class CryptoLiveGateway
     }
     if (state.connected) {
       this.connected -= 1;
-      const org = this.organizations.get(state.organizationId);
-      if (org && --org.sockets <= 0)
-        this.organizations.delete(state.organizationId);
+      const key = orgKey(state.organizationId);
+      const org = this.organizations.get(key);
+      if (org && --org.sockets <= 0) this.organizations.delete(key);
       if (this.connected === 0) this.throttle.stop();
     }
   }
 }
+
+/** Registry key: organization ids compare case-insensitively (as the tenants lookup does). */
+const orgKey = (organizationId: string) => organizationId.toLowerCase();
 
 /** Validates the handshake `auth` payload: bounded non-empty strings only. */
 const readHandshake = (

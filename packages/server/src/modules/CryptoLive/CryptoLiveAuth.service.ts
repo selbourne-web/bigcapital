@@ -28,6 +28,8 @@ export class CryptoLiveAuthError extends Error {
 export interface CryptoLiveIdentity {
   userId: number;
   tenantId: number;
+  /** Organization id as stored on the tenant (canonical spelling, not the client's). */
+  organizationId: string;
   /** Token expiry, epoch milliseconds. */
   expiresAt: number;
 }
@@ -100,6 +102,11 @@ export class CryptoLiveAuth {
       .findOne({ userId, tenantId: tenant.id });
     if (!membership) throw new CryptoLiveAuthError('not-member');
 
-    return { userId, tenantId: tenant.id, expiresAt: payload.exp * 1000 };
+    return {
+      userId,
+      tenantId: tenant.id,
+      organizationId: tenant.organizationId,
+      expiresAt: payload.exp * 1000,
+    };
   }
 }

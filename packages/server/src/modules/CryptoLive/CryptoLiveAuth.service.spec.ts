@@ -63,6 +63,7 @@ describe('CryptoLiveAuth.authenticate', () => {
     const result = await build().authenticate(sign(), 'org-a');
     expect(result.userId).toBe(7);
     expect(result.tenantId).toBe(1);
+    expect(result.organizationId).toBe('org-a');
     // exp is in whole seconds, 1h ahead
     expect(result.expiresAt).toBeGreaterThanOrEqual(before + 3599_000);
     expect(result.expiresAt).toBeLessThanOrEqual(before + 3601_000);

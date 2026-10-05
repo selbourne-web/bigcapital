@@ -1,5 +1,3 @@
-import cryptoConfig from '../../common/config/crypto';
-
 export const CRYPTO_LIVE_NAMESPACE = '/crypto';
 
 /** Same engine path as the legacy gateway; only the namespace differs. */
@@ -26,8 +24,6 @@ export const CRYPTO_LIVE_OPTIONS = 'CRYPTO_LIVE_OPTIONS';
 export const MAX_SOCKETS_PER_USER = 10;
 export const MAX_TOKEN_LENGTH = 4096;
 export const MAX_ORGANIZATION_ID_LENGTH = 128;
-/** socket.io `maxHttpBufferSize`; only effective when this gateway creates the shared Server. */
-export const MAX_HTTP_BUFFER_SIZE = 10 * 1024;
 export const DEFAULT_THROTTLE_MS = 1000;
 
 /**
@@ -61,13 +57,4 @@ export const isOriginAllowed = (
   if (!origin) return true;
   if (!allowed || allowed.trim() === '*') return false;
   return normalizeOrigin(origin) === normalizeOrigin(allowed);
-};
-
-/** `cors.origin` callback form: evaluated per request, never a wildcard. */
-export const cryptoLiveCorsOrigin = (
-  origin: string | undefined,
-  callback: (error: Error | null, allow?: boolean) => void,
-) => {
-  const allowed = cryptoConfig().allowedOrigin || resolveAllowedOrigin();
-  callback(null, isOriginAllowed(origin, allowed));
 };
