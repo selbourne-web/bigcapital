@@ -47,7 +47,7 @@ const parseErrors = (
   }
 };
 
-const toRunView = (run: CryptoSyncRun): CryptoSyncRunView => ({
+export const toRunView = (run: CryptoSyncRun): CryptoSyncRunView => ({
   id: run.id,
   connectionId: run.connectionId,
   kind: run.kind,

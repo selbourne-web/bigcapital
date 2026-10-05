@@ -21,6 +21,7 @@ import { RequirePermission } from '@/modules/Roles/RequirePermission.decorator';
 import { AbilitySubject } from '@/modules/Roles/Roles.types';
 import { CryptoExchangeAction as Action } from './CryptoExchanges.constants';
 import { CryptoExchangeExceptionFilter } from './CryptoExchanges.filter';
+import { ERROR_NOTE, EXAMPLES, res } from './CryptoExchanges.swagger';
 import { CreateCryptoConnectionDto } from './dtos/CreateCryptoConnection.dto';
 import { UpdateCryptoConnectionDto } from './dtos/UpdateCryptoConnection.dto';
 import { RotateCredentialsDto } from './dtos/RotateCredentials.dto';
@@ -67,10 +68,13 @@ export class CryptoExchangesController {
   @Get('connections')
   @RequirePermission(Action.View, AbilitySubject.CryptoExchange)
   @ApiOperation({ summary: 'List the crypto exchange connections.' })
-  @ApiResponse({
-    status: 200,
-    description: 'The connections (no credentials).',
-  })
+  @ApiResponse(
+    res(
+      200,
+      'The connections (no credentials); snake_case keys.',
+      EXAMPLES.connections,
+    ),
+  )
   async listConnections() {
     const connections = await this.getConnections.execute();
     // Best effort and never throws: restores repeatable sync jobs lost with Redis data.
@@ -84,12 +88,51 @@ export class CryptoExchangesController {
     summary:
       'Connect an exchange with a read-only API key (422 KEY_HAS_EXTRA_PERMISSIONS / ATTESTATION_REQUIRED).',
   })
-  @ApiResponse({ status: 201, description: 'The created connection.' })
-  @ApiResponse({
-    status: 422,
-    description:
-      'The key can do more than read (code KEY_HAS_EXTRA_PERMISSIONS, with the permission names), or read-only status could not be verified (code ATTESTATION_REQUIRED).',
-  })
+  @ApiResponse(
+    res(201, 'The created connection; snake_case keys.', EXAMPLES.connection),
+  )
+  @ApiResponse(
+    res(
+      400,
+      'Validation failure (account type/currency/not found, bad body).' +
+        ERROR_NOTE,
+      EXAMPLES.serviceError(
+        'CRYPTO_ACCOUNT_NOT_ASSET',
+        'Only an asset account can hold a crypto connection.',
+        400,
+      ),
+    ),
+  )
+  @ApiResponse(
+    res(
+      409,
+      'The account is already mapped to another connection.',
+      EXAMPLES.serviceError(
+        'CRYPTO_ACCOUNT_ALREADY_MAPPED',
+        'This account is already mapped to crypto connection Kraken - Trading.',
+        409,
+      ),
+    ),
+  )
+  @ApiResponse(
+    res(
+      422,
+      'The key can do more than read (KEY_HAS_EXTRA_PERMISSIONS, with the permission names; shown), or read-only status could not be verified ({ "code": "ATTESTATION_REQUIRED" }, resend with attestReadOnly: true).' +
+        ERROR_NOTE,
+      EXAMPLES.keyHasExtraPermissions,
+    ),
+  )
+  @ApiResponse(
+    res(
+      429,
+      'The exchange is rate limiting (EXCHANGE_RATE_LIMITED).' + ERROR_NOTE,
+      {
+        code: 'EXCHANGE_RATE_LIMITED',
+        message:
+          'The exchange is rate limiting requests. The sync will retry shortly.',
+      },
+    ),
+  )
   createCryptoConnection(@Body() dto: CreateCryptoConnectionDto) {
     return this.createConnection.execute(dto);
   }
@@ -99,6 +142,31 @@ export class CryptoExchangesController {
   @ApiOperation({
     summary: 'Rename, pause/resume or re-map the account of a connection.',
   })
+  @ApiResponse(
+    res(200, 'The updated connection; snake_case keys.', EXAMPLES.connection),
+  )
+  @ApiResponse(
+    res(
+      404,
+      'Unknown or archived connection.',
+      EXAMPLES.serviceError(
+        'CRYPTO_CONNECTION_NOT_FOUND',
+        'Crypto connection not found.',
+        404,
+      ),
+    ),
+  )
+  @ApiResponse(
+    res(
+      409,
+      'Conflict: account already mapped, or the connection is in error (rotate credentials).',
+      EXAMPLES.serviceError(
+        'CRYPTO_CONNECTION_IN_ERROR',
+        'This connection has an error. Replace its credentials to reconnect.',
+        409,
+      ),
+    ),
+  )
   updateCryptoConnection(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: UpdateCryptoConnectionDto,
@@ -112,6 +180,18 @@ export class CryptoExchangesController {
     summary:
       'Remove a connection and its credentials; stored data is kept unless deleteData=true.',
   })
+  @ApiResponse(res(200, 'Removed; the body is empty.', ''))
+  @ApiResponse(
+    res(
+      404,
+      'Unknown or archived connection.',
+      EXAMPLES.serviceError(
+        'CRYPTO_CONNECTION_NOT_FOUND',
+        'Crypto connection not found.',
+        404,
+      ),
+    ),
+  )
   async deleteCryptoConnection(
     @Param('id', ParseIntPipe) id: number,
     @Query() query: DeleteCryptoConnectionQueryDto,
@@ -128,6 +208,32 @@ export class CryptoExchangesController {
     summary:
       'Replace the API credentials of a connection (re-verified read-only).',
   })
+  @ApiResponse(
+    res(
+      200,
+      'The reactivated connection; snake_case keys.',
+      EXAMPLES.connection,
+    ),
+  )
+  @ApiResponse(
+    res(
+      404,
+      'Unknown or archived connection.',
+      EXAMPLES.serviceError(
+        'CRYPTO_CONNECTION_NOT_FOUND',
+        'Crypto connection not found.',
+        404,
+      ),
+    ),
+  )
+  @ApiResponse(
+    res(
+      422,
+      'The new key is rejected (EXCHANGE_AUTH_FAILED), has extra permissions (KEY_HAS_EXTRA_PERMISSIONS) or needs attestation (ATTESTATION_REQUIRED).' +
+        ERROR_NOTE,
+      EXAMPLES.exchangeAuth,
+    ),
+  )
   rotateCryptoCredentials(
     @Param('id', ParseIntPipe) id: number,
     @Body() dto: RotateCredentialsDto,
@@ -141,11 +247,39 @@ export class CryptoExchangesController {
   @ApiOperation({
     summary: 'Queue a manual sync (one per connection per 60 seconds).',
   })
-  @ApiResponse({ status: 202, description: '{ queued: true }' })
-  @ApiResponse({
-    status: 429,
-    description: 'Requested again within 60 s; see the Retry-After header.',
-  })
+  @ApiResponse(
+    res(202, 'Queued; the sync runs on the worker.', EXAMPLES.queued),
+  )
+  @ApiResponse(
+    res(
+      404,
+      'Unknown or archived connection.',
+      EXAMPLES.serviceError(
+        'CRYPTO_CONNECTION_NOT_FOUND',
+        'Crypto connection not found.',
+        404,
+      ),
+    ),
+  )
+  @ApiResponse(
+    res(
+      409,
+      'The connection is paused.',
+      EXAMPLES.serviceError(
+        'CRYPTO_CONNECTION_PAUSED',
+        'This connection is paused. Resume it to sync.',
+        409,
+      ),
+    ),
+  )
+  @ApiResponse(
+    res(
+      429,
+      'Requested again within 60 s; see the Retry-After header (seconds).' +
+        ERROR_NOTE,
+      EXAMPLES.throttled,
+    ),
+  )
   async syncCryptoConnection(@Param('id', ParseIntPipe) id: number) {
     await this.syncRequests.requestManualSync(id);
     return { queued: true };
@@ -156,6 +290,13 @@ export class CryptoExchangesController {
   @ApiOperation({
     summary: 'Latest balance per asset of every connection (decimal strings).',
   })
+  @ApiResponse(
+    res(
+      200,
+      'Latest non-zero balance per asset per connection; decimals are strings; snake_case keys.',
+      EXAMPLES.balances,
+    ),
+  )
   cryptoBalances() {
     return this.getBalances.execute();
   }
@@ -163,6 +304,7 @@ export class CryptoExchangesController {
   @Get('sync-runs')
   @RequirePermission(Action.View, AbilitySubject.CryptoExchange)
   @ApiOperation({ summary: 'Recent sync runs, newest first.' })
+  @ApiResponse(res(200, 'Sync runs; snake_case keys.', EXAMPLES.syncRuns))
   cryptoSyncRuns(@Query() query: GetCryptoSyncRunsQueryDto) {
     return this.getSyncRuns.execute(query);
   }
