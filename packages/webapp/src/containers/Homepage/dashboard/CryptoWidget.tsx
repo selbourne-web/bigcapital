@@ -33,6 +33,8 @@ const CONNECTIONS_PATH = '/preferences/crypto-connections';
 /** Screen readers hear the total at most this often, never once per tick. */
 const ANNOUNCE_EVERY_MS = 30_000;
 const COUNT_UP_MS = 900;
+/** How long to wait for the first price tick before saying prices are unavailable. */
+const PRICE_WAIT_MS = 12_000;
 
 // --- small hooks -----------------------------------------------------------
 
@@ -225,7 +227,12 @@ function StatusStrip({ connections }: { connections: CryptoConnection[] }) {
 
 function ChangeCell({ pct }: { pct: number | undefined }) {
   if (pct === undefined) {
-    return <span aria-label="No 24 hour change available">-</span>;
+    return (
+      <>
+        <span aria-hidden="true">-</span>
+        <span className="dash-crypto__sr">No 24 hour change available</span>
+      </>
+    );
   }
   const up = pct > 0;
   const down = pct < 0;
@@ -280,7 +287,9 @@ function CryptoHoldings({
   const anyStale = rows.some((row) => row.stale);
   const unpricedAssets = awaitingPrices ? [] : valuation.unpriced;
 
-  const showTotal = valuation.hasRate && !awaitingPrices;
+  // After a while with no tick, stop saying "waiting"; a later tick recovers.
+  const pricesUnavailable = useHeldFor(awaitingPrices, PRICE_WAIT_MS);
+  const showTotal = valuation.hasRate && !awaitingPrices && rows.length > 0;
   const counted = useCountUp(
     showTotal ? valuation.total : undefined,
     !reducedMotion,
@@ -305,9 +314,11 @@ function CryptoHoldings({
   // Screen readers get a calm, throttled summary instead of every tick.
   const summary = !valuation.hasRate
     ? 'Crypto holdings: no exchange rate available.'
-    : awaitingPrices
-      ? 'Crypto holdings: waiting for live prices.'
-      : `Crypto holdings total ${whole(valuation.total ?? 0)}${anyStale ? ', prices are stale' : ''}.`;
+    : pricesUnavailable
+      ? 'Crypto holdings: live prices unavailable.'
+      : awaitingPrices
+        ? 'Crypto holdings: waiting for live prices.'
+        : `Crypto holdings total ${whole(valuation.total ?? 0)}${anyStale ? ', prices are stale' : ''}.`;
   const announced = useThrottled(summary, ANNOUNCE_EVERY_MS);
 
   const needsAttention = connections.filter((c) => c.status === 'error');
@@ -330,13 +341,19 @@ function CryptoHoldings({
               </span>
             ) : (
               <span className="dash-kpi__value dash-kpi__value--none">
-                {awaitingPrices && valuation.hasRate ? 'Waiting' : '-'}
+                {awaitingPrices && valuation.hasRate && !pricesUnavailable
+                  ? 'Waiting'
+                  : '-'}
               </span>
             )}
             <span className="dash-kpi__meta">
-              {awaitingPrices
-                ? 'Waiting for live prices'
-                : `${rows.length} ${rows.length === 1 ? 'asset' : 'assets'} across ${connections.length} ${connections.length === 1 ? 'connection' : 'connections'}`}
+              {pricesUnavailable
+                ? 'Live prices unavailable'
+                : awaitingPrices
+                  ? 'Waiting for live prices'
+                  : rows.length === 0
+                    ? 'No balances'
+                    : `${rows.length} ${rows.length === 1 ? 'asset' : 'assets'} across ${connections.length} ${connections.length === 1 ? 'connection' : 'connections'}`}
             </span>
           </div>
 
@@ -359,6 +376,13 @@ function CryptoHoldings({
               <strong>No exchange rate.</strong> Values in your base currency
               can&apos;t be shown until a USD rate is available. Quantities and
               USD prices are still listed below.
+            </p>
+          )}
+          {pricesUnavailable && (
+            <p className="dash-crypto__notice">
+              <Icon icon="warning-sign" size={12} aria-hidden="true" /> Live
+              prices are unavailable right now. Quantities are listed; values
+              appear when prices arrive.
             </p>
           )}
           {needsAttention.length > 0 && (
@@ -468,13 +492,14 @@ function CryptoHoldings({
                   </td>
                   <td className="dash-crypto__num dash-crypto__value">
                     {row.valueBase === undefined ? (
-                      <span
-                        aria-label={
-                          valuation.hasRate ? 'Not valued' : 'No exchange rate'
-                        }
-                      >
-                        -
-                      </span>
+                      <>
+                        <span aria-hidden="true">-</span>
+                        <span className="dash-crypto__sr">
+                          {valuation.hasRate
+                            ? 'Not valued'
+                            : 'No exchange rate'}
+                        </span>
+                      </>
                     ) : (
                       full(row.valueBase)
                     )}
