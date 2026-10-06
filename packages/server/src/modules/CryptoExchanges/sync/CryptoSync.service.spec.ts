@@ -528,6 +528,55 @@ suite('CryptoSyncService (integration, scratch DB)', () => {
     }
   });
 
+  it('(f2) a full multi-page sync plus transient failures writes no credential to logs, stdout or stderr', async () => {
+    const logged: string[] = [];
+    const capture =
+      () =>
+      (...a: unknown[]) => {
+        logged.push(JSON.stringify(a));
+      };
+    const spies = (['log', 'warn', 'error', 'debug', 'verbose'] as const).map(
+      (m) => jest.spyOn(Logger.prototype, m).mockImplementation(capture()),
+    );
+    const consoleSpies = (
+      ['log', 'warn', 'error', 'info', 'debug'] as const
+    ).map((m) => jest.spyOn(console, m).mockImplementation(capture()));
+    const outSpies = (['stdout', 'stderr'] as const).map((s) =>
+      jest.spyOn(process[s], 'write').mockImplementation(((chunk: unknown) => {
+        logged.push(String(chunk));
+        return true;
+      }) as any),
+    );
+    try {
+      adapter.balances = [{ asset: 'BTC', free: '1', locked: '0' }];
+      adapter.pages = {
+        start: { records: [rec(1), rec(2)], nextCursor: 'p2' },
+        p2: { records: [rec(3)] },
+      };
+      const ok = await make().syncConnection(connectionId, 'initial');
+      expect(ok.status).toBe('succeeded');
+
+      for (const failure of [
+        new ExchangeNetworkError(),
+        new ExchangeRateLimitError(),
+        new ExchangeAuthError(),
+      ]) {
+        adapter.pages = { start: failure };
+        await make()
+          .syncConnection(connectionId, 'incremental')
+          .catch(() => undefined);
+      }
+      const everything = JSON.stringify(logged);
+      for (const secret of [API_KEY, API_SECRET, PASSPHRASE]) {
+        expect(everything).not.toContain(secret);
+      }
+      // The adapter did receive the decrypted credentials: the capture is not vacuous.
+      expect(adapter.credentialsSeen[0].apiKey).toBe(API_KEY);
+    } finally {
+      [...spies, ...consoleSpies, ...outSpies].forEach((s) => s.mockRestore());
+    }
+  });
+
   describe('(g) balance snapshots', () => {
     it('skips all-zero assets, writes exactly one zero row when a held asset drops out, then nothing more', async () => {
       const service = make();
