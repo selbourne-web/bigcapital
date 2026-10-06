@@ -40,7 +40,7 @@ interface WidgetProps<T> {
  * `full` keeps the currency's decimals (tooltips); `whole` drops them for
  * headline figures and legends, where cents are noise.
  */
-function useMoney() {
+export function useMoney() {
   const currency = useCurrentOrganizationBaseCurrency() ?? '';
   const full = useCallback(
     (value: number) => formattedAmount(value, currency),

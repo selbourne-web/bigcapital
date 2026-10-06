@@ -15,7 +15,7 @@ interface WidgetCardProps {
   /** What to do about an empty widget, e.g. create the first invoice. */
   emptyAction?: { label: string; to: string };
   /** Grid width on wide screens. */
-  size?: 'wide' | 'narrow' | 'half';
+  size?: 'wide' | 'narrow' | 'half' | 'full';
   children: ReactNode;
 }
 

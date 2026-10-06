@@ -1,4 +1,5 @@
 import moment from 'moment';
+import { CryptoWidget } from './CryptoWidget';
 import { DashboardRangeSelect } from './DashboardRangeSelect';
 import { QuickActions } from './QuickActions';
 import { ShortcutsColumn } from './ShortcutsColumn';
@@ -11,7 +12,12 @@ import {
   IncomeExpensesWidget,
   ProfitLossWidget,
 } from './Widgets';
+import {
+  AbilitySubject,
+  CryptoExchangeAction,
+} from '@/constants/abilityOption';
 import { useAuthenticatedAccount } from '@/hooks/query';
+import { useAbilityContext } from '@/hooks/utils';
 import '@/style/pages/HomePage/Dashboard.scss';
 
 const greetingFor = (hour: number): string =>
@@ -30,6 +36,12 @@ export function DashboardHome() {
     sample,
   });
   const { data: user } = useAuthenticatedAccount();
+
+  const ability = useAbilityContext();
+  const canViewCrypto = ability.can(
+    CryptoExchangeAction.View,
+    AbilitySubject.CryptoExchange,
+  );
 
   const greeting = greetingFor(moment().hour());
 
@@ -65,6 +77,7 @@ export function DashboardHome() {
           <ExpensesWidget query={profitLoss} range={range} />
           <AgingWidget query={receivables} kind="receivable" range={range} />
           <AgingWidget query={payables} kind="payable" range={range} />
+          {canViewCrypto && <CryptoWidget />}
         </div>
 
         <ShortcutsColumn />

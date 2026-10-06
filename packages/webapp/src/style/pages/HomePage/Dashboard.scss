@@ -199,6 +199,10 @@ $dash-ease: cubic-bezier(0.16, 1, 0.3, 1);
     grid-column: span 5;
   }
 
+  &--full {
+    grid-column: span 12;
+  }
+
   &__header {
     display: flex;
     align-items: center;
@@ -260,9 +264,242 @@ $dash-ease: cubic-bezier(0.16, 1, 0.3, 1);
   @container (max-width: 780px) {
     &,
     &--wide,
-    &--narrow {
+    &--narrow,
+    &--full {
       grid-column: span 12;
     }
+  }
+}
+
+// --- Crypto holdings ----------------------------------------------------------
+// Two breakpoints, both on the width of `.dash__grid` (container queries):
+// 780px stacks the total above the donut, 520px drops the quantity and price
+// columns (quantity moves under the asset name) so the table never scrolls.
+
+.dash-crypto {
+  &__sr {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+
+  &__status {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 10px;
+    margin: 0 0 18px;
+    padding: 0;
+    list-style: none;
+  }
+
+  &__conn {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 10px;
+    min-width: 0;
+    padding: 6px 14px;
+    border: 1px solid var(--chart-grid);
+    border-radius: 999px;
+    font-size: 12px;
+
+    &.is-error {
+      border-color: var(--color-red-300);
+    }
+  }
+
+  &__conn-name {
+    font-weight: 700;
+  }
+
+  &__conn-exchange {
+    color: var(--chart-axis-text);
+    font-family: var(--font-data);
+  }
+
+  &__hint {
+    color: var(--chart-axis-text);
+    font-size: 12px;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+
+    &:hover {
+      color: var(--chart-1);
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--chart-1);
+      outline-offset: 2px;
+    }
+  }
+
+  // Status chips carry an icon and a word, never colour alone.
+  &__badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 1px 8px;
+    border: 1px solid var(--chart-grid);
+    border-radius: 999px;
+    background: var(--chart-track);
+    color: var(--chart-crosshair);
+    font-family: var(--font-data);
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1.5;
+    white-space: nowrap;
+
+    &--warn {
+      border-color: var(--color-orange-300);
+    }
+
+    &--error {
+      border-color: var(--color-red-300);
+    }
+  }
+
+  &__summary {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 16px 32px;
+    margin-bottom: 20px;
+  }
+
+  &__total .dash-kpi {
+    margin-bottom: 10px;
+  }
+
+  &__badges {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  &__notice {
+    max-width: 60ch;
+    margin: 10px 0 0;
+    color: var(--chart-axis-text);
+    font-size: 12px;
+    line-height: 1.5;
+
+    strong {
+      color: var(--chart-crosshair);
+    }
+
+    &--error {
+      color: var(--chart-crosshair);
+    }
+  }
+
+  &__donut {
+    min-width: 0;
+  }
+
+  &__table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+
+    th,
+    td {
+      padding: 10px 8px;
+      border-bottom: 1px solid var(--chart-grid);
+      text-align: left;
+      vertical-align: middle;
+    }
+
+    thead th {
+      color: var(--chart-axis-text);
+      font-family: var(--font-data);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    tbody tr:last-child > * {
+      border-bottom: 0;
+    }
+  }
+
+  &__num {
+    font-family: var(--font-data);
+    font-variant-numeric: tabular-nums;
+    text-align: right !important;
+    white-space: nowrap;
+  }
+
+  &__asset {
+    font-weight: 700;
+  }
+
+  &__qty-inline {
+    display: none;
+    color: var(--chart-axis-text);
+    font-family: var(--font-data);
+    font-size: 11px;
+    font-weight: 400;
+  }
+
+  &__value {
+    font-weight: 600;
+  }
+
+  // Shown under the value on narrow widths, where the price column is gone.
+  &__flags {
+    display: none;
+    color: var(--chart-axis-text);
+    font-size: 11px;
+    font-weight: 400;
+  }
+
+  &__change {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+
+    // 500 shades: dark on the light theme, light on the dark theme (the
+    // palette flips), so the text keeps its contrast in both.
+    &.is-up {
+      color: var(--color-green-500);
+    }
+
+    &.is-down {
+      color: var(--color-red-500);
+    }
+  }
+
+  @container (max-width: 780px) {
+    &__summary {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+
+  @container (max-width: 520px) {
+    &__col-qty,
+    &__col-price {
+      display: none;
+    }
+
+    &__qty-inline,
+    &__flags {
+      display: block;
+    }
+
+    &__table th,
+    &__table td {
+      padding-inline: 4px;
+    }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dash-crypto * {
+    transition: none !important;
+    animation: none !important;
   }
 }
 

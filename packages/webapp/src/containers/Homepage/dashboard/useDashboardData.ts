@@ -26,17 +26,20 @@ import { useApiFetcher } from '@/hooks/useRequest';
 const STALE_TIME_MS = 60 * 1000;
 
 /** `data`: populated charts. `empty`: every figure zero, to check empty states. */
-export type SampleMode = 'data' | 'empty' | null;
+export type SampleMode = 'data' | 'empty' | 'crypto' | null;
 
 /**
  * Sample data is a design-preview aid: dev builds only, and only when the URL
- * carries `?sample=1` (or `?sample=empty`). Production builds can never show it.
+ * carries `?sample=1`, `?sample=crypto` or `?sample=empty`. Production builds
+ * can never show it.
  */
 export function useSampleMode(): SampleMode {
   const { search } = useLocation();
   if (!import.meta.env.DEV) return null;
   const value = new URLSearchParams(search).get('sample');
-  return value === 'empty' ? 'empty' : value === '1' ? 'data' : null;
+  if (value === 'empty') return 'empty';
+  if (value === 'crypto') return 'crypto';
+  return value === '1' ? 'data' : null;
 }
 
 interface UseDashboardDataArgs {

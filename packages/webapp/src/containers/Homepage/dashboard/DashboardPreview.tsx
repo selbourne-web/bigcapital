@@ -1,6 +1,6 @@
 /**
  * Dev-only design preview of the dashboard, reachable without signing in at
- * `/__preview/dashboard?sample=1`. It seeds the query cache with a fictional
+ * `/__preview/dashboard?sample=1` (also `?sample=crypto`, `?sample=empty`). It seeds the query cache with a fictional
  * organization and user (so no request is made and nothing can trigger a
  * sign-out) and relies on sample report data. Registered in `App.tsx` under
  * `import.meta.env.DEV`, so it is not part of production builds.
@@ -8,16 +8,21 @@
 import { Ability } from '@casl/ability';
 import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
+import { seedCryptoSample } from './cryptoSampleData';
 import { DashboardHome } from './DashboardHome';
+import { useSampleMode } from './useDashboardData';
 import { AbilityContext } from '@/components/Dashboard/DashboardAbilityProvider';
 import { organizationKeys } from '@/hooks/query/organization';
 import { usersKeys } from '@/hooks/query/users/query-keys';
+import { useAuthOrganizationId } from '@/hooks/state';
 
 // Everything permitted, so every shortcut section shows in the preview.
 const PREVIEW_ABILITY = new Ability([{ action: 'manage', subject: 'all' }]);
 
 export default function DashboardPreview() {
   const queryClient = useQueryClient();
+  const sample = useSampleMode();
+  const organizationId = useAuthOrganizationId();
 
   // Seed once, before the first render of the dashboard.
   useState(() => {
@@ -38,6 +43,13 @@ export default function DashboardPreview() {
       verified: true,
       email: 'preview@example.com',
     });
+    // The crypto widget reads these keys instead of calling the API.
+    seedCryptoSample(
+      queryClient,
+      organizationId,
+      sample === 'empty' ? 'empty' : 'data',
+      'BBD',
+    );
     return null;
   });
 
