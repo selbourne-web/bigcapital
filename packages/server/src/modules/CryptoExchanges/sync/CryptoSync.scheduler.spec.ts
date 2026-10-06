@@ -20,6 +20,13 @@ class FakeQueue {
   upsertJobScheduler = jest.fn(async (id: string, repeat: any, tpl: any) => {
     this.schedulers.set(id, { repeat, tpl });
   });
+  // Like BullMQ: an unknown id resolves an empty object, not undefined.
+  getJobScheduler = jest.fn(async (id: string) => {
+    const found = this.schedulers.get(id);
+    return found
+      ? { key: id, name: found.tpl.name, every: String(found.repeat.every) }
+      : {};
+  });
   removeJobScheduler = jest.fn(async (id: string) =>
     this.schedulers.delete(id),
   );
@@ -114,6 +121,36 @@ describe('CryptoSyncScheduler', () => {
     await scheduler.schedule(conn, '42');
     await scheduler.schedule(conn, '42');
     expect(kraken.schedulers.size).toBe(1);
+  });
+
+  it('never re-upserts an existing scheduler with the same interval (an upsert would queue an immediate run and reset the cadence)', async () => {
+    const { scheduler, kraken } = makeScheduler(120000);
+    const conn = { id: 7, exchange: 'kraken' } as any;
+    await scheduler.schedule(conn, '42');
+    await scheduler.schedule(conn, '42');
+    await scheduler.schedule(conn, '42');
+    expect(kraken.upsertJobScheduler).toHaveBeenCalledTimes(1);
+  });
+
+  it('re-upserts when the configured interval changed', async () => {
+    const { kraken, binance } = makeScheduler();
+    const first = new CryptoSyncScheduler(
+      kraken as any,
+      binance as any,
+      config(60000),
+    );
+    const second = new CryptoSyncScheduler(
+      kraken as any,
+      binance as any,
+      config(120000),
+    );
+    const conn = { id: 7, exchange: 'kraken' } as any;
+    await first.schedule(conn, '42');
+    await second.schedule(conn, '42');
+    expect(kraken.upsertJobScheduler).toHaveBeenCalledTimes(2);
+    expect(kraken.schedulers.get('crypto-sync:42:7').repeat).toEqual({
+      every: 120000,
+    });
   });
 
   it('unschedule removes the repeatable on both queues and the pending jobs of that connection only', async () => {

@@ -52,21 +52,36 @@ export class CryptoSyncScheduler {
   }
 
   /**
-   * Registers (or updates) the repeatable `incremental` job of a connection:
-   * scheduler id `crypto-sync:<organization>:<id>`, every `crypto.syncIntervalMs`.
+   * Registers the repeatable `incremental` job of a connection: scheduler id
+   * `crypto-sync:<organization>:<id>`, every `crypto.syncIntervalMs`.
+   *
+   * Idempotent and safe on read paths: an existing scheduler with the same
+   * interval is left untouched. BullMQ 5.25.6's `upsertJobScheduler` always
+   * overrides and, without `prevMillis`, schedules the next run for NOW and
+   * resets the cadence, so re-upserting on every call would trigger an
+   * immediate sync each time (and chain duplicate delayed jobs). A missing
+   * scheduler, or one whose interval changed, is (re)created; that first run
+   * is immediate, which is the intended "start syncing now" behaviour.
    */
   async schedule(
     connection: ConnectionRef,
     organizationId: string,
   ): Promise<void> {
+    const queue = this.queueFor(connection.exchange);
+    const schedulerId = cryptoScheduleId(organizationId, connection.id);
+    const every = this.intervalMs();
+    // `getJobScheduler` resolves an empty object (not undefined) when the
+    // scheduler does not exist, so test for its fields.
+    const existing = await queue.getJobScheduler(schedulerId);
+    if (existing?.name && Number(existing.every) === every) return;
     const data: CryptoSyncJobData = {
       connectionId: connection.id,
       organizationId,
       kind: 'incremental',
     };
-    await this.queueFor(connection.exchange).upsertJobScheduler(
-      cryptoScheduleId(organizationId, connection.id),
-      { every: this.intervalMs() },
+    await queue.upsertJobScheduler(
+      schedulerId,
+      { every },
       {
         name: CRYPTO_SYNC_JOB,
         data,
