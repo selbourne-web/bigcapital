@@ -100,6 +100,40 @@ export const CRYPTO_SYNC_JOB_OPTIONS = {
 export const CRYPTO_HELD_ASSETS_KEY = 'crypto:held-assets';
 export const CRYPTO_HELD_ASSETS_TTL_SECONDS = 24 * 3600;
 
+/**
+ * Queues and Redis are shared by every tenant while connection ids are
+ * per-tenant-database (each tenant has a connection 1), so every queue/Redis
+ * identity below carries the organization id (the canonical tenant id of the job
+ * payload and CLS context) as well as the connection id.
+ */
+
 /** Id of the repeatable (scheduler) job of a connection. */
-export const cryptoScheduleId = (connectionId: number) =>
-  `crypto-sync:${connectionId}`;
+export const cryptoScheduleId = (
+  organizationId: string,
+  connectionId: number,
+) => `crypto-sync:${organizationId}:${connectionId}`;
+
+/** Fixed per connection+kind: repeated events collapse into one pending job. */
+export const cryptoStartJobId = (
+  organizationId: string,
+  connectionId: number,
+  kind: CryptoSyncKind,
+) => `crypto-sync-start-${organizationId}-${connectionId}-${kind}`;
+
+export const cryptoContinuationJobId = (
+  organizationId: string,
+  connectionId: number,
+  runId: number | string,
+) => `crypto-sync-cont-${organizationId}-${connectionId}-${runId}`;
+
+export const cryptoManualJobId = (
+  organizationId: string,
+  connectionId: number,
+  nonce: string,
+) => `crypto-sync-manual-${organizationId}-${connectionId}-${nonce}`;
+
+/** Redis lock serializing the sync slices of one connection. */
+export const cryptoSyncLockKey = (
+  organizationId: string,
+  connectionId: number,
+) => `crypto:sync:lock:${organizationId}:${connectionId}`;

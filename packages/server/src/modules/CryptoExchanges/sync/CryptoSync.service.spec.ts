@@ -8,6 +8,7 @@ import { CryptoConnection } from '../models/CryptoConnection';
 import { CryptoRawRecord } from '../models/CryptoRawRecord';
 import { CryptoBalanceSnapshot } from '../models/CryptoBalanceSnapshot';
 import { CryptoSyncRun } from '../models/CryptoSyncRun';
+import { cryptoSyncLockKey } from '../CryptoExchanges.constants';
 import {
   Credentials,
   ExchangeAdapter,
@@ -102,6 +103,8 @@ const rec = (
   occurredAt: new Date(Date.UTC(2026, 0, 1, 0, n)),
   payload: { id: n, ...extra },
 });
+
+const ORG = 'org-1';
 
 suite('CryptoSyncService (integration, scratch DB)', () => {
   let db: Knex;
@@ -235,7 +238,7 @@ suite('CryptoSyncService (integration, scratch DB)', () => {
   it('(a) re-syncing overlapping records inserts 0 new rows and counts accurately', async () => {
     const service = make();
     adapter.pages = { start: { records: [rec(1), rec(2)] } };
-    const first = await service.syncConnection(connectionId, 'initial');
+    const first = await service.syncConnection(connectionId, 'initial', ORG);
     expect(first).toMatchObject({
       status: 'succeeded',
       fetchedCount: 2,
@@ -243,14 +246,22 @@ suite('CryptoSyncService (integration, scratch DB)', () => {
     });
 
     adapter.pages = { start: { records: [rec(2), rec(3)] } };
-    const second = await service.syncConnection(connectionId, 'incremental');
+    const second = await service.syncConnection(
+      connectionId,
+      'incremental',
+      ORG,
+    );
     expect(second).toMatchObject({
       status: 'succeeded',
       fetchedCount: 2,
       insertedCount: 1,
     });
 
-    const third = await service.syncConnection(connectionId, 'incremental');
+    const third = await service.syncConnection(
+      connectionId,
+      'incremental',
+      ORG,
+    );
     expect(third).toMatchObject({ fetchedCount: 2, insertedCount: 0 });
     expect(await rawRecords()).toHaveLength(3);
   });
@@ -262,7 +273,7 @@ suite('CryptoSyncService (integration, scratch DB)', () => {
       .where({ id: connectionId })
       .update({ last_seen_at: seen, initial_sync_completed_at: seen });
     adapter.pages = { start: { records: [] } };
-    await service.syncConnection(connectionId, 'incremental');
+    await service.syncConnection(connectionId, 'incremental', ORG);
     expect(adapter.queries[0].since.getTime()).toBe(
       seen.getTime() - 10 * 60_000,
     );
@@ -276,7 +287,7 @@ suite('CryptoSyncService (integration, scratch DB)', () => {
       c3: new ExchangeNetworkError(),
     };
     await expect(
-      service.syncConnection(connectionId, 'initial'),
+      service.syncConnection(connectionId, 'initial', ORG),
     ).rejects.toBeInstanceOf(ExchangeNetworkError);
     const interrupted = await connection();
     expect(interrupted.syncCursor).toBe('c3');
@@ -285,7 +296,7 @@ suite('CryptoSyncService (integration, scratch DB)', () => {
 
     adapter.queries = [];
     adapter.pages.c3 = { records: [rec(3)] };
-    const run = await service.syncConnection(connectionId, 'initial');
+    const run = await service.syncConnection(connectionId, 'initial', ORG);
     expect(adapter.queries.map((q) => q.cursor)).toEqual(['c3']);
     expect(run.status).toBe('succeeded');
     const done = await connection();
@@ -303,14 +314,14 @@ suite('CryptoSyncService (integration, scratch DB)', () => {
       c3: { records: [rec(3)], nextCursor: 'c4' },
       c4: { records: [rec(4)] },
     };
-    const slice1 = await service.syncConnection(connectionId, 'initial');
+    const slice1 = await service.syncConnection(connectionId, 'initial', ORG);
     expect(slice1.status).toBe('partial');
     expect(adapter.queries).toHaveLength(2);
     const mid = await connection();
     expect(mid.syncCursor).toBe('c3');
     expect(mid.initialSyncCompletedAt).toBeNull();
 
-    const slice2 = await service.syncConnection(connectionId, 'initial');
+    const slice2 = await service.syncConnection(connectionId, 'initial', ORG);
     expect(slice2.status).toBe('succeeded');
     expect(adapter.queries.map((q) => q.cursor)).toEqual([
       undefined,
@@ -329,7 +340,7 @@ suite('CryptoSyncService (integration, scratch DB)', () => {
       start: { records: [rec(1)], nextCursor: 'c2' },
       c2: { records: [] },
     };
-    await service.syncConnection(connectionId, 'initial');
+    await service.syncConnection(connectionId, 'initial', ORG);
     expect(limiter.acquire.mock.calls).toEqual([
       ['kraken', 1],
       ['kraken', 2],
@@ -339,7 +350,7 @@ suite('CryptoSyncService (integration, scratch DB)', () => {
     limiter.acquire.mockClear();
     adapter.rateLimit = { capacity: 15, refillPerSec: 1 };
     adapter.pages = { start: { records: [] } };
-    await service.syncConnection(connectionId, 'incremental');
+    await service.syncConnection(connectionId, 'incremental', ORG);
     expect(limiter.acquire.mock.calls).toEqual([
       ['kraken', 1],
       ['kraken', 1],
@@ -348,7 +359,7 @@ suite('CryptoSyncService (integration, scratch DB)', () => {
 
   it('decrypts credentials for the adapter only for the call', async () => {
     adapter.pages = { start: { records: [] } };
-    await make().syncConnection(connectionId, 'initial');
+    await make().syncConnection(connectionId, 'initial', ORG);
     expect(adapter.credentialsSeen[0]).toEqual({
       apiKey: API_KEY,
       apiSecret: API_SECRET,
@@ -365,7 +376,11 @@ suite('CryptoSyncService (integration, scratch DB)', () => {
       async (_name, build) => {
         const err = build();
         adapter.balanceError = err;
-        const run = await make().syncConnection(connectionId, 'incremental');
+        const run = await make().syncConnection(
+          connectionId,
+          'incremental',
+          ORG,
+        );
         expect(run.status).toBe('failed');
         expect(adapter.calls).toEqual(['balances']);
         const conn = await connection();
@@ -378,7 +393,7 @@ suite('CryptoSyncService (integration, scratch DB)', () => {
 
     it('an auth error during history also stops without a retry', async () => {
       adapter.pages = { start: new ExchangeAuthError() };
-      const run = await make().syncConnection(connectionId, 'initial');
+      const run = await make().syncConnection(connectionId, 'initial', ORG);
       expect(run.status).toBe('failed');
       expect(adapter.calls).toEqual(['balances', 'history']);
       expect((await connection()).status).toBe('error');
@@ -393,7 +408,7 @@ suite('CryptoSyncService (integration, scratch DB)', () => {
       async (_name, build) => {
         adapter.pages = { start: build() };
         await expect(
-          make().syncConnection(connectionId, 'initial'),
+          make().syncConnection(connectionId, 'initial', ORG),
         ).rejects.toBeDefined();
         const conn = await connection();
         expect(conn.status).toBe('active');
@@ -414,7 +429,7 @@ suite('CryptoSyncService (integration, scratch DB)', () => {
         c2: new ExchangeRateLimitError(),
       };
       await expect(
-        make().syncConnection(connectionId, 'initial'),
+        make().syncConnection(connectionId, 'initial', ORG),
       ).rejects.toBeInstanceOf(ExchangeRateLimitError);
       const [run] = await db('crypto_sync_runs').where({
         connection_id: connectionId,
@@ -430,7 +445,7 @@ suite('CryptoSyncService (integration, scratch DB)', () => {
   it('(d) a schema error stores an unparsed raw record and marks the run partial', async () => {
     const body = { unexpected: 'shape', apiKey: 'leak-me' };
     adapter.pages = { start: new ExchangeSchemaError('bad shape', body) };
-    const run = await make().syncConnection(connectionId, 'initial');
+    const run = await make().syncConnection(connectionId, 'initial', ORG);
     expect(run.status).toBe('partial');
 
     const rows = await rawRecords();
@@ -450,7 +465,7 @@ suite('CryptoSyncService (integration, scratch DB)', () => {
     expect(conn.initialSyncCompletedAt).toBeNull();
 
     // Same body again: idempotent, no second row.
-    await make().syncConnection(connectionId, 'initial');
+    await make().syncConnection(connectionId, 'initial', ORG);
     expect(await rawRecords()).toHaveLength(1);
   });
 
@@ -459,8 +474,8 @@ suite('CryptoSyncService (integration, scratch DB)', () => {
     adapter.pages = { start: { records: [rec(1)] } };
     const service = make();
     const [a, b] = await Promise.all([
-      service.syncConnection(connectionId, 'manual'),
-      service.syncConnection(connectionId, 'manual'),
+      service.syncConnection(connectionId, 'manual', ORG),
+      service.syncConnection(connectionId, 'manual', ORG),
     ]);
     expect(a.id).toBe(b.id);
     expect(adapter.calls).toEqual(['balances', 'history']);
@@ -473,7 +488,7 @@ suite('CryptoSyncService (integration, scratch DB)', () => {
   it('releases the lock even when the sync throws', async () => {
     adapter.pages = { start: new ExchangeNetworkError() };
     await expect(
-      make().syncConnection(connectionId, 'initial'),
+      make().syncConnection(connectionId, 'initial', ORG),
     ).rejects.toBeDefined();
     expect(redisStore.size).toBe(0);
   });
@@ -496,7 +511,7 @@ suite('CryptoSyncService (integration, scratch DB)', () => {
       adapter.pages = { start: new Error(leak) };
       let thrown: Error | undefined;
       await make()
-        .syncConnection(connectionId, 'initial')
+        .syncConnection(connectionId, 'initial', ORG)
         .catch((e) => {
           thrown = e;
         });
@@ -507,7 +522,7 @@ suite('CryptoSyncService (integration, scratch DB)', () => {
           note: `echoed ${API_SECRET}`,
         }),
       };
-      await make().syncConnection(connectionId, 'initial');
+      await make().syncConnection(connectionId, 'initial', ORG);
 
       const conn = await connection();
       const runs = await db('crypto_sync_runs');
@@ -553,7 +568,7 @@ suite('CryptoSyncService (integration, scratch DB)', () => {
         start: { records: [rec(1), rec(2)], nextCursor: 'p2' },
         p2: { records: [rec(3)] },
       };
-      const ok = await make().syncConnection(connectionId, 'initial');
+      const ok = await make().syncConnection(connectionId, 'initial', ORG);
       expect(ok.status).toBe('succeeded');
 
       for (const failure of [
@@ -563,7 +578,7 @@ suite('CryptoSyncService (integration, scratch DB)', () => {
       ]) {
         adapter.pages = { start: failure };
         await make()
-          .syncConnection(connectionId, 'incremental')
+          .syncConnection(connectionId, 'incremental', ORG)
           .catch(() => undefined);
       }
       const everything = JSON.stringify(logged);
@@ -586,7 +601,7 @@ suite('CryptoSyncService (integration, scratch DB)', () => {
         { asset: 'ETH', free: '0', locked: '0' },
         { asset: 'SOL', free: '0', locked: '2' },
       ];
-      await service.syncConnection(connectionId, 'initial');
+      await service.syncConnection(connectionId, 'initial', ORG);
       expect((await snapshots()).map((r) => r.asset).sort()).toEqual([
         'BTC',
         'SOL',
@@ -599,7 +614,7 @@ suite('CryptoSyncService (integration, scratch DB)', () => {
         { asset: 'ETH', free: '0', locked: '0' },
         { asset: 'SOL', free: '0', locked: '0' },
       ];
-      await service.syncConnection(connectionId, 'incremental');
+      await service.syncConnection(connectionId, 'incremental', ORG);
       const sol = await snapshots('SOL');
       expect(sol).toHaveLength(2);
       expect(sum(sol[1])).toBe(0);
@@ -607,16 +622,16 @@ suite('CryptoSyncService (integration, scratch DB)', () => {
       expect(await service.heldAssets(connectionId)).toEqual(['BTC']);
 
       // Next run: SOL zero again -> no further row.
-      await service.syncConnection(connectionId, 'incremental');
+      await service.syncConnection(connectionId, 'incremental', ORG);
       expect(await snapshots('SOL')).toHaveLength(2);
 
       // BTC disappears from the response entirely -> one zero row.
       adapter.balances = [];
-      await service.syncConnection(connectionId, 'incremental');
+      await service.syncConnection(connectionId, 'incremental', ORG);
       const btc = await snapshots('BTC');
       expect(btc).toHaveLength(4); // 1, 1, 1, then the zero row
       expect(sum(btc[3])).toBe(0);
-      await service.syncConnection(connectionId, 'incremental');
+      await service.syncConnection(connectionId, 'incremental', ORG);
       expect(await snapshots('BTC')).toHaveLength(4);
       expect(await service.heldAssets(connectionId)).toEqual([]);
     });
@@ -636,12 +651,12 @@ suite('CryptoSyncService (integration, scratch DB)', () => {
         ],
       },
     };
-    await service.syncConnection(connectionId, 'initial');
+    await service.syncConnection(connectionId, 'initial', ORG);
     expect(adapter.queries[0].since).toBeUndefined();
     expect(adapter.queries[0].knownAssets).toBeUndefined();
 
     adapter.queries = [];
-    await service.syncConnection(connectionId, 'incremental');
+    await service.syncConnection(connectionId, 'incremental', ORG);
     expect([...adapter.queries[0].knownAssets].sort()).toEqual([
       'ADA',
       'BNB',
@@ -655,7 +670,7 @@ suite('CryptoSyncService (integration, scratch DB)', () => {
       .where({ id: connectionId })
       .update({ last_error: 'old problem' });
     adapter.pages = { start: { records: [rec(1)] } };
-    const run = await make().syncConnection(connectionId, 'initial');
+    const run = await make().syncConnection(connectionId, 'initial', ORG);
     expect(run).toMatchObject({
       connectionId,
       kind: 'initial',
@@ -671,7 +686,7 @@ suite('CryptoSyncService (integration, scratch DB)', () => {
   });
 
   describe('review fixes', () => {
-    const lockKey = () => `crypto:sync:lock:${connectionId}`;
+    const lockKey = () => cryptoSyncLockKey(ORG, connectionId);
     const insertRun = (extra: Record<string, unknown>) =>
       db('crypto_sync_runs').insert({
         connection_id: connectionId,
@@ -684,7 +699,7 @@ suite('CryptoSyncService (integration, scratch DB)', () => {
     it('I1: a balances schema error stores unparsed, keeps history going, and leaves the run partial and initial incomplete', async () => {
       adapter.balanceError = new ExchangeSchemaError('bad', { odd: true });
       adapter.pages = { start: { records: [rec(1)] } };
-      const run = await make().syncConnection(connectionId, 'initial');
+      const run = await make().syncConnection(connectionId, 'initial', ORG);
       expect(run.status).toBe('partial');
       expect(run.continuation).toBe(false);
       expect(adapter.calls).toEqual(['balances', 'history']);
@@ -703,7 +718,7 @@ suite('CryptoSyncService (integration, scratch DB)', () => {
       // After page 1 another worker "owns" the lock (ours expired).
       adapter.onHistory = () => redisStore.set(lockKey(), 'someone-else');
       await expect(
-        make().syncConnection(connectionId, 'initial'),
+        make().syncConnection(connectionId, 'initial', ORG),
       ).rejects.toBeInstanceOf(ExchangeNetworkError);
       expect(adapter.queries).toHaveLength(1);
       const [run] = await db('crypto_sync_runs').where({
@@ -729,7 +744,7 @@ suite('CryptoSyncService (integration, scratch DB)', () => {
       const run = await make({
         now: () => new Date(t),
         sliceBudgetMs: 7 * 60_000,
-      }).syncConnection(connectionId, 'initial');
+      }).syncConnection(connectionId, 'initial', ORG);
       // Pages at +0 and +4 min are fetched; the check at +8 min stops the slice.
       expect(adapter.queries.map((q) => q.cursor)).toEqual([undefined, 'c2']);
       expect(run.status).toBe('partial');
@@ -745,10 +760,11 @@ suite('CryptoSyncService (integration, scratch DB)', () => {
       const slice = await make({ maxPagesPerRun: 1 }).syncConnection(
         connectionId,
         'initial',
+        ORG,
       );
       expect(slice.status).toBe('partial');
       expect(slice.continuation).toBe(true);
-      const done = await make().syncConnection(connectionId, 'initial');
+      const done = await make().syncConnection(connectionId, 'initial', ORG);
       expect(done.status).toBe('succeeded');
       expect(done.continuation).toBe(false);
     });
@@ -757,7 +773,7 @@ suite('CryptoSyncService (integration, scratch DB)', () => {
       adapter.pages = { start: new ExchangeSchemaError('bad', { odd: 1 }) };
       const service = make();
       for (let i = 1; i <= 3; i++) {
-        const run = await service.syncConnection(connectionId, 'initial');
+        const run = await service.syncConnection(connectionId, 'initial', ORG);
         expect(run.status).toBe('partial');
         expect(run.continuation).toBe(false);
         expect(JSON.parse(run.errors)[0].code).toBe('SCHEMA_DRIFT');
@@ -774,9 +790,9 @@ suite('CryptoSyncService (integration, scratch DB)', () => {
         c2: new ExchangeSchemaError('bad', { odd: 1 }),
       };
       const service = make({ maxPagesPerRun: 1 });
-      await service.syncConnection(connectionId, 'initial'); // advances to c2
-      await service.syncConnection(connectionId, 'initial'); // blocked at c2
-      await service.syncConnection(connectionId, 'initial'); // blocked at c2
+      await service.syncConnection(connectionId, 'initial', ORG); // advances to c2
+      await service.syncConnection(connectionId, 'initial', ORG); // blocked at c2
+      await service.syncConnection(connectionId, 'initial', ORG); // blocked at c2
       // Only two blocked runs share a cursor (the first run was a good slice).
       expect((await connection()).status).toBe('active');
     });
@@ -786,7 +802,7 @@ suite('CryptoSyncService (integration, scratch DB)', () => {
       const [runId] = await insertRun({
         finished_at: new Date(Date.now() + 1000),
       });
-      const run = await make().syncConnection(connectionId, 'manual');
+      const run = await make().syncConnection(connectionId, 'manual', ORG);
       expect(run.id).toBe(runId);
       expect(run.continuation).toBe(false);
       expect(adapter.calls).toEqual([]);
@@ -799,7 +815,7 @@ suite('CryptoSyncService (integration, scratch DB)', () => {
         started_at: new Date(Date.now() - 20 * 60_000),
       });
       await expect(
-        make({ lockPollMs: 1 }).syncConnection(connectionId, 'manual'),
+        make({ lockPollMs: 1 }).syncConnection(connectionId, 'manual', ORG),
       ).rejects.toThrow(/already starting/);
     });
 
@@ -810,17 +826,17 @@ suite('CryptoSyncService (integration, scratch DB)', () => {
         .update({ status: 'paused' });
       for (const kind of ['initial', 'incremental', 'manual'] as const) {
         await expect(
-          make().syncConnection(connectionId, kind),
+          make().syncConnection(connectionId, kind, ORG),
         ).rejects.toMatchObject({ retryable: false });
       }
       await db('crypto_connections')
         .where({ id: connectionId })
         .update({ status: 'error' });
       await expect(
-        make().syncConnection(connectionId, 'incremental'),
+        make().syncConnection(connectionId, 'incremental', ORG),
       ).rejects.toBeInstanceOf(ExchangeError);
       expect(adapter.calls).toEqual([]);
-      const run = await make().syncConnection(connectionId, 'manual');
+      const run = await make().syncConnection(connectionId, 'manual', ORG);
       expect(run.status).toBe('succeeded');
     });
   });

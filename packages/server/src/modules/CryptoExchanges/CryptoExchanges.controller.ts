@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  ForbiddenException,
   Delete,
   Get,
   HttpCode,
@@ -10,6 +11,7 @@ import {
   Patch,
   Post,
   Query,
+  Req,
   UseFilters,
   UseGuards,
 } from '@nestjs/common';
@@ -19,6 +21,7 @@ import { AuthorizationGuard } from '@/modules/Roles/Authorization.guard';
 import { PermissionGuard } from '@/modules/Roles/Permission.guard';
 import { RequirePermission } from '@/modules/Roles/RequirePermission.decorator';
 import { AbilitySubject } from '@/modules/Roles/Roles.types';
+import { AccountAction } from '@/modules/Accounts/Accounts.types';
 import { CryptoExchangeAction as Action } from './CryptoExchanges.constants';
 import { CryptoExchangeExceptionFilter } from './CryptoExchanges.filter';
 import { ERROR_NOTE, EXAMPLES, res } from './CryptoExchanges.swagger';
@@ -87,6 +90,8 @@ export class CryptoExchangesController {
   @ApiOperation({
     summary:
       'Connect an exchange with a read-only API key (422 KEY_HAS_EXTRA_PERMISSIONS / ATTESTATION_REQUIRED).',
+    description:
+      'Needs Create on CryptoExchange; with `createAccount: true` it also needs Create on Account (403 otherwise).',
   })
   @ApiResponse(
     res(201, 'The created connection; snake_case keys.', EXAMPLES.connection),
@@ -133,7 +138,20 @@ export class CryptoExchangesController {
       },
     ),
   )
-  createCryptoConnection(@Body() dto: CreateCryptoConnectionDto) {
+  createCryptoConnection(
+    @Body() dto: CreateCryptoConnectionDto,
+    @Req() request?: { ability?: { can: (a: string, s: string) => boolean } },
+  ) {
+    // `createAccount: true` also writes to the chart of accounts, so it needs the
+    // Account Create permission on top of CryptoExchange Create (fails closed).
+    if (
+      dto.createAccount === true &&
+      !request?.ability?.can(AccountAction.CREATE, AbilitySubject.Account)
+    ) {
+      throw new ForbiddenException(
+        'You do not have permission to Create Account',
+      );
+    }
     return this.createConnection.execute(dto);
   }
 

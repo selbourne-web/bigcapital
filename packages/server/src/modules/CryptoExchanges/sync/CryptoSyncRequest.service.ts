@@ -3,7 +3,10 @@ import { HttpException, HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { RedisService } from '@liaoliaots/nestjs-redis';
 import { ClsService } from 'nestjs-cls';
 import { ServiceError } from '@/modules/Items/ServiceError';
-import { CRYPTO_CONNECTION_ERRORS as ERRORS } from '../CryptoExchanges.constants';
+import {
+  CRYPTO_CONNECTION_ERRORS as ERRORS,
+  cryptoManualJobId,
+} from '../CryptoExchanges.constants';
 import { CryptoConnection } from '../models/CryptoConnection';
 import { CryptoConnectionRepository } from '../commands/CryptoConnection.repository';
 import { CryptoSyncScheduler } from './CryptoSync.scheduler';
@@ -120,7 +123,7 @@ export class CryptoSyncRequestService {
         connection,
         String(organizationId),
         'manual',
-        `crypto-sync-manual-${connection.id}-${randomUUID()}`,
+        cryptoManualJobId(String(organizationId), connection.id, randomUUID()),
       );
     } catch (error) {
       // Nothing was queued: do not make the user wait out the cooldown.

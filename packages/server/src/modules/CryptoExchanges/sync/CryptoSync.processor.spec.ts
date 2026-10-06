@@ -120,7 +120,11 @@ describe('CryptoSyncProcessor', () => {
     await t.processor.process(job());
 
     expect(t.syncSeen).toEqual([{ organizationId: ORG, userId: 77 }]);
-    expect(t.syncService.syncConnection).toHaveBeenCalledWith(7, 'incremental');
+    expect(t.syncService.syncConnection).toHaveBeenCalledWith(
+      7,
+      'incremental',
+      ORG,
+    );
     expect(t.order.indexOf('cls.set:organizationId')).toBeLessThan(
       t.order.indexOf('connections.findById'),
     );
@@ -160,7 +164,11 @@ describe('CryptoSyncProcessor', () => {
     it('a manual run on an error connection is allowed', async () => {
       const t = setup(connectionRow({ status: 'error' }));
       await t.processor.process(job('manual'));
-      expect(t.syncService.syncConnection).toHaveBeenCalledWith(7, 'manual');
+      expect(t.syncService.syncConnection).toHaveBeenCalledWith(
+        7,
+        'manual',
+        ORG,
+      );
     });
 
     it('a manual run on a paused or archived connection is still skipped', async () => {

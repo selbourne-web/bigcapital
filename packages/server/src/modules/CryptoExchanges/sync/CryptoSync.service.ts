@@ -23,7 +23,10 @@ import {
   ExchangeSchemaError,
   KeyHasExtraPermissionsError,
 } from '../adapters/errors';
-import { CryptoSyncKind } from '../CryptoExchanges.constants';
+import {
+  CryptoSyncKind,
+  cryptoSyncLockKey,
+} from '../CryptoExchanges.constants';
 import { redactSecrets } from '../utils/redact';
 import { RateLimiter } from './RateLimiter.service';
 import {
@@ -64,7 +67,6 @@ class SyncLockLostError extends ExchangeNetworkError {
 }
 
 const LOCK_TTL_MS = 10 * 60_000;
-const LOCK_KEY = (id: number) => `crypto:sync:lock:${id}`;
 /** Deletes the lock only if it still holds our token. */
 const RELEASE_LOCK_LUA = `if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end`;
 /** Clock-skew overlap; adapters add their own, larger, overlap where needed. */
@@ -145,6 +147,7 @@ export class CryptoSyncService {
   async syncConnection(
     connectionId: number,
     kind: CryptoSyncKind,
+    organizationId: string,
   ): Promise<CryptoSyncResult> {
     const connection = await this.connectionModel()
       .query()
@@ -165,7 +168,7 @@ export class CryptoSyncService {
 
     const attemptedAt = this.now();
     const redis = this.redisService.getOrThrow();
-    const key = LOCK_KEY(connectionId);
+    const key = cryptoSyncLockKey(organizationId, connectionId);
     const token = randomBytes(16).toString('hex');
     const locked = await redis.set(key, token, 'PX', LOCK_TTL_MS, 'NX');
     if (locked !== 'OK') {

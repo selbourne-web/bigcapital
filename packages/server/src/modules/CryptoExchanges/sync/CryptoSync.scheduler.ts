@@ -53,7 +53,7 @@ export class CryptoSyncScheduler {
 
   /**
    * Registers (or updates) the repeatable `incremental` job of a connection:
-   * scheduler id `crypto-sync:<id>`, every `crypto.syncIntervalMs`.
+   * scheduler id `crypto-sync:<organization>:<id>`, every `crypto.syncIntervalMs`.
    */
   async schedule(
     connection: ConnectionRef,
@@ -65,7 +65,7 @@ export class CryptoSyncScheduler {
       kind: 'incremental',
     };
     await this.queueFor(connection.exchange).upsertJobScheduler(
-      cryptoScheduleId(connection.id),
+      cryptoScheduleId(organizationId, connection.id),
       { every: this.intervalMs() },
       {
         name: CRYPTO_SYNC_JOB,
@@ -121,16 +121,27 @@ export class CryptoSyncScheduler {
    * tried. A job that is running or locked is left; the processor skips it
    * because the connection is paused or archived by then.
    */
-  async unschedule(connectionId: number): Promise<void> {
+  async unschedule(
+    organizationId: string,
+    connectionId: number,
+  ): Promise<void> {
     for (const queue of Object.values(this.queues)) {
-      await queue.removeJobScheduler(cryptoScheduleId(connectionId));
+      await queue.removeJobScheduler(
+        cryptoScheduleId(organizationId, connectionId),
+      );
       const pending = await queue.getJobs(
         ['waiting', 'delayed', 'prioritized'],
         0,
         PENDING_SCAN_LIMIT - 1,
       );
       for (const pendingJob of pending) {
-        if (pendingJob?.data?.connectionId !== connectionId) continue;
+        // The queues are shared by all tenants, whose connection ids collide.
+        if (
+          pendingJob?.data?.connectionId !== connectionId ||
+          String(pendingJob?.data?.organizationId) !== String(organizationId)
+        ) {
+          continue;
+        }
         try {
           await pendingJob.remove();
         } catch (error) {

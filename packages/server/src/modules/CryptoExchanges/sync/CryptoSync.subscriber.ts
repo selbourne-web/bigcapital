@@ -4,7 +4,7 @@ import {
   CryptoConnectionEventPayload,
   cryptoEvents,
 } from '../CryptoExchanges.events';
-import { CryptoSyncKind } from '../CryptoExchanges.constants';
+import { CryptoSyncKind, cryptoStartJobId } from '../CryptoExchanges.constants';
 import { CryptoConnectionRepository } from '../commands/CryptoConnection.repository';
 import { CryptoConnection } from '../models/CryptoConnection';
 import { runAfterTransaction } from '@/modules/Tenancy/TenancyDB/TransactionsHooks';
@@ -41,7 +41,7 @@ export class CryptoSyncConnectionSubscriber {
         connection,
         organizationId,
         'initial',
-        this.startJobId(connection.id, 'initial'),
+        cryptoStartJobId(organizationId, connection.id, 'initial'),
       );
       await this.scheduler.schedule(connection, organizationId);
     });
@@ -74,32 +74,29 @@ export class CryptoSyncConnectionSubscriber {
         connection,
         organizationId,
         kind,
-        this.startJobId(connection.id, kind),
+        cryptoStartJobId(organizationId, connection.id, kind),
       );
     });
   }
 
   @OnEvent(cryptoEvents.connection.paused)
   async onPaused(payload: CryptoConnectionEventPayload): Promise<void> {
-    this.afterCommit(payload, 'paused', () =>
-      this.scheduler.unschedule(payload.connectionId),
-    );
+    this.afterCommit(payload, 'paused', (organizationId) => {
+      this.requireOrganization(organizationId);
+      return this.scheduler.unschedule(organizationId, payload.connectionId);
+    });
   }
 
   @OnEvent(cryptoEvents.connection.deleted)
   async onDeleted(payload: CryptoConnectionEventPayload): Promise<void> {
-    this.afterCommit(payload, 'deleted', () =>
-      this.scheduler.unschedule(payload.connectionId),
-    );
+    this.afterCommit(payload, 'deleted', (organizationId) => {
+      this.requireOrganization(organizationId);
+      return this.scheduler.unschedule(organizationId, payload.connectionId);
+    });
   }
 
   private requireOrganization(organizationId: string): void {
     if (!organizationId) throw new Error('event has no organization id');
-  }
-
-  /** Fixed per connection+kind: repeated events collapse into one pending job. */
-  private startJobId(connectionId: number, kind: CryptoSyncKind): string {
-    return `crypto-sync-start-${connectionId}-${kind}`;
   }
 
   /** The row as committed, only if it may sync (not archived, status active). */

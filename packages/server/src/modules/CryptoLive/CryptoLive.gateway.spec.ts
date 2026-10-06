@@ -6,6 +6,8 @@ import { MESSAGE_MAPPING_METADATA } from '@nestjs/websockets/constants';
 import { TenantModel } from '../System/models/TenantModel';
 import { SystemUser } from '../System/models/SystemUser';
 import { UserTenant } from '../System/models/UserTenant.model';
+import { ClsService } from 'nestjs-cls';
+import { TenantUser } from '../Tenancy/TenancyModels/models/TenantUser.model';
 import { PriceFeedManager } from '../CryptoPrices/PriceFeedManager.service';
 import { PriceCache } from '../CryptoPrices/PriceCache.service';
 import { SocketGateway } from '../Socket/Socket.gateway';
@@ -780,6 +782,8 @@ describe('Nest wiring (real providers, stubbed externals)', () => {
         { provide: SystemUser.name, useValue: {} },
         { provide: TenantModel.name, useValue: {} },
         { provide: UserTenant.name, useValue: {} },
+        { provide: ClsService, useValue: {} },
+        { provide: TenantUser.name, useValue: () => ({}) },
         { provide: PriceFeedManager, useValue: fakePrices().manager },
         { provide: PriceCache, useValue: { all: async () => [] } },
       ],

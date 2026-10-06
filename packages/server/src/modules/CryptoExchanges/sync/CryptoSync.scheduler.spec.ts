@@ -5,6 +5,11 @@ import { cryptoEvents } from '../CryptoExchanges.events';
 import {
   CRYPTO_SYNC_BINANCE_QUEUE,
   CRYPTO_SYNC_KRAKEN_QUEUE,
+  cryptoContinuationJobId,
+  cryptoManualJobId,
+  cryptoScheduleId,
+  cryptoStartJobId,
+  cryptoSyncLockKey,
   queueNameFor,
 } from '../CryptoExchanges.constants';
 
@@ -84,7 +89,7 @@ describe('CryptoSyncScheduler', () => {
 
     expect(binance.upsertJobScheduler).not.toHaveBeenCalled();
     const [id, repeat, tpl] = kraken.upsertJobScheduler.mock.calls[0];
-    expect(id).toBe('crypto-sync:7');
+    expect(id).toBe('crypto-sync:42:7');
     expect(repeat).toEqual({ every: 120000 });
     expect(tpl.data).toEqual({
       connectionId: 7,
@@ -118,23 +123,23 @@ describe('CryptoSyncScheduler', () => {
       { id: 7, exchange: 'kraken' } as any,
       '42',
       'initial',
-      'crypto-sync-start-7-initial',
+      cryptoStartJobId('42', 7, 'initial'),
     );
     await scheduler.enqueue(
       { id: 8, exchange: 'kraken' } as any,
       '42',
       'initial',
-      'crypto-sync-start-8-initial',
+      cryptoStartJobId('42', 8, 'initial'),
     );
 
-    await scheduler.unschedule(7);
-    await scheduler.unschedule(7); // idempotent
+    await scheduler.unschedule('42', 7);
+    await scheduler.unschedule('42', 7); // idempotent
 
-    expect(kraken.schedulers.has('crypto-sync:7')).toBe(false);
-    expect(kraken.removeJobScheduler).toHaveBeenCalledWith('crypto-sync:7');
-    expect(binance.removeJobScheduler).toHaveBeenCalledWith('crypto-sync:7');
-    expect(kraken.removedJobs).toContain('crypto-sync-start-7-initial');
-    expect(kraken.removedJobs).not.toContain('crypto-sync-start-8-initial');
+    expect(kraken.schedulers.has('crypto-sync:42:7')).toBe(false);
+    expect(kraken.removeJobScheduler).toHaveBeenCalledWith('crypto-sync:42:7');
+    expect(binance.removeJobScheduler).toHaveBeenCalledWith('crypto-sync:42:7');
+    expect(kraken.removedJobs).toContain('crypto-sync-start-42-7-initial');
+    expect(kraken.removedJobs).not.toContain('crypto-sync-start-42-8-initial');
   });
 
   it('a job that cannot be removed (running) does not make unschedule fail', async () => {
@@ -142,13 +147,13 @@ describe('CryptoSyncScheduler', () => {
     kraken.getJobs.mockResolvedValueOnce([
       {
         id: 'x',
-        data: { connectionId: 7 },
+        data: { connectionId: 7, organizationId: '42' },
         remove: async () => {
           throw new Error('job is locked');
         },
       },
     ] as any);
-    await expect(scheduler.unschedule(7)).resolves.toBeUndefined();
+    await expect(scheduler.unschedule('42', 7)).resolves.toBeUndefined();
   });
 
   describe('enqueue with an existing job of the same id', () => {
@@ -239,6 +244,52 @@ const flush = async () => {
   await new Promise((r) => setImmediate(r));
 };
 
+describe('tenant isolation (every tenant has a connection id 1)', () => {
+  const conn = { id: 1, exchange: 'kraken' } as any;
+
+  it('schedule ids, job ids and lock keys never collide across tenants', () => {
+    const ids = (org: string) => [
+      cryptoScheduleId(org, 1),
+      cryptoStartJobId(org, 1, 'initial'),
+      cryptoContinuationJobId(org, 1, 9),
+      cryptoManualJobId(org, 1, 'n'),
+      cryptoSyncLockKey(org, 1),
+    ];
+    const a = ids('org-a');
+    const b = ids('org-b');
+    expect(a.filter((id) => b.includes(id))).toEqual([]);
+    expect(new Set([...a, ...b]).size).toBe(10);
+  });
+
+  it('two tenants keep separate repeatables and start jobs; unscheduling one leaves the other', async () => {
+    const { scheduler, kraken, binance } = makeScheduler();
+    for (const org of ['org-a', 'org-b']) {
+      await scheduler.schedule(conn, org);
+      await scheduler.enqueue(
+        conn,
+        org,
+        'initial',
+        cryptoStartJobId(org, 1, 'initial'),
+      );
+    }
+    expect(kraken.schedulers.size).toBe(2);
+    expect(kraken.jobs).toHaveLength(2);
+
+    await scheduler.unschedule('org-a', 1);
+
+    expect([...kraken.schedulers.keys()]).toEqual([
+      cryptoScheduleId('org-b', 1),
+    ]);
+    expect(kraken.removedJobs).toEqual([
+      cryptoStartJobId('org-a', 1, 'initial'),
+    ]);
+    expect(binance.removeJobScheduler).not.toHaveBeenCalledWith(
+      cryptoScheduleId('org-b', 1),
+    );
+    expect(kraken.jobs.map((j) => j.data.organizationId)).toContain('org-b');
+  });
+});
+
 describe('CryptoSyncConnectionSubscriber', () => {
   const makeSubscriber = (conn: any) => {
     const scheduler = {
@@ -315,7 +366,7 @@ describe('CryptoSyncConnectionSubscriber', () => {
       expect(scheduler.unschedule).not.toHaveBeenCalled();
       a.commit();
       await flush();
-      expect(scheduler.unschedule).toHaveBeenCalledWith(7);
+      expect(scheduler.unschedule).toHaveBeenCalledWith('42', 7);
 
       const b = makeSubscriber(null);
       const t = makeTrx();

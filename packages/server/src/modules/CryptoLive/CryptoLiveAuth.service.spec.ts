@@ -1,6 +1,7 @@
 import { JwtService } from '@nestjs/jwt';
 import { JWT_AUDIENCE, JWT_ISSUER } from '../Auth/Auth.constants';
 import { CryptoLiveAuth, CryptoLiveAuthError } from './CryptoLiveAuth.service';
+import { purgeTenantAbilities } from '../Roles/TenantAbilities';
 
 // Test-only secret; never a real one.
 const SECRET = 'unit-test-secret-not-real-0123456789';
@@ -31,22 +32,75 @@ const model = (rows: Record<string, unknown>[]) =>
     }),
   }) as any;
 
+/** Tenant-user fake: records the CLS keys set while the lookup ran. */
+const tenantUsers = (rows: Record<string, any>[]) => {
+  const store = new Map<string, unknown>();
+  const seen: Record<string, unknown>[] = [];
+  const cls = {
+    run: async (fn: () => Promise<unknown>) => fn(),
+    set: (k: string, v: unknown) => store.set(k, v),
+  };
+  const proxy = () => ({
+    query: () => ({
+      findOne: (_col: string, id: number) => ({
+        withGraphFetched: async () => {
+          seen.push(Object.fromEntries(store));
+          return rows.find((r) => r.systemUserId === id);
+        },
+      }),
+    }),
+  });
+  return { cls: cls as any, proxy: proxy as any, seen };
+};
+
+const ADMIN = { slug: 'admin', permissions: [] };
+const viewer = {
+  slug: 'viewer',
+  permissions: [{ ability: 'View', subject: 'CryptoExchange', value: true }],
+};
+const noCrypto = {
+  slug: 'ops',
+  permissions: [
+    { ability: 'View', subject: 'Item', value: true },
+    { ability: 'View', subject: 'CryptoExchange', value: false },
+  ],
+};
+
 const build = (
-  overrides: { users?: any[]; tenants?: any[]; memberships?: any[] } = {},
+  overrides: {
+    users?: any[];
+    tenants?: any[];
+    memberships?: any[];
+    role?: any;
+    tenantUsers?: any[];
+  } = {},
 ) => {
+  purgeTenantAbilities('org-a');
+  purgeTenantAbilities('org-b');
   const users = overrides.users ?? [{ id: 7 }, { id: 8 }];
   const tenants = overrides.tenants ?? [
     { id: 1, organizationId: 'org-a' },
     { id: 2, organizationId: 'org-b' },
   ];
   const memberships = overrides.memberships ?? [{ userId: 7, tenantId: 1 }];
+  const tu = tenantUsers(
+    overrides.tenantUsers ?? [
+      { systemUserId: 7, role: overrides.role ?? ADMIN },
+      { systemUserId: 8, role: overrides.role ?? ADMIN },
+    ],
+  );
+  lastSeen = tu.seen;
   return new CryptoLiveAuth(
     { get: (k: string) => (k === 'jwt.secret' ? SECRET : undefined) } as any,
     model(users),
     model(tenants),
     model(memberships),
+    tu.cls,
+    tu.proxy,
   );
 };
+
+let lastSeen: Record<string, unknown>[] = [];
 
 const category = async (p: Promise<unknown>) => {
   const error = await p.then(
@@ -73,6 +127,40 @@ describe('CryptoLiveAuth.authenticate', () => {
     expect(await category(build().authenticate(sign(), 'org-b'))).toBe(
       'not-member',
     );
+  });
+
+  it('allows a role with View on CryptoExchange and resolves it in the tenant CLS context', async () => {
+    const result = await build({ role: viewer }).authenticate(sign(), 'org-a');
+    expect(result.userId).toBe(7);
+    expect(lastSeen).toEqual([{ organizationId: 'org-a', userId: 7 }]);
+  });
+
+  it('refuses a member whose role lacks (or explicitly denies) View on CryptoExchange', async () => {
+    expect(
+      await category(build({ role: noCrypto }).authenticate(sign(), 'org-a')),
+    ).toBe('forbidden');
+    expect(
+      await category(
+        build({ role: { slug: 'x', permissions: [] } }).authenticate(
+          sign(),
+          'org-a',
+        ),
+      ),
+    ).toBe('forbidden');
+  });
+
+  it('refuses a member with no tenant user row or no role (fail closed)', async () => {
+    expect(
+      await category(build({ tenantUsers: [] }).authenticate(sign(), 'org-a')),
+    ).toBe('forbidden');
+    expect(
+      await category(
+        build({ tenantUsers: [{ systemUserId: 7, role: null }] }).authenticate(
+          sign(),
+          'org-a',
+        ),
+      ),
+    ).toBe('forbidden');
   });
 
   it('refuses an unknown organization', async () => {
@@ -172,7 +260,14 @@ describe('CryptoLiveAuth.authenticate', () => {
   it('fails construction when the JWT secret is not configured', () => {
     expect(
       () =>
-        new CryptoLiveAuth({ get: () => undefined } as any, null, null, null),
+        new CryptoLiveAuth(
+          { get: () => undefined } as any,
+          null,
+          null,
+          null,
+          null,
+          null,
+        ),
     ).toThrow(/APP_JWT_SECRET/);
   });
 });

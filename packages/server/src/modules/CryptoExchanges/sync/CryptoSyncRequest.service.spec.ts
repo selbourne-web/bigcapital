@@ -65,7 +65,7 @@ describe('CryptoSyncRequestService.requestManualSync', () => {
     expect(conn).toMatchObject({ id: 7, exchange: 'kraken' });
     expect(org).toBe('org-1');
     expect(kind).toBe('manual');
-    expect(jobId).toMatch(/^crypto-sync-manual-7-[\w-]+$/);
+    expect(jobId).toMatch(/^crypto-sync-manual-org-1-7-[\w-]+$/);
     expect(jobId).not.toContain(':');
     expect([...redis.store.keys()]).toEqual(['crypto:manual-sync:org-1:7']);
     expect(redis.store.get('crypto:manual-sync:org-1:7')).toBe(

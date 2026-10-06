@@ -11,6 +11,7 @@ import {
   CRYPTO_SYNC_BINANCE_QUEUE,
   CRYPTO_SYNC_KRAKEN_QUEUE,
   CryptoSyncKind,
+  cryptoContinuationJobId,
 } from '../CryptoExchanges.constants';
 import {
   CRYPTO_LIVE_EMITTER,
@@ -89,7 +90,11 @@ export class CryptoSyncProcessor {
 
     let result: CryptoSyncResult;
     try {
-      result = await this.syncService.syncConnection(connectionId, kind);
+      result = await this.syncService.syncConnection(
+        connectionId,
+        kind,
+        organizationId,
+      );
     } catch (error) {
       if (error instanceof ExchangeError && !error.retryable) {
         // Auth / extra permissions / refused state: the service already
@@ -131,7 +136,7 @@ export class CryptoSyncProcessor {
         connection,
         organizationId,
         connection.initialSyncCompletedAt ? 'incremental' : 'initial',
-        `crypto-sync-cont-${connectionId}-${result.id}`,
+        cryptoContinuationJobId(organizationId, connectionId, result.id),
       );
       continued = true;
     }

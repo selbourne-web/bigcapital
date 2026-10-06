@@ -113,6 +113,13 @@ const pipe = new ValidationPipe();
 const validate = (metatype: any, value: unknown, type = 'body') =>
   pipe.transform(value, { metatype, type } as any);
 
+const withAccount = {
+  ability: new Ability([
+    { action: 'Create', subject: AbilitySubject.CryptoExchange },
+    { action: 'Create', subject: AbilitySubject.Account },
+  ]),
+};
+
 const createBody = {
   exchange: 'kraken',
   label: 'Kraken - Trading',
@@ -243,7 +250,7 @@ describe('CryptoExchangesController delegation', () => {
       isAdmin: true,
     })) as CreateCryptoConnectionDto;
 
-    const result = await controller.createCryptoConnection(dto);
+    const result = await controller.createCryptoConnection(dto, withAccount);
 
     expect(dto).not.toHaveProperty('isAdmin'); // whitelist strips unknown fields
     expect(mocks.create.execute).toHaveBeenCalledWith(dto);
@@ -366,8 +373,35 @@ describe('CryptoExchangesController delegation', () => {
     mocks.create.execute.mockRejectedValueOnce(failure);
 
     await expect(
-      controller.createCryptoConnection(createBody as any),
+      controller.createCryptoConnection(createBody as any, withAccount),
     ).rejects.toBe(failure);
+  });
+
+  describe('createAccount needs Account Create too', () => {
+    const noAccount = {
+      ability: new Ability([
+        { action: 'Create', subject: AbilitySubject.CryptoExchange },
+      ]),
+    };
+
+    it('refuses createAccount:true without Account Create, before touching the service', async () => {
+      const { controller, mocks } = makeController();
+      expect(() =>
+        controller.createCryptoConnection(createBody as any, noAccount),
+      ).toThrow(ForbiddenException);
+      expect(() =>
+        controller.createCryptoConnection(createBody as any),
+      ).toThrow(ForbiddenException);
+      expect(mocks.create.execute).not.toHaveBeenCalled();
+    });
+
+    it('allows createAccount:true with Account Create, and no-account creates without it', async () => {
+      const { controller, mocks } = makeController();
+      await controller.createCryptoConnection(createBody as any, withAccount);
+      const { createAccount: _ignored, ...plain } = createBody;
+      await controller.createCryptoConnection(plain as any, noAccount);
+      expect(mocks.create.execute).toHaveBeenCalledTimes(2);
+    });
   });
 });
 
