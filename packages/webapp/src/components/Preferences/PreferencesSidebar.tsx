@@ -6,6 +6,7 @@ import PreferencesSidebarContainer from './PreferencesSidebarContainer';
 import { FormattedMessage as T } from '@/components';
 import { PreferencesMenu } from '@/constants/preferencesMenu';
 import { useFeatureCan } from '@/hooks/state/feature';
+import { useAbilityContext } from '@/hooks/utils';
 
 import '@/style/pages/Preferences/Sidebar.scss';
 
@@ -16,9 +17,16 @@ export default function PreferencesSidebar() {
   const history = useHistory();
   const location = useLocation();
   const { featureCan } = useFeatureCan();
+  const ability = useAbilityContext();
 
   const items = PreferencesMenu.filter((item) => {
     if (item.feature && !featureCan(item.feature)) {
+      return false;
+    }
+    if (
+      item.permission &&
+      !ability.can(item.permission.ability, item.permission.subject)
+    ) {
       return false;
     }
     return true;

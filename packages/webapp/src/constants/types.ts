@@ -26,6 +26,8 @@ export interface PreferencesMenuItem {
   disabled?: boolean;
   href: string;
   feature?: string;
+  /** Hides the item unless the user holds this ability. */
+  permission?: PermissionOption;
 }
 
 export interface QuickNewActionOption {

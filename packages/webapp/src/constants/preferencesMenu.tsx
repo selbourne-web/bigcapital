@@ -1,6 +1,7 @@
 import React from 'react';
 import type { PreferencesMenuItem } from './types';
 import { FormattedMessage as T } from '@/components';
+import { AbilitySubject } from '@/constants/abilityOption';
 import { Features } from '@/constants/features';
 
 export const PreferencesMenu: PreferencesMenuItem[] = [
@@ -26,6 +27,11 @@ export const PreferencesMenu: PreferencesMenuItem[] = [
     text: 'Security',
     disabled: false,
     href: '/preferences/security',
+  },
+  {
+    text: 'Crypto Connections',
+    href: '/preferences/crypto-connections',
+    permission: { ability: 'View', subject: AbilitySubject.CryptoExchange },
   },
   {
     text: 'Payment Methods',

@@ -32,6 +32,17 @@ export const getPreferenceRoutes = () => [
     exact: true,
   },
   {
+    path: `${BASE_URL}/crypto-connections`,
+    component: lazy(() =>
+      import(
+        '@/containers/Preferences/CryptoConnections/CryptoConnections'
+      ).then((m) => ({
+        default: m.CryptoConnections,
+      })),
+    ),
+    exact: true,
+  },
+  {
     path: `${BASE_URL}/users`,
     component: lazy(() =>
       import('../containers/Preferences/Users/Users').then((m) => ({
