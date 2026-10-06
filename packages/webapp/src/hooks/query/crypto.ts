@@ -4,7 +4,9 @@ import {
   useQueryClient,
   type UseQueryOptions,
 } from '@tanstack/react-query';
+import { getCookie } from '../../utils';
 import { useAuthOrganizationId, useAuthToken } from '../state';
+import { useApiFetcherOnError } from '../useApiFetcherOnError';
 
 /*
  * Crypto exchange connections: raw-fetch hooks.
@@ -18,18 +20,33 @@ import { useAuthOrganizationId, useAuthToken } from '../state';
  * SECRETS: apiKey / apiSecret / passphrase are only ever function arguments
  * of the create / rotate mutations. They are never part of a query key, never
  * written to the react-query cache (responses never contain them), never
- * stored in storage, logged, or copied into an error object. Callers should
- * hold them in local form state only and may call `mutation.reset()` after
- * use so react-query does not retain `variables` on the mutation observer.
+ * stored in storage, logged, or copied into an error object. The create and
+ * rotate mutations use `gcTime: 0` so react-query drops the mutation (and its
+ * `variables`) as soon as it has no observers. Callers should hold secrets in
+ * local form state only and may also call `mutation.reset()` after use.
+ *
+ * 401 responses go through the app's `useApiFetcherOnError` (session expired
+ * + logout), exactly like the SDK fetcher hooks; `CryptoApiError.status` is
+ * also exposed for callers.
  */
 
 export const CRYPTO_QUERY_KEYS = {
   all: ['crypto'] as const,
-  connections: ['crypto', 'connections'] as const,
-  balances: ['crypto', 'balances'] as const,
-  syncRuns: (connectionId?: number, limit?: number) =>
-    ['crypto', 'sync-runs', connectionId ?? null, limit ?? null] as const,
-  syncRunsAll: ['crypto', 'sync-runs'] as const,
+  // Keys carry the organization id so cached data never leaks across orgs.
+  connections: (org?: string | null) =>
+    ['crypto', org ?? null, 'connections'] as const,
+  balances: (org?: string | null) =>
+    ['crypto', org ?? null, 'balances'] as const,
+  syncRuns: (org?: string | null, connectionId?: number, limit?: number) =>
+    [
+      'crypto',
+      org ?? null,
+      'sync-runs',
+      connectionId ?? null,
+      limit ?? null,
+    ] as const,
+  syncRunsAll: (org?: string | null) =>
+    ['crypto', org ?? null, 'sync-runs'] as const,
 };
 
 // ---------------------------------------------------------------------------
@@ -260,7 +277,11 @@ export const parseCryptoError = (
 // Transport
 // ---------------------------------------------------------------------------
 
-type Auth = { token?: string | null; organizationId?: string | null };
+type Auth = {
+  token?: string | null;
+  organizationId?: string | null;
+  onError?: (error: unknown) => void;
+};
 
 async function cryptoRequest(
   auth: Auth,
@@ -272,6 +293,8 @@ async function cryptoRequest(
   if (auth.token) headers.Authorization = `Bearer ${auth.token}`;
   if (auth.organizationId)
     headers['organization-id'] = String(auth.organizationId);
+  const locale = getCookie('locale');
+  if (locale) headers['Accept-Language'] = locale;
   if (body !== undefined) headers['content-type'] = 'application/json';
 
   let response: Response;
@@ -291,6 +314,9 @@ async function cryptoRequest(
   }
   if (!response.ok) {
     const payload = await response.json().catch(() => null);
+    if (response.status === 401) {
+      auth.onError?.({ status: 401, data: payload });
+    }
     throw parseCryptoError(
       response.status,
       payload,
@@ -298,13 +324,23 @@ async function cryptoRequest(
     );
   }
   const text = await response.text();
-  return text ? JSON.parse(text) : null;
+  if (!text) return null;
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new CryptoApiError({
+      status: response.status,
+      code: 'INVALID_RESPONSE',
+      message: 'The server sent an unexpected response. Please try again.',
+    });
+  }
 }
 
 const useCryptoAuth = (): Auth => {
   const token = useAuthToken();
   const organizationId = useAuthOrganizationId();
-  return { token, organizationId };
+  const onError = useApiFetcherOnError();
+  return { token, organizationId, onError };
 };
 
 // ---------------------------------------------------------------------------
@@ -322,7 +358,7 @@ export function useCryptoConnections(
   const auth = useCryptoAuth();
   return useQuery<CryptoConnection[], CryptoApiError>({
     ...options,
-    queryKey: CRYPTO_QUERY_KEYS.connections,
+    queryKey: CRYPTO_QUERY_KEYS.connections(auth.organizationId),
     queryFn: async () =>
       ((await cryptoRequest(auth, 'GET', '/connections')) as Raw[]).map(
         mapCryptoConnection,
@@ -336,7 +372,7 @@ export function useCryptoBalances(
   const auth = useCryptoAuth();
   return useQuery<CryptoBalancesResponse, CryptoApiError>({
     ...options,
-    queryKey: CRYPTO_QUERY_KEYS.balances,
+    queryKey: CRYPTO_QUERY_KEYS.balances(auth.organizationId),
     queryFn: async () =>
       mapCryptoBalances(await cryptoRequest(auth, 'GET', '/balances')),
   });
@@ -350,7 +386,11 @@ export function useCryptoSyncRuns(
   const auth = useCryptoAuth();
   return useQuery<CryptoSyncRun[], CryptoApiError>({
     ...options,
-    queryKey: CRYPTO_QUERY_KEYS.syncRuns(connectionId, limit),
+    queryKey: CRYPTO_QUERY_KEYS.syncRuns(
+      auth.organizationId,
+      connectionId,
+      limit,
+    ),
     queryFn: async () => {
       const params = new URLSearchParams();
       if (connectionId !== undefined)
@@ -395,6 +435,7 @@ export function useCreateCryptoConnection() {
       mapCryptoConnection(
         await cryptoRequest(auth, 'POST', '/connections', input),
       ),
+    gcTime: 0, // never retain secret variables
     onSuccess: invalidate,
   });
 }
@@ -432,6 +473,7 @@ export function useRotateCryptoCredentials() {
           credentials,
         ),
       ),
+    gcTime: 0, // never retain secret variables
     onSuccess: invalidate,
   });
 }
@@ -465,6 +507,8 @@ export function useSyncCryptoConnection() {
       return { queued: !!res?.queued };
     },
     onSuccess: () =>
-      client.invalidateQueries({ queryKey: CRYPTO_QUERY_KEYS.syncRunsAll }),
+      client.invalidateQueries({
+        queryKey: CRYPTO_QUERY_KEYS.syncRunsAll(auth.organizationId),
+      }),
   });
 }

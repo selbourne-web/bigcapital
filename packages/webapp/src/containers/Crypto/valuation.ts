@@ -18,8 +18,18 @@ export interface HoldingRow {
 }
 
 export interface Valuation {
-  perConnection: Array<{ connectionId: number; value: number; stale: boolean }>;
-  total: number;
+  perConnection: Array<{
+    connectionId: number;
+    /** Undefined when `hasRate` is false (no fake 0). */
+    value: number | undefined;
+    stale: boolean;
+    /** True when the connection holds a non-zero asset with no price. */
+    hasUnpriced: boolean;
+  }>;
+  /** Undefined when `hasRate` is false. */
+  total: number | undefined;
+  /** False when `usdToBase` was not a finite positive rate: no base values. */
+  hasRate: boolean;
   rows: HoldingRow[];
   /** Assets with a non-zero balance and no price (valued at 0). */
   unpriced: string[];
@@ -44,7 +54,10 @@ const USD_ASSETS = new Set(['USD']);
  * Values balances (free + locked) as quantity x USD price x `usdToBase`.
  * Zero balances are omitted; assets without a price add 0 and are listed in
  * `unpriced`. A row is stale when its quote is stale or `socketConnected` is
- * false. The USD pseudo-asset is priced at 1.0. Pure; no side effects.
+ * false. The USD pseudo-asset is priced at 1.0. When `usdToBase` is not a
+ * finite positive number, `hasRate` is false and no base-currency value is
+ * produced (`valueBase`, per-connection `value` and `total` are undefined);
+ * prices, quantities and `unpriced` are still reported. Pure; no side effects.
  */
 export const valueHoldings = (
   balances: CryptoBalancesResponse | undefined,
@@ -55,21 +68,27 @@ export const valueHoldings = (
   const rows: HoldingRow[] = [];
   const perConnection: Valuation['perConnection'] = [];
   const unpriced = new Set<string>();
-  const rate = Number.isFinite(usdToBase) ? usdToBase : 0;
+  const hasRate = Number.isFinite(usdToBase) && usdToBase > 0;
 
   for (const conn of balances?.connections ?? []) {
     let value = 0;
     let stale = false;
+    let hasUnpriced = false;
     for (const b of conn.balances) {
       const quantity = parseQuantity(b.free) + parseQuantity(b.locked);
       if (quantity === 0) continue;
 
       const isUsd = USD_ASSETS.has(b.asset);
-      const quote = isUsd ? undefined : prices[b.asset];
+      const quote = isUsd
+        ? undefined
+        : Object.prototype.hasOwnProperty.call(prices, b.asset)
+          ? prices[b.asset]
+          : undefined;
       const priceUsd = isUsd ? 1 : quote?.usd;
 
       if (priceUsd === undefined) {
         unpriced.add(b.asset);
+        hasUnpriced = true;
         rows.push({
           connectionId: conn.connectionId,
           asset: b.asset,
@@ -80,9 +99,9 @@ export const valueHoldings = (
         continue;
       }
 
-      const valueBase = quantity * priceUsd * rate;
+      const valueBase = hasRate ? quantity * priceUsd * usdToBase : undefined;
       const rowStale = !isUsd && ((quote?.stale ?? false) || !socketConnected);
-      value += valueBase;
+      value += valueBase ?? 0;
       stale = stale || rowStale;
       rows.push({
         connectionId: conn.connectionId,
@@ -95,12 +114,20 @@ export const valueHoldings = (
         approximate: quote?.quote === 'USDT',
       });
     }
-    perConnection.push({ connectionId: conn.connectionId, value, stale });
+    perConnection.push({
+      connectionId: conn.connectionId,
+      value: hasRate ? value : undefined,
+      stale,
+      hasUnpriced,
+    });
   }
 
   return {
     perConnection,
-    total: perConnection.reduce((sum, c) => sum + c.value, 0),
+    total: hasRate
+      ? perConnection.reduce((sum, c) => sum + (c.value ?? 0), 0)
+      : undefined,
+    hasRate,
     rows,
     unpriced: [...unpriced],
   };

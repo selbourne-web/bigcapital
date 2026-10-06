@@ -20,7 +20,8 @@ export type PriceMap = Readonly<Record<string, PriceQuote>>;
  * replaced (never mutated) only when something actually changed, so it is
  * referentially stable between changes. No timers; one notification per call.
  */
-let snapshot: PriceMap = Object.freeze({});
+const empty = (): Record<string, PriceQuote> => Object.create(null);
+let snapshot: PriceMap = Object.freeze(empty());
 const listeners = new Set<() => void>();
 
 const emit = () => listeners.forEach((l) => l());
@@ -49,7 +50,7 @@ export const setQuotes = (quotes: PriceQuote[]): void => {
     if (!q || typeof q.asset !== 'string' || !Number.isFinite(q.usd)) continue;
     const prev = (next ?? snapshot)[q.asset];
     if (prev && sameQuote(prev, q)) continue;
-    next ??= { ...snapshot };
+    next ??= Object.assign(empty(), snapshot);
     next[q.asset] = q;
   }
   if (!next) return;
@@ -62,7 +63,7 @@ export const markAllStale = (): void => {
   let next: Record<string, PriceQuote> | null = null;
   for (const [asset, q] of Object.entries(snapshot)) {
     if (q.stale) continue;
-    next ??= { ...snapshot };
+    next ??= Object.assign(empty(), snapshot);
     next[asset] = { ...q, stale: true };
   }
   if (!next) return;
@@ -73,7 +74,7 @@ export const markAllStale = (): void => {
 /** Drops all quotes (e.g. when the organization changes). */
 export const clearQuotes = (): void => {
   if (Object.keys(snapshot).length === 0) return;
-  snapshot = Object.freeze({});
+  snapshot = Object.freeze(empty());
   emit();
 };
 
