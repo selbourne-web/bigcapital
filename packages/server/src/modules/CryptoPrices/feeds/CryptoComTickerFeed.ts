@@ -7,13 +7,14 @@ import {
 } from './PriceFeed';
 
 /**
- * VERIFICATION STATUS (recorded 2026-10-05): the official Crypto.com docs page is
- * JS-rendered and could not be read. The ticker field names (`i`, `a`, `c`, `t`), the
- * `result.channel` / `result.data[]` envelope and the ~1 s post-connect wait are
- * UNVERIFIED against the official docs. Only the endpoint, the `ticker.<INSTRUMENT>`
- * channel naming and the `public/heartbeat` -> `public/respond-heartbeat` reply with the
- * same id were cross-checked, via the ccxt source (ts/src/pro/cryptocom.ts).
- * A one-time live check is required before relying on this source.
+ * VERIFICATION STATUS (live-verified 2026-10-06): the official docs page is JS-rendered
+ * and could not be read, so the wire format was checked against the live feed instead.
+ * Confirmed: `result.channel == "ticker"` with `result.data[]` items carrying `i`
+ * (e.g. "BTC_USD"), `a` (last trade), `c` (24h change as a FRACTION, e.g. -0.0055, hence
+ * the x100 below) and `t` (ms); the ~1 s post-connect wait works; the server sends
+ * `public/heartbeat` and the feed answers `public/respond-heartbeat` with the same id,
+ * keeping the connection open. Later ticker frames carry `"method":"subscribe"` and
+ * `"id":-1`, which the parser ignores for non-heartbeat messages.
  *
  * Crypto.com Exchange v1 public market-data WebSocket (no credentials).
  * Docs: https://exchange-docs.crypto.com/exchange/v1/rest-ws/index.html (market data section).

@@ -593,6 +593,24 @@ suite('CryptoSyncService (integration, scratch DB)', () => {
   });
 
   describe('(g) balance snapshots', () => {
+    it('stores and reports a dotted tokenized-stock asset (Kraken CRCLX.T) like any other', async () => {
+      const service = make();
+      adapter.pages = { start: { records: [] } };
+      adapter.balances = [
+        { asset: 'CRCLX.T', free: '1.5', locked: '0' },
+        { asset: 'LDADA', free: '10', locked: '0' },
+      ];
+      await service.syncConnection(connectionId, 'initial', ORG);
+      expect((await snapshots()).map((r) => r.asset).sort()).toEqual([
+        'CRCLX.T',
+        'LDADA',
+      ]);
+      expect(await service.heldAssets(connectionId)).toEqual([
+        'CRCLX.T',
+        'LDADA',
+      ]);
+    });
+
     it('skips all-zero assets, writes exactly one zero row when a held asset drops out, then nothing more', async () => {
       const service = make();
       adapter.pages = { start: { records: [] } };

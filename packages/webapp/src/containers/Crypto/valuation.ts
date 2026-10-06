@@ -15,6 +15,11 @@ export interface HoldingRow {
   stale: boolean;
   /** The price came from a USDT pair: approximately, not exactly, USD. */
   approximate: boolean;
+  /**
+   * Priced through the underlying asset of a Binance Simple Earn `LD<X>` wrapper
+   * (the price is X's quote). Always also `approximate`.
+   */
+  viaUnderlying?: string;
 }
 
 export interface Valuation {
@@ -51,6 +56,23 @@ export const parseQuantity = (value: string | undefined | null): number => {
 const USD_ASSETS = new Set(['USD']);
 
 /**
+ * Binance Simple Earn wrapper `LD<X>` -> `X` (LDADA -> ADA). Balances keep the raw
+ * symbol; only pricing looks through. `X` must be 3-17 [A-Z0-9] characters, so the real
+ * Lido DAO token LDO is never treated as a wrapper, and a raw symbol that has its own
+ * quote is always priced by that quote (see `valueHoldings`).
+ * Keep in sync with `earnUnderlying` in
+ * packages/server/src/modules/CryptoExchanges/adapters/assets.ts.
+ */
+const EARN_WRAPPER = /^LD([A-Z0-9]{3,17})$/;
+export const earnUnderlying = (asset: string): string | undefined =>
+  EARN_WRAPPER.exec(asset)?.[1];
+
+const ownQuote = (prices: PriceMap, asset: string) =>
+  Object.prototype.hasOwnProperty.call(prices, asset)
+    ? prices[asset]
+    : undefined;
+
+/**
  * Values balances (free + locked) as quantity x USD price x `usdToBase`.
  * Zero balances are omitted; assets without a price add 0 and are listed in
  * `unpriced`. A row is stale when its quote is stale or `socketConnected` is
@@ -79,11 +101,18 @@ export const valueHoldings = (
       if (quantity === 0) continue;
 
       const isUsd = USD_ASSETS.has(b.asset);
-      const quote = isUsd
-        ? undefined
-        : Object.prototype.hasOwnProperty.call(prices, b.asset)
-          ? prices[b.asset]
+      let quote = isUsd ? undefined : ownQuote(prices, b.asset);
+      let viaUnderlying: string | undefined;
+      if (!isUsd && quote === undefined) {
+        const underlying = earnUnderlying(b.asset);
+        const underlyingQuote = underlying
+          ? ownQuote(prices, underlying)
           : undefined;
+        if (underlying && underlyingQuote) {
+          quote = underlyingQuote;
+          viaUnderlying = underlying;
+        }
+      }
       const priceUsd = isUsd ? 1 : quote?.usd;
 
       if (priceUsd === undefined) {
@@ -111,7 +140,9 @@ export const valueHoldings = (
         valueBase,
         change24hPct: quote?.change24hPct,
         stale: rowStale,
-        approximate: quote?.quote === 'USDT',
+        // An earn token is redeemable 1:1 for its underlying only approximately.
+        approximate: viaUnderlying !== undefined || quote?.quote === 'USDT',
+        ...(viaUnderlying ? { viaUnderlying } : {}),
       });
     }
     perConnection.push({

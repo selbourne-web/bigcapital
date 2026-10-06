@@ -319,6 +319,20 @@ describe('CryptoSyncProcessor', () => {
       expect(t.scheduler.enqueue).not.toHaveBeenCalled();
     });
 
+    it('publishes the underlying of Simple Earn LD<X> tokens next to the raw symbols, never unwrapping LDO', async () => {
+      const t = setup();
+      t.syncService.heldAssets.mockResolvedValue(['LDADA', 'LDO', 'SOL']);
+      await t.processor.process(job());
+      expect(t.redisCalls[0]).toEqual([
+        'sadd',
+        'crypto:held-assets',
+        'ADA',
+        'LDADA',
+        'LDO',
+        'SOL',
+      ]);
+    });
+
     it('does not touch Redis when nothing is held', async () => {
       const t = setup();
       t.syncService.heldAssets.mockResolvedValue([]);

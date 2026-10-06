@@ -99,7 +99,14 @@ describe('PriceFeedManager', () => {
   });
 
   it('ignores set members that are not plain asset symbols', async () => {
-    const t = setup(['BTC', 'bad symbol', '', 'A'.repeat(21), 'ETH"']);
+    const t = setup([
+      'BTC',
+      'bad symbol',
+      '',
+      'A'.repeat(21),
+      'ETH"',
+      'CRCLX.T',
+    ]);
     await t.init();
     expect(t.feeds[0].lastSubscription).toEqual(['BTC']);
     t.manager.onModuleDestroy();

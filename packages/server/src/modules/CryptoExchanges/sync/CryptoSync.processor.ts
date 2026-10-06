@@ -20,6 +20,7 @@ import {
 } from '../CryptoExchanges.types';
 import { CryptoConnectionRepository } from '../commands/CryptoConnection.repository';
 import { ExchangeError } from '../adapters/errors';
+import { pricingAssets } from '../adapters/assets';
 import { CryptoSyncResult, CryptoSyncService } from './CryptoSync.service';
 import { CryptoSyncScheduler } from './CryptoSync.scheduler';
 
@@ -170,7 +171,10 @@ export class CryptoSyncProcessor {
   /** Best effort: the sync already succeeded, so a Redis failure must not retry it. */
   private async publishHeldAssets(connectionId: number): Promise<void> {
     try {
-      const assets = await this.syncService.heldAssets(connectionId);
+      // Pricing looks through Binance Simple Earn LD<X> tokens to X (balances stay raw).
+      const assets = pricingAssets(
+        await this.syncService.heldAssets(connectionId),
+      );
       if (!assets.length) return;
       const redis = this.redisService.getOrThrow();
       await redis.sadd(CRYPTO_HELD_ASSETS_KEY, ...assets);

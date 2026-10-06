@@ -462,3 +462,44 @@ describe.each([
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('unpriceable symbols never reach a subscribe message', () => {
+  // Kraken tokenized stocks keep a dot (CRCLX.T); the others are shapes that would
+  // break out of a stream name or JSON field if the symbol regex were loosened.
+  const BAD = [
+    'CRCLX.T',
+    'btc',
+    'BTC@ticker',
+    'BTC"],"x":["',
+    'A/B',
+    '',
+    'X'.repeat(21),
+  ];
+
+  it.each([
+    ['Kraken', KrakenTickerFeed],
+    ['Binance', BinanceTickerFeed],
+    ['CryptoCom', CryptoComTickerFeed],
+  ])('%s feed drops them and still subscribes the clean asset', (_n, Feed) => {
+    const t = setup(Feed);
+    const ws = t.start();
+    ws.open();
+    jest.advanceTimersByTime(2000);
+    ws.sent.length = 0;
+    t.feed.subscribe([...BAD, 'BTC']);
+    const wire = JSON.stringify(ws.sent);
+    expect(wire.toLowerCase()).toContain('btc');
+    for (const bad of BAD.filter((b) => b.length > 0 && b !== 'btc')) {
+      expect(wire.toLowerCase()).not.toContain(bad.toLowerCase());
+    }
+    expect(wire.toLowerCase()).not.toContain('crclx');
+    // The unpriceable assets alone produce no message at all.
+    const t2 = setup(Feed);
+    const ws2 = t2.start();
+    ws2.open();
+    jest.advanceTimersByTime(2000);
+    ws2.sent.length = 0;
+    t2.feed.subscribe(BAD);
+    expect(ws2.sent).toEqual([]);
+  });
+});

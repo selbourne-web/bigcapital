@@ -146,6 +146,7 @@ interface AssetRow {
   change24hPct?: number;
   stale: boolean;
   approximate: boolean;
+  viaUnderlying?: string;
 }
 
 /** One row per asset across all connections, largest value first. */
@@ -162,6 +163,7 @@ function aggregateByAsset(rows: HoldingRow[]): AssetRow[] {
         change24hPct: row.change24hPct,
         stale: row.stale,
         approximate: row.approximate,
+        viaUnderlying: row.viaUnderlying,
       });
       continue;
     }
@@ -171,6 +173,7 @@ function aggregateByAsset(rows: HoldingRow[]): AssetRow[] {
     }
     existing.stale = existing.stale || row.stale;
     existing.approximate = existing.approximate || row.approximate;
+    existing.viaUnderlying ??= row.viaUnderlying;
   }
   return [...byAsset.values()].sort(
     (a, b) =>
@@ -476,9 +479,21 @@ function CryptoHoldings({
                         {row.approximate && (
                           <span
                             className="dash-crypto__badge"
-                            title="Priced from a USDT pair, so approximately USD"
+                            title={
+                              row.viaUnderlying
+                                ? `Simple Earn token priced via ${row.viaUnderlying}, so approximately USD`
+                                : 'Priced from a USDT pair, so approximately USD'
+                            }
                           >
                             ≈USD
+                          </span>
+                        )}
+                        {row.viaUnderlying && (
+                          <span
+                            className="dash-crypto__badge"
+                            title={`Priced from ${row.viaUnderlying}`}
+                          >
+                            via {row.viaUnderlying}
                           </span>
                         )}
                         {row.stale && (

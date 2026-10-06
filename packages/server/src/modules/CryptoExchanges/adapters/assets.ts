@@ -38,3 +38,30 @@ export function normalizeAsset(
   const base = upper.replace(KRAKEN_STAKING_SUFFIX, '');
   return KRAKEN_ALIASES[base] ?? base;
 }
+
+/**
+ * Binance Simple Earn wrapper tokens are reported as `LD<X>` (LDADA, LDUSDS ...). Balances
+ * and the ledger keep the raw symbol; only PRICING looks through to the underlying `X`.
+ *
+ * Rule (deliberately conservative): `LD` + an underlying of 3 to 17 `[A-Z0-9]`
+ * characters. Requiring 3+ characters keeps real tokens such as LDO (Lido DAO,
+ * underlying would be "O") from ever being treated as a wrapper. The raw symbol is
+ * always kept as well and a consumer must prefer the raw symbol's own price when it has
+ * one, so a legitimate `LD...` token that happens to match is never repriced by it.
+ * Keep in sync with `earnUnderlying` in packages/webapp/src/containers/Crypto/valuation.ts.
+ */
+const EARN_WRAPPER = /^LD([A-Z0-9]{3,17})$/;
+
+export function earnUnderlying(asset: string): string | undefined {
+  return EARN_WRAPPER.exec(asset)?.[1];
+}
+
+/** The assets the price feed should subscribe to: the held set plus earn underlyings. */
+export function pricingAssets(assets: string[]): string[] {
+  const out = new Set(assets);
+  for (const asset of assets) {
+    const underlying = earnUnderlying(asset);
+    if (underlying) out.add(underlying);
+  }
+  return [...out].sort();
+}
