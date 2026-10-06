@@ -21,6 +21,7 @@ const migrations = () => [
   require('../../../database/tenant/migrations/20261004000000_create_crypto_exchange_tables'),
   require('../../../database/tenant/migrations/20261004000100_add_sync_state_to_crypto_connections'),
   require('../../../database/tenant/migrations/20261004000200_add_deleted_at_to_crypto_connections'),
+  require('../../../database/tenant/migrations/20261006000000_add_snapshot_latest_index_to_crypto_balance_snapshots'),
 ];
 
 suite('Crypto balances and sync-runs queries (integration, scratch DB)', () => {
@@ -118,6 +119,7 @@ suite('Crypto balances and sync-runs queries (integration, scratch DB)', () => {
   afterAll(async () => {
     if (db) {
       const m = migrations();
+      await m[3].down(db);
       await m[2].down(db);
       await m[1].down(db);
       await m[0].down(db);
