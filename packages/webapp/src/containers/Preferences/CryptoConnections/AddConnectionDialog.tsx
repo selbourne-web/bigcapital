@@ -9,7 +9,7 @@ import {
   InputGroup,
   Intent,
 } from '@blueprintjs/core';
-import React, { useEffect, useId, useState } from 'react';
+import React, { useEffect, useId, useRef, useState } from 'react';
 import {
   AccountPicker,
   CREATE_ACCOUNT_VALUE,
@@ -29,7 +29,7 @@ export const CRYPTO_EXCHANGES = [
     value: 'kraken',
     label: 'Kraken',
     help: [
-      'In Kraken, open Settings > Security > API and choose Create API key.',
+      'In Kraken’s API key settings (under Security), create a new API key.',
       'Tick only "Query funds" (add "Query ledger entries" and "Query closed orders & trades" if you want history). Leave every trading, deposit and withdrawal permission off.',
     ],
   },
@@ -95,21 +95,31 @@ export function AddConnectionDialog({
   accountsLoading,
   rotate,
 }: AddConnectionDialogProps) {
+  // The rotate target is cleared on close; keep the last one so the title does
+  // not change during the close animation.
+  const lastRotate = useRef<CryptoConnection | null>(null);
+  if (rotate) lastRotate.current = rotate;
+  const shown = rotate ?? lastRotate.current;
+  const [busy, setBusy] = useState(false);
+
   return (
     <Dialog
       isOpen={isOpen}
       onClose={onClose}
       title={
-        rotate
-          ? `${rotate.status === 'error' ? 'Reconnect' : 'Rotate key for'} ${rotate.label}`
+        shown
+          ? `${shown.status === 'error' ? 'Reconnect' : 'Rotate key for'} ${shown.label}`
           : 'Add exchange connection'
       }
       className={styles.dialog}
       canOutsideClickClose={false}
+      canEscapeKeyClose={!busy}
+      isCloseButtonShown={!busy}
     >
       {isOpen && (
         <ConnectionForm
           onClose={onClose}
+          onBusyChange={setBusy}
           accounts={accounts}
           accountsLoading={accountsLoading}
           rotate={rotate ?? null}
@@ -128,11 +138,13 @@ interface FormErrors {
 
 function ConnectionForm({
   onClose,
+  onBusyChange,
   accounts,
   accountsLoading,
   rotate,
 }: Omit<AddConnectionDialogProps, 'isOpen'> & {
   rotate: CryptoConnection | null;
+  onBusyChange: (busy: boolean) => void;
 }) {
   const uid = useId();
   const create = useCreateCryptoConnection();
@@ -162,6 +174,12 @@ function ConnectionForm({
     },
     [resetCreate, resetRotation],
   );
+
+  const isPending = mutation.isPending;
+  useEffect(() => {
+    onBusyChange(isPending);
+    return () => onBusyChange(false);
+  }, [isPending, onBusyChange]);
 
   const activeExchange = rotate ? rotate.exchange : exchange;
   const help = CRYPTO_EXCHANGES.find((e) => e.value === activeExchange)?.help;
@@ -203,7 +221,11 @@ function ConnectionForm({
       clearSecrets();
       mutation.reset();
       AppToaster.show({
-        message: rotate ? 'Credentials updated.' : 'Connection added.',
+        message: rotate
+          ? rotate.status === 'paused'
+            ? 'Credentials updated. Rotating resumes syncing.'
+            : 'Credentials updated.'
+          : 'Connection added.',
         intent: Intent.SUCCESS,
       });
       onClose();
@@ -255,6 +277,9 @@ function ConnectionForm({
               Selbourne Financial only ever reads balances and history. Keys
               with trading or withdrawal rights are refused.
             </p>
+            {rotate?.status === 'paused' && (
+              <p>Rotating this key resumes syncing for this connection.</p>
+            )}
           </Callout>
         )}
 
@@ -282,7 +307,7 @@ function ConnectionForm({
               <InputGroup
                 id={`${uid}-label`}
                 value={label}
-                maxLength={120}
+                maxLength={100}
                 placeholder={`${exchangeLabel(exchange)} - Trading`}
                 intent={errors.label ? Intent.DANGER : Intent.NONE}
                 aria-invalid={!!errors.label}
@@ -308,7 +333,12 @@ function ConnectionForm({
             intent={errors.apiKey ? Intent.DANGER : Intent.NONE}
             aria-invalid={!!errors.apiKey}
             aria-required
-            onChange={(event) => setApiKey(event.currentTarget.value)}
+            data-1p-ignore
+            data-lpignore="true"
+            onChange={(event) => {
+              setApiKey(event.currentTarget.value);
+              setAttested(false);
+            }}
           />
         </FormGroup>
 
@@ -327,7 +357,12 @@ function ConnectionForm({
             intent={errors.apiSecret ? Intent.DANGER : Intent.NONE}
             aria-invalid={!!errors.apiSecret}
             aria-required
-            onChange={(event) => setApiSecret(event.currentTarget.value)}
+            data-1p-ignore
+            data-lpignore="true"
+            onChange={(event) => {
+              setApiSecret(event.currentTarget.value);
+              setAttested(false);
+            }}
           />
         </FormGroup>
 
@@ -342,6 +377,8 @@ function ConnectionForm({
             autoComplete="new-password"
             spellCheck={false}
             value={passphrase}
+            data-1p-ignore
+            data-lpignore="true"
             onChange={(event) => setPassphrase(event.currentTarget.value)}
           />
         </FormGroup>
@@ -371,20 +408,18 @@ function ConnectionForm({
           </FormGroup>
         )}
 
-        <div aria-live="polite">
-          {failure && (
-            <Callout
-              intent={
-                failure.code === 'ATTESTATION_REQUIRED'
-                  ? Intent.WARNING
-                  : Intent.DANGER
-              }
-              role="alert"
-            >
-              {describeCryptoError(failure)}
-            </Callout>
-          )}
-        </div>
+        {failure && (
+          <Callout
+            intent={
+              failure.code === 'ATTESTATION_REQUIRED'
+                ? Intent.WARNING
+                : Intent.DANGER
+            }
+            role="alert"
+          >
+            {describeCryptoError(failure)}
+          </Callout>
+        )}
       </div>
 
       <div className={Classes.DIALOG_FOOTER}>
