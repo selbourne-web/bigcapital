@@ -45,12 +45,53 @@ const READ_PATHS = new Set([
 const COOL_DOWN_MS = 60_000;
 /** Pionex rejects timestamps older than 20 s or in the future: send slightly in the past. */
 const TIMESTAMP_SKEW_MS = 1_000;
-/** fills/allOrders weigh 5 (2 per second); everything else 10 per second. */
+/**
+ * fills, allOrders and common/symbols weigh 5 (official openapi.yaml): at most 2 per
+ * second, shared across those paths per key (see `call`); everything else 10 per second.
+ */
 const SLOW_GAP_MS = 600;
 const FAST_GAP_MS = 120;
-const METHOD_GAP_MS: Record<string, number> = {
-  '/api/v1/trade/fills': SLOW_GAP_MS,
-  '/api/v1/trade/allOrders': SLOW_GAP_MS,
+const HEAVY_PATHS = new Set([
+  '/api/v1/trade/fills',
+  '/api/v1/trade/allOrders',
+  '/api/v1/common/symbols',
+]);
+
+/** Lower bound of any history walk (Pionex launched its API in 2018). */
+const HISTORY_FLOOR_MS = Date.UTC(2018, 0, 1);
+/** `since` is moved back by this much so a late-arriving row is never missed. */
+const SINCE_OVERLAP_MS = 86_400_000;
+/** HTTP requests (one data page each) a single `fetchHistory` call may make. */
+const MAX_REQUESTS_PER_CALL = 8;
+/** Official page sizes: `fills` returns the latest 100, `allOrders` takes limit 1..200. */
+const FILLS_PAGE = 100;
+const ORDERS_PAGE = 200;
+/**
+ * Markets walked per history run (fills then orders for each). Markets are the
+ * enabled SPOT markets whose base coin is held or previously seen, USDT/USDC quoted
+ * first; any beyond the cap are skipped with a log warning. The list lives in the
+ * cursor, so the cap also bounds the cursor size.
+ */
+export const MAX_PIONEX_MARKETS = 100;
+const MAX_SYMBOL_LENGTH = 40;
+const SYMBOL_RE = /^[A-Za-z0-9_.\-]+$/;
+const MAX_CURSOR_LENGTH = 8_192;
+/** Ids longer than this are shortened with a hash so composed ids stay under varchar(191). */
+const MAX_ID_FRAGMENT = 64;
+const SIDES = new Set(['BUY', 'SELL']);
+const ROLES = new Set(['TAKER', 'MAKER']);
+const ORDER_TYPES = new Set(['LIMIT', 'MARKET']);
+const ORDER_STATUSES = new Set(['OPEN', 'CLOSED']);
+
+type HistoryCursor = {
+  phase: 'fills' | 'orders';
+  /** Index into `symbols` of the market being walked. */
+  symbolIndex: number;
+  /** Upper bound (ms) of the window still to fetch for this market and phase. */
+  endTime: number;
+  /** Lower bound (ms) of every window in this run. */
+  start: number;
+  symbols: string[];
 };
 
 /** Segments of `wallet/balancesFull` botAccount that hold funds NOT in account/balances. */
@@ -69,7 +110,7 @@ const defaultSleep = (ms: number) =>
  */
 export function quoteExactNumbers(text: string): string {
   return text.replace(
-    /("(?:free|frozen|price|size|amount|fee|filledSize|filledAmount|investmentAmount|profit)"\s*:\s*)(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)(?=\s*[,}\]])/g,
+    /("(?:free|frozen|price|size|amount|fee|filledSize|filledAmount|investmentAmount|profit|id|orderId)"\s*:\s*)(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)(?=\s*[,}\]])/g,
     '$1"$2"',
   );
 }
@@ -256,12 +297,415 @@ export class PionexAdapter implements ExchangeAdapter {
     return { coin: entry.investmentToken, amount };
   }
 
-  /** TODO(Task 3): fills/allOrders history. Until then the adapter returns no history. */
-  async fetchHistory(): Promise<{
-    records: RawRecordInput[];
-    nextCursor?: string;
-  }> {
-    return { records: [] };
+  /**
+   * Spot fills and orders, per market (the API has no account-wide listing).
+   *
+   * Markets: enabled SPOT markets from `common/symbols` whose base coin is in
+   * `knownAssets`, or, when the caller has none (first sync), in the current
+   * non-zero `account/balances`. The list is built on the first call of a run and
+   * carried in the cursor, so later calls make no discovery requests.
+   *
+   * Cursor (opaque, bounded, validated): `{phase, symbolIndex, endTime, start,
+   * symbols}`. Each market is walked fills first, then orders, backwards from now to
+   * `start = max(since - 1 day, 2018-01-01)`. Both endpoints return the LATEST rows in
+   * the window (fills: 100, allOrders: `limit`), so a full page re-requests with
+   * `endTime` moved to the oldest timestamp on it, computed from the rows themselves
+   * (response order is never relied on). `endTime` is assumed inclusive; a page that
+   * makes no progress (every row at the window end) steps `endTime` back 1 ms, so a
+   * walk always terminates (more than a page of rows in ONE millisecond could lose the
+   * excess). A call makes at most MAX_REQUESTS_PER_CALL HTTP requests (discovery
+   * included); no `nextCursor` once the last market and phase are done.
+   *
+   * A market the API rejects (TRADE_INVALID_SYMBOL / TRADE_PARAMETER_ERROR) is skipped.
+   */
+  async fetchHistory(
+    c: Credentials,
+    q: { since?: Date; cursor?: string; knownAssets?: string[] } = {},
+  ): Promise<{ records: RawRecordInput[]; nextCursor?: string }> {
+    const creds = this.trim(c);
+    const budget = { used: 0 };
+    const records: RawRecordInput[] = [];
+    const seen = new Set<string>();
+
+    let cur: HistoryCursor | undefined;
+    if (q.cursor) {
+      cur = this.parseHistoryCursor(q.cursor);
+    } else {
+      const symbols = await this.discoverMarkets(
+        creds,
+        q.knownAssets ?? [],
+        budget,
+      );
+      if (symbols.length === 0) return { records };
+      const sinceMs = q.since?.getTime();
+      const start = Math.max(
+        HISTORY_FLOOR_MS,
+        Number.isSafeInteger(sinceMs) ? sinceMs! - SINCE_OVERLAP_MS : 0,
+      );
+      cur = {
+        phase: 'fills',
+        symbolIndex: 0,
+        endTime: Math.max(this.now(), start),
+        start,
+        symbols,
+      };
+    }
+
+    while (cur) {
+      if (budget.used >= MAX_REQUESTS_PER_CALL) {
+        return { records, nextCursor: this.serializeHistoryCursor(cur) };
+      }
+      cur = await this.historyStep(creds, cur, records, seen, budget);
+    }
+    return { records };
+  }
+
+  /** Builds the bounded, ordered market list for a run (1 to 2 requests). */
+  private async discoverMarkets(
+    creds: Credentials,
+    knownAssets: string[],
+    budget: { used: number },
+  ): Promise<string[]> {
+    const coins = new Set<string>();
+    for (const a of knownAssets) {
+      if (typeof a === 'string' && a.trim()) {
+        coins.add(normalizeAsset('pionex', a));
+      }
+    }
+    if (coins.size === 0) {
+      budget.used++;
+      const res = await this.call(creds, '/api/v1/account/balances', {});
+      const rows = res.data?.balances;
+      if (!Array.isArray(rows)) {
+        throw this.schemaError(
+          'account/balances data.balances is not an array',
+          res,
+        );
+      }
+      for (const row of rows) {
+        if (
+          isObject(row) &&
+          typeof row.coin === 'string' &&
+          row.coin.trim() !== '' &&
+          isDecimal(row.free) &&
+          isDecimal(row.frozen) &&
+          !(isZero(row.free) && isZero(row.frozen))
+        ) {
+          coins.add(normalizeAsset('pionex', row.coin));
+        }
+      }
+    }
+    if (coins.size === 0) return [];
+
+    budget.used++;
+    const res = await this.call(creds, '/api/v1/common/symbols', {});
+    const list = res.data?.symbols;
+    if (!Array.isArray(list)) {
+      throw this.schemaError(
+        'common/symbols data.symbols is not an array',
+        res,
+      );
+    }
+    const picked = new Map<string, number>(); // symbol -> quote rank
+    for (const s of list) {
+      if (
+        !isObject(s) ||
+        s.type !== 'SPOT' ||
+        s.enable !== true ||
+        typeof s.symbol !== 'string' ||
+        s.symbol.length > MAX_SYMBOL_LENGTH ||
+        !SYMBOL_RE.test(s.symbol) ||
+        typeof s.baseCurrency !== 'string' ||
+        !coins.has(normalizeAsset('pionex', s.baseCurrency))
+      ) {
+        continue; // disabled, non-spot, malformed or not an asset we hold or saw
+      }
+      const quote =
+        typeof s.quoteCurrency === 'string'
+          ? normalizeAsset('pionex', s.quoteCurrency)
+          : '';
+      picked.set(s.symbol, quote === 'USDT' ? 0 : quote === 'USDC' ? 1 : 2);
+    }
+    const ordered = [...picked.entries()]
+      .sort((a, b) => a[1] - b[1] || (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0))
+      .map(([symbol]) => symbol);
+    if (ordered.length > MAX_PIONEX_MARKETS) {
+      this.logger.warn(
+        `Pionex history: ${ordered.length} markets found, only the first ${MAX_PIONEX_MARKETS} are synced`,
+      );
+    }
+    return ordered.slice(0, MAX_PIONEX_MARKETS);
+  }
+
+  /** One request (or a free transition) of the walk; returns the next cursor, or undefined at the end. */
+  private async historyStep(
+    creds: Credentials,
+    cur: HistoryCursor,
+    records: RawRecordInput[],
+    seen: Set<string>,
+    budget: { used: number },
+  ): Promise<HistoryCursor | undefined> {
+    if (cur.endTime < cur.start) return this.afterPhase(cur);
+    const fills = cur.phase === 'fills';
+    const symbol = cur.symbols[cur.symbolIndex];
+    const query: Record<string, string | number> = {
+      symbol,
+      startTime: cur.start,
+      endTime: cur.endTime,
+      ...(fills ? {} : { limit: ORDERS_PAGE }),
+    };
+    let res: Json;
+    budget.used++;
+    try {
+      res = await this.call(
+        creds,
+        fills ? '/api/v1/trade/fills' : '/api/v1/trade/allOrders',
+        query,
+      );
+    } catch (e) {
+      // A delisted/rejected market never fails the sync (nor trips the cool-down).
+      if (this.isRejectedMarket(e)) return this.nextMarket(cur);
+      throw e;
+    }
+    const rows = fills ? res.data?.fills : res.data?.orders;
+    if (!Array.isArray(rows)) {
+      throw this.schemaError(
+        `trade/${fills ? 'fills' : 'allOrders'} data.${fills ? 'fills' : 'orders'} is not an array`,
+        res,
+      );
+    }
+
+    let oldest: number | undefined;
+    for (const row of rows) {
+      const mapped = fills
+        ? this.mapFill(row, cur.endTime)
+        : this.mapOrder(row, cur.endTime);
+      if (!seen.has(mapped.record.exchangeRecordId)) {
+        seen.add(mapped.record.exchangeRecordId);
+        records.push(mapped.record);
+      }
+      if (
+        mapped.walkMs !== undefined &&
+        (oldest === undefined || mapped.walkMs < oldest)
+      ) {
+        oldest = mapped.walkMs;
+      }
+    }
+
+    const cap = fills ? FILLS_PAGE : ORDERS_PAGE;
+    if (rows.length >= cap && oldest !== undefined) {
+      return {
+        ...cur,
+        endTime: oldest < cur.endTime ? oldest : cur.endTime - 1,
+      };
+    }
+    return this.afterPhase(cur);
+  }
+
+  private afterPhase(cur: HistoryCursor): HistoryCursor | undefined {
+    if (cur.phase === 'fills') {
+      return { ...cur, phase: 'orders', endTime: this.freshEnd(cur) };
+    }
+    return this.nextMarket(cur);
+  }
+
+  private nextMarket(cur: HistoryCursor): HistoryCursor | undefined {
+    if (cur.symbolIndex + 1 >= cur.symbols.length) return undefined;
+    return {
+      ...cur,
+      phase: 'fills',
+      symbolIndex: cur.symbolIndex + 1,
+      endTime: this.freshEnd(cur),
+    };
+  }
+
+  private freshEnd(cur: HistoryCursor): number {
+    return Math.max(this.now(), cur.start);
+  }
+
+  private isRejectedMarket(e: unknown): boolean {
+    return (
+      e instanceof ExchangeNetworkError &&
+      /TRADE_(INVALID_SYMBOL|PARAMETER_ERROR)/.test(e.message)
+    );
+  }
+
+  private msOf(v: unknown): number | undefined {
+    const n =
+      typeof v === 'number'
+        ? v
+        : typeof v === 'string' && /^\d{1,16}$/.test(v)
+          ? Number(v)
+          : NaN;
+    return Number.isSafeInteger(n) && n > 0 ? n : undefined;
+  }
+
+  private idText(v: unknown): string | undefined {
+    if (typeof v === 'string' && v.length > 0 && v.length <= 1000) {
+      if (v.length <= MAX_ID_FRAGMENT) return v;
+      const hash = createHash('sha256').update(v).digest('hex').slice(0, 16);
+      return `${v.slice(0, 40)}~${hash}`;
+    }
+    if (typeof v === 'number' && Number.isSafeInteger(v)) return String(v);
+    return undefined;
+  }
+
+  /** Decimal text, optionally signed (a fee can be a rebate). */
+  private isSignedDecimal(v: unknown): v is string {
+    return typeof v === 'string' && /^-?\d+(\.\d+)?$/.test(v);
+  }
+
+  private mapFill(
+    row: unknown,
+    at: number,
+  ): { record: RawRecordInput; walkMs?: number } {
+    const ms = isObject(row) ? this.msOf(row.timestamp) : undefined;
+    const id = isObject(row) ? this.idText(row.id) : undefined;
+    if (
+      !isObject(row) ||
+      !id ||
+      ms === undefined ||
+      typeof row.symbol !== 'string' ||
+      !SIDES.has(row.side) ||
+      !ROLES.has(row.role) ||
+      !isDecimal(row.price) ||
+      !isDecimal(row.size) ||
+      !this.isSignedDecimal(row.fee) ||
+      typeof row.feeCoin !== 'string'
+    ) {
+      return {
+        record: this.unparsedRecord('fills', row, ms ?? at),
+        walkMs: ms,
+      };
+    }
+    return {
+      walkMs: ms,
+      record: {
+        type: 'trade',
+        exchangeRecordId: `fill:${id}`,
+        occurredAt: new Date(ms),
+        payload: { ...row, _source: 'fills' },
+      },
+    };
+  }
+
+  private mapOrder(
+    row: unknown,
+    at: number,
+  ): { record: RawRecordInput; walkMs?: number } {
+    const obj = isObject(row) ? row : undefined;
+    const created = obj ? this.msOf(obj.createTime) : undefined;
+    const updated = obj ? this.msOf(obj.updateTime) : undefined;
+    // The window may filter on either time; walk by the earlier of the two.
+    const walkMs =
+      created !== undefined && updated !== undefined
+        ? Math.min(created, updated)
+        : (created ?? updated);
+    const occurred = updated ?? created;
+    const id = obj ? this.idText(obj.orderId) : undefined;
+    const numeric = ['price', 'size', 'amount', 'filledSize', 'filledAmount']
+      .map((k) => obj?.[k])
+      .every((v) => v === undefined || v === '' || isDecimal(v));
+    if (
+      !obj ||
+      !id ||
+      occurred === undefined ||
+      typeof obj.symbol !== 'string' ||
+      !ORDER_STATUSES.has(obj.status) ||
+      (obj.side !== undefined && !SIDES.has(obj.side)) ||
+      (obj.type !== undefined && !ORDER_TYPES.has(obj.type)) ||
+      !numeric ||
+      (obj.fee !== undefined &&
+        obj.fee !== '' &&
+        !this.isSignedDecimal(obj.fee))
+    ) {
+      return {
+        record: this.unparsedRecord('order-history', row, occurred ?? at),
+        walkMs,
+      };
+    }
+    // One immutable raw row per status transition: the status is part of the id.
+    return {
+      walkMs,
+      record: {
+        type: 'trade',
+        exchangeRecordId: `order:${id}:s${obj.status}`,
+        occurredAt: new Date(occurred),
+        payload: { ...obj, _source: 'order-history' },
+      },
+    };
+  }
+
+  /** Unknown shapes are kept (never dropped); the id is a content hash so re-fetches dedupe. */
+  private unparsedRecord(
+    source: 'fills' | 'order-history',
+    row: unknown,
+    at: number,
+  ): RawRecordInput {
+    const hash = createHash('sha256')
+      .update(JSON.stringify(row) ?? 'undefined')
+      .digest('hex')
+      .slice(0, 32);
+    return {
+      type: 'unparsed',
+      exchangeRecordId: `unparsed:pionex-${source}:${hash}`,
+      occurredAt: new Date(at),
+      payload: { stream: source, row: redactSecrets(row) },
+    };
+  }
+
+  private parseHistoryCursor(raw: string): HistoryCursor {
+    const bad = () =>
+      new ExchangeSchemaError(
+        'Invalid Pionex history cursor',
+        raw.slice(0, 200),
+      );
+    if (typeof raw !== 'string' || raw.length > MAX_CURSOR_LENGTH) throw bad();
+    let v: any;
+    try {
+      v = JSON.parse(raw);
+    } catch {
+      throw bad();
+    }
+    if (
+      !isObject(v) ||
+      (v.phase !== 'fills' && v.phase !== 'orders') ||
+      !Array.isArray(v.symbols) ||
+      v.symbols.length < 1 ||
+      v.symbols.length > MAX_PIONEX_MARKETS ||
+      !v.symbols.every(
+        (s: unknown) =>
+          typeof s === 'string' &&
+          s.length <= MAX_SYMBOL_LENGTH &&
+          SYMBOL_RE.test(s),
+      ) ||
+      !Number.isSafeInteger(v.symbolIndex) ||
+      v.symbolIndex < 0 ||
+      v.symbolIndex >= v.symbols.length ||
+      !Number.isSafeInteger(v.endTime) ||
+      v.endTime <= 0 ||
+      !Number.isSafeInteger(v.start) ||
+      v.start < HISTORY_FLOOR_MS
+    ) {
+      throw bad();
+    }
+    return {
+      phase: v.phase,
+      symbolIndex: v.symbolIndex,
+      endTime: v.endTime,
+      start: v.start,
+      symbols: [...v.symbols],
+    };
+  }
+
+  private serializeHistoryCursor(c: HistoryCursor): string {
+    return JSON.stringify({
+      phase: c.phase,
+      symbolIndex: c.symbolIndex,
+      endTime: c.endTime,
+      start: c.start,
+      symbols: c.symbols,
+    });
   }
 
   private trim(c: Credentials): Credentials {
@@ -292,8 +736,11 @@ export class PionexAdapter implements ExchangeAdapter {
         }
         this.coolUntil.delete(key);
       }
-      const gap = METHOD_GAP_MS[path] ?? FAST_GAP_MS;
-      const sentKey = `${key}:${path}`;
+      // Weight-5 paths share one budget per key, so alternating fills/allOrders/
+      // symbols calls never exceed 2 per second.
+      const heavy = HEAVY_PATHS.has(path);
+      const gap = heavy ? SLOW_GAP_MS : FAST_GAP_MS;
+      const sentKey = `${key}:${heavy ? 'heavy' : path}`;
       const last = this.sentAt.get(sentKey);
       if (last !== undefined) {
         const wait = last + gap - this.now();

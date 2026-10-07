@@ -538,7 +538,7 @@ describe('PionexAdapter', () => {
       return { waits, sleep: async (ms: number) => void waits.push(ms) };
     };
 
-    it('paces fills/allOrders at 600 ms and other calls at 120 ms per key and path', async () => {
+    it('paces fills/allOrders/symbols at 600 ms (one shared budget) and other calls at 120 ms per key', async () => {
       const { waits, sleep } = sleeps();
       const { fn } = makeFetch(() => ({ body: '{"result":true,"data":{}}' }));
       const a = adapter(fn, () => NOW, sleep);
@@ -557,13 +557,15 @@ describe('PionexAdapter', () => {
         symbol: 'BTC_USDT',
       });
       await c({ apiKey: 'K', apiSecret: 's' }, '/api/v1/common/symbols', {});
-      await c({ apiKey: 'K', apiSecret: 's' }, '/api/v1/common/symbols', {});
-      expect(waits).toEqual([600, 600, 120]);
+      expect(waits).toEqual([600, 600, 600, 600]);
+      await c({ apiKey: 'K', apiSecret: 's' }, '/api/v1/account/balances', {});
+      await c({ apiKey: 'K', apiSecret: 's' }, '/api/v1/account/balances', {});
+      expect(waits).toEqual([600, 600, 600, 600, 120]);
       // another key is not paced against K
       await c({ apiKey: 'L', apiSecret: 's' }, '/api/v1/trade/fills', {
         symbol: 'BTC_USDT',
       });
-      expect(waits).toEqual([600, 600, 120]);
+      expect(waits).toEqual([600, 600, 600, 600, 120]);
     });
 
     it('does not sleep once the gap has elapsed on the injected clock', async () => {
@@ -665,11 +667,5 @@ describe('PionexAdapter', () => {
       });
       expect(calls).toHaveLength(0);
     });
-  });
-
-  it('fetchHistory is a stub returning no records until Task 3', async () => {
-    const { fn, calls } = makeFetch(() => ({ body: '{}' }));
-    expect(await adapter(fn).fetchHistory()).toEqual({ records: [] });
-    expect(calls).toHaveLength(0);
   });
 });

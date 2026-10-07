@@ -1,0 +1,11 @@
+{
+  "_note": "SPEC-DERIVED (openapi.yaml @ 6389067ce33f1aed661317b61202e89c9cd98f54, pionex-official/pionex-open-api, GET /api/v1/trade/allOrders + schema Order), not probed live: the owner's account has bot-only activity, so every live call returned an empty list. Values are fake. status is OPEN or CLOSED only; orderId, createTime and updateTime are int64 numbers; amounts are strings.",
+  "result": true,
+  "data": {
+    "orders": [
+      { "orderId": 770000000000003, "symbol": "BTC_USDT", "type": "MARKET", "side": "BUY", "price": "0", "size": "0", "amount": "100", "filledSize": "0.00330000", "filledAmount": "99.99", "fee": "0.00000495", "feeCoin": "BTC", "status": "CLOSED", "IOC": false, "clientOrderId": "TEST_CLIENT_1", "source": "MANUAL", "createTime": 1700000001500, "updateTime": 1700000001600 },
+      { "orderId": 770000000000004, "symbol": "BTC_USDT", "type": "LIMIT", "side": "SELL", "price": "40000", "size": "0.001", "amount": "", "filledSize": "0", "filledAmount": "0", "fee": "0", "feeCoin": "USDT", "status": "OPEN", "IOC": false, "clientOrderId": "TEST_CLIENT_2", "source": "API", "createTime": 1700000000500, "updateTime": 1700000000500 }
+    ]
+  },
+  "timestamp": 1700000003000
+}

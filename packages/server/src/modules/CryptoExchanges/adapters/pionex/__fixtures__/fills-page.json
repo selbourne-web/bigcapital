@@ -1,0 +1,11 @@
+{
+  "_note": "SPEC-DERIVED (openapi.yaml @ 6389067ce33f1aed661317b61202e89c9cd98f54, pionex-official/pionex-open-api, GET /api/v1/trade/fills + schema Fill), not probed live: the owner's account has bot-only activity, so every live call returned an empty list. Values are fake. Fills are sorted by time descending; id and orderId are int64 numbers; price/size/fee are strings.",
+  "result": true,
+  "data": {
+    "fills": [
+      { "id": 9007199254740993, "orderId": 770000000000002, "symbol": "BTC_USDT", "side": "SELL", "role": "MAKER", "price": "30500.10", "size": "0.00200000", "fee": "0.12200040", "feeCoin": "USDT", "timestamp": 1700000002000 },
+      { "id": 9007199254740992, "orderId": 770000000000001, "symbol": "BTC_USDT", "side": "BUY", "role": "TAKER", "price": "30000", "size": "0.00300000", "fee": "0.00000450", "feeCoin": "BTC", "timestamp": 1700000001000 }
+    ]
+  },
+  "timestamp": 1700000003000
+}
