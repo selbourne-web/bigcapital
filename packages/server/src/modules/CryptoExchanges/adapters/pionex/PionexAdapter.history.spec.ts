@@ -1,5 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
+import { Logger } from '@nestjs/common';
+import { extractAssetsFromPayload } from '../../sync/extractKnownAssets';
 import { MAX_PIONEX_MARKETS, PionexAdapter } from './PionexAdapter';
 import { ExchangeRateLimitError, ExchangeSchemaError } from '../errors';
 
@@ -77,6 +79,8 @@ class Server {
   orders: Record<string, any[]> = {};
   rejected = new Map<string, string>(); // "<path>|<symbol>" or symbol -> code
   exclusiveEnd = false;
+  /** Which order time the allOrders window and ordering use (unspecified by the docs). */
+  windowMode: 'create' | 'update' = 'create';
   raw: Record<string, string> = {}; // path -> raw body override
   status: Record<string, number> = {};
   sent: Sent[] = [];
@@ -140,9 +144,10 @@ class Server {
     }
     if (p === '/api/v1/trade/allOrders') {
       const limit = Number(q.get('limit') ?? 50);
+      const f = this.windowMode === 'create' ? 'createTime' : 'updateTime';
       const rows = (this.orders[symbol] ?? [])
-        .filter((r) => inWin(r.createTime))
-        .sort((a, b) => b.createTime - a.createTime)
+        .filter((r) => inWin(r[f]))
+        .sort((a, b) => b[f] - a[f])
         .slice(0, limit);
       return env({ orders: rows });
     }
@@ -248,9 +253,10 @@ describe('PionexAdapter.fetchHistory', () => {
       expect(empty.of('/api/v1/common/symbols')).toHaveLength(0);
     });
 
-    it('caps markets per run and continues across calls through the cursor (no discovery repeated)', async () => {
+    it('covers up to the cap, continues across calls through the cursor and warns once about the markets it cannot cover', async () => {
+      const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation();
       const srv = new Server();
-      srv.symbols = Array.from({ length: MAX_PIONEX_MARKETS + 20 }, (_, i) => ({
+      srv.symbols = Array.from({ length: 350 }, (_, i) => ({
         symbol: `C${String(i).padStart(3, '0')}_USDT`,
         base: `C${String(i).padStart(3, '0')}`,
       }));
@@ -258,15 +264,67 @@ describe('PionexAdapter.fetchHistory', () => {
       const a = make(srv);
       const first = await a.fetchHistory(creds, { knownAssets: known });
       expect(first.nextCursor).toBeDefined();
-      expect(first.nextCursor!.length).toBeLessThan(8192);
+      expect(first.nextCursor!.length).toBeLessThan(16_384);
       const { calls } = await drain(a, srv, { knownAssets: known });
       expect(calls).toBeGreaterThan(5);
       const walked = new Set(
         srv.of('/api/v1/trade/fills').map((s) => s.query.get('symbol')),
       );
+      expect(MAX_PIONEX_MARKETS).toBe(300);
       expect(walked.size).toBe(MAX_PIONEX_MARKETS);
-      // discovery happened once per run (two runs here: the first call, then drain)
+      // discovery happened once per run (two runs here)
       expect(srv.of('/api/v1/common/symbols')).toHaveLength(2);
+      const msgs = warn.mock.calls
+        .map((c) => String(c[0]))
+        .filter((m) => m.includes('not covered'));
+      expect(msgs).toEqual([
+        'Pionex history: 50 of 350 markets are not covered (limit 300 per run)',
+      ]);
+      warn.mockRestore();
+    }, 120_000);
+
+    it('a full-size cursor (300 symbols of 40 characters) fits and validates', async () => {
+      const srv = new Server();
+      const symbols = Array.from(
+        { length: MAX_PIONEX_MARKETS },
+        (_, i) => `${'A'.repeat(33)}${String(i).padStart(3, '0')}_US`,
+      );
+      expect(symbols.every((x) => x.length <= 40)).toBe(true);
+      const cursor = JSON.stringify({
+        phase: 'fills',
+        symbolIndex: 0,
+        endTime: NOW,
+        start: FLOOR,
+        symbols,
+      });
+      expect(cursor.length).toBeLessThan(16_384);
+      const r = await make(srv).fetchHistory(creds, { cursor });
+      expect(r.nextCursor!.length).toBeLessThan(16_384);
+    });
+
+    it('includes a coin only seen in stored fill payloads (knownAssets extractor)', async () => {
+      const first = new Server();
+      first.symbols = [
+        { symbol: 'SOL_USDT', base: 'SOL' },
+        { symbol: 'BTC_USDT', base: 'BTC' },
+      ];
+      first.fills['SOL_USDT'] = [fill(1, T0 + 1000, 'SOL_USDT')];
+      const { records } = await drain(make(first), first, {
+        knownAssets: ['SOL'],
+      });
+      expect(ids(records)).toEqual(['fill:1']);
+      const found = new Set<string>();
+      for (const r of records) extractAssetsFromPayload(r.payload, found);
+      expect([...found].sort()).toEqual(['BTC', 'SOL']);
+      // a later sync, with SOL no longer held, still walks SOL_USDT
+      const next = new Server();
+      next.symbols = first.symbols;
+      await drain(make(next), next, { knownAssets: [...found] });
+      expect(
+        new Set(
+          next.of('/api/v1/trade/fills').map((s) => s.query.get('symbol')),
+        ),
+      ).toEqual(new Set(['SOL_USDT', 'BTC_USDT']));
     });
   });
 
@@ -369,9 +427,9 @@ describe('PionexAdapter.fetchHistory', () => {
       );
       const { srv, records } = await walk(rows);
       expect(records).toHaveLength(100);
-      // page 1 full, page 2 (endTime = that ms) is the same page again (no
-      // progress), page 3 (endTime moved back 1 ms) is empty: terminates
-      expect(srv.of('/api/v1/trade/fills')).toHaveLength(3);
+      // inclusive mock: page 1 full, then the same page again twice (endTime
+      // oldest+1, then oldest), then an empty page at oldest-1: terminates
+      expect(srv.of('/api/v1/trade/fills')).toHaveLength(4);
     });
 
     it('a window with no rows costs one request per phase and covers every market', async () => {
@@ -386,6 +444,37 @@ describe('PionexAdapter.fetchHistory', () => {
         '/api/v1/trade/fills',
         '/api/v1/trade/allOrders',
       ]);
+    });
+    it('a same-millisecond group straddling the 100th row loses nothing (inclusive and exclusive endTime)', async () => {
+      // 80 newest unique rows, 30 rows at ONE ms (the 100th row is inside the
+      // group), then 40 older rows
+      const rows = [
+        ...Array.from({ length: 80 }, (_, i) => fill(i + 1, T0 + 10_000 + i)),
+        ...Array.from({ length: 30 }, (_, i) => fill(100 + i, T0 + 5_000)),
+        ...Array.from({ length: 40 }, (_, i) => fill(200 + i, T0 + 1_000 + i)),
+      ];
+      for (const exclusive of [false, true]) {
+        const { records } = await walk(rows, exclusive);
+        expect(new Set(ids(records)).size).toBe(150);
+      }
+    });
+
+    it('warns once per key when a full page makes no progress', async () => {
+      const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation();
+      const rows = Array.from({ length: 100 }, (_, i) =>
+        fill(i + 1, T0 + 5000),
+      );
+      const srv = new Server();
+      srv.fills['BTC_USDT'] = rows;
+      const a = make(srv);
+      await drain(a, srv);
+      await drain(a, srv);
+      const msgs = warn.mock.calls
+        .map((c) => String(c[0]))
+        .filter((m) => m.includes('no progress'));
+      expect(msgs).toHaveLength(1);
+      expect(msgs[0]).not.toContain('TEST_KEY');
+      warn.mockRestore();
     });
   });
 
@@ -428,8 +517,82 @@ describe('PionexAdapter.fetchHistory', () => {
       const { records } = await drain(make(srv), srv);
       expect(new Set(ids(records)).size).toBe(450);
       const reqs = srv.of('/api/v1/trade/allOrders');
-      expect(reqs).toHaveLength(3);
+      expect(reqs.length).toBeGreaterThanOrEqual(3);
       expect(reqs.every((r) => r.query.get('limit') === '200')).toBe(true);
+    });
+
+    it.each([
+      ['create', false],
+      ['create', true],
+      ['update', false],
+      ['update', true],
+    ] as const)(
+      'pages allOrders without loss when the API windows by %s time (exclusive endTime: %s)',
+      async (mode, exclusive) => {
+        const srv = new Server();
+        srv.windowMode = mode;
+        srv.exclusiveEnd = exclusive;
+        // updateTime >= createTime, with a different order for each time
+        srv.orders['BTC_USDT'] = Array.from({ length: 450 }, (_, i) =>
+          order(
+            i + 1,
+            T0 + 1000 + i * 10,
+            'CLOSED',
+            'BTC_USDT',
+            T0 + 1000 + i * 10 + ((i * 7) % 13) * 1000,
+          ),
+        );
+        const { records } = await drain(make(srv), srv);
+        expect(new Set(ids(records)).size).toBe(450);
+      },
+    );
+
+    it.each(['create', 'update'] as const)(
+      'an order group sharing one %s millisecond across the page edge loses nothing (exclusive endTime)',
+      async (mode) => {
+        const srv = new Server();
+        srv.windowMode = mode;
+        srv.exclusiveEnd = true;
+        srv.orders['BTC_USDT'] = [
+          ...Array.from({ length: 150 }, (_, i) =>
+            order(
+              i + 1,
+              T0 + 10_000 + i,
+              'CLOSED',
+              'BTC_USDT',
+              T0 + 10_000 + i,
+            ),
+          ),
+          ...Array.from({ length: 80 }, (_, i) =>
+            order(500 + i, T0 + 5_000, 'CLOSED', 'BTC_USDT', T0 + 5_000),
+          ),
+          ...Array.from({ length: 20 }, (_, i) =>
+            order(
+              900 + i,
+              T0 + 1_000 + i,
+              'CLOSED',
+              'BTC_USDT',
+              T0 + 1_000 + i,
+            ),
+          ),
+        ];
+        const { records } = await drain(make(srv), srv);
+        expect(new Set(ids(records)).size).toBe(250);
+      },
+    );
+
+    it('terminates quickly when updateTime is far after createTime under createTime windows', async () => {
+      for (const exclusive of [false, true]) {
+        const srv = new Server();
+        srv.windowMode = 'create';
+        srv.exclusiveEnd = exclusive;
+        srv.orders['BTC_USDT'] = Array.from({ length: 250 }, (_, i) =>
+          order(i + 1, T0 + 1000 + i * 10, 'CLOSED', 'BTC_USDT', NOW - 5),
+        );
+        const { records } = await drain(make(srv), srv);
+        expect(new Set(ids(records)).size).toBe(250);
+        expect(srv.of('/api/v1/trade/allOrders').length).toBeLessThan(10);
+      }
     });
 
     it('long ids are shortened with a hash and stay under 191 characters', async () => {
@@ -515,7 +678,7 @@ describe('PionexAdapter.fetchHistory', () => {
           ),
         }),
         JSON.stringify({ ...good, symbols: ['A'.repeat(41)] }),
-        JSON.stringify({ ...good, pad: 'x'.repeat(9000) }),
+        JSON.stringify({ ...good, pad: 'x'.repeat(17000) }),
       ];
       for (const cursor of bad) {
         await expect(
@@ -626,6 +789,22 @@ describe('PionexAdapter.fetchHistory', () => {
         expect(srv.sent.length).toBeGreaterThan(before);
       },
     );
+
+    it('warns once per key and symbol about a skipped market (symbol and code only)', async () => {
+      const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation();
+      const srv = new Server();
+      srv.rejected.set('BTC_USDT', 'TRADE_INVALID_SYMBOL');
+      const a = make(srv);
+      await drain(a, srv);
+      await drain(a, srv);
+      const msgs = warn.mock.calls
+        .map((c) => String(c[0]))
+        .filter((m) => m.includes('skipped'));
+      expect(msgs).toEqual([
+        'Pionex history: market BTC_USDT skipped (TRADE_INVALID_SYMBOL)',
+      ]);
+      warn.mockRestore();
+    });
 
     it('skips a market rejected only in the orders phase and keeps its fills', async () => {
       const srv = new Server();

@@ -58,4 +58,52 @@ describe('extractAssetsFromPayload', () => {
     }
     expect(out.size).toBe(MAX_KNOWN_ASSETS);
   });
+
+  describe('Pionex payloads', () => {
+    const fillPayload = {
+      _source: 'fills',
+      id: '1',
+      symbol: 'SOL_USDT',
+      feeCoin: 'usdt',
+    };
+
+    it('reads feeCoin and the base asset of a BASE_QUOTE symbol on fills and order history', () => {
+      const out = new Set<string>();
+      extractAssetsFromPayload(fillPayload, out);
+      extractAssetsFromPayload(
+        { _source: 'order-history', symbol: 'ADA_BTC', feeCoin: 'ADA' },
+        out,
+      );
+      expect([...out].sort()).toEqual(['ADA', 'SOL', 'USDT']);
+    });
+
+    it('does not read the symbol of other exchanges or ungated payloads', () => {
+      const out = new Set<string>();
+      // Binance: no underscore, no marker
+      extractAssetsFromPayload(
+        { symbol: 'ETHBTC', commissionAsset: 'BNB' },
+        out,
+      );
+      // Binance delivery futures symbol with an underscore, no marker
+      extractAssetsFromPayload({ symbol: 'BTCUSDT_240628' }, out);
+      // Kraken / Crypto.com style payloads
+      extractAssetsFromPayload(
+        {
+          pair: 'XBT_USD',
+          instrument_name: 'BTC_USDT',
+          _source: 'order-history',
+        },
+        out,
+      );
+      extractAssetsFromPayload({ _source: 'trades', symbol: 'BTC_USDT' }, out);
+      // marker but not a plain base (lower-case prefix, too long, no base)
+      extractAssetsFromPayload({ _source: 'fills', symbol: 'xDOGE_USDT' }, out);
+      extractAssetsFromPayload({ _source: 'fills', symbol: '_USDT' }, out);
+      extractAssetsFromPayload(
+        { _source: 'fills', symbol: `${'A'.repeat(21)}_USDT` },
+        out,
+      );
+      expect([...out]).toEqual(['BNB']);
+    });
+  });
 });

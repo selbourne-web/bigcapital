@@ -69,13 +69,14 @@ const ORDERS_PAGE = 200;
 /**
  * Markets walked per history run (fills then orders for each). Markets are the
  * enabled SPOT markets whose base coin is held or previously seen, USDT/USDC quoted
- * first; any beyond the cap are skipped with a log warning. The list lives in the
- * cursor, so the cap also bounds the cursor size.
+ * first; any beyond the cap are skipped with a (once per key) log warning stating how
+ * many were not covered. The list lives in the cursor, so the cap also bounds the
+ * cursor size: 300 symbols of at most 40 characters serialize to under 13 KB.
  */
-export const MAX_PIONEX_MARKETS = 100;
+export const MAX_PIONEX_MARKETS = 300;
 const MAX_SYMBOL_LENGTH = 40;
 const SYMBOL_RE = /^[A-Za-z0-9_.\-]+$/;
-const MAX_CURSOR_LENGTH = 8_192;
+const MAX_CURSOR_LENGTH = 16_384;
 /** Ids longer than this are shortened with a hash so composed ids stay under varchar(191). */
 const MAX_ID_FRAGMENT = 64;
 const SIDES = new Set(['BUY', 'SELL']);
@@ -132,6 +133,8 @@ export class PionexAdapter implements ExchangeAdapter {
   private readonly logger = new Logger('PionexAdapter');
   /** api-key hashes already warned about skipped bot/lending balances (bounded). */
   private readonly botSkipWarned = new Set<string>();
+  /** key-hash warnings already logged: truncated market list, ms-tie, rejected markets (bounded). */
+  private readonly historyWarned = new Set<string>();
   /** Last send time per "<key hash>:<path>" (bounded; see markSent). */
   private readonly sentAt = new Map<string, number>();
   /** Per api-key hash: epoch ms until which no request may be sent (HTTP 429 ban). */
@@ -310,10 +313,16 @@ export class PionexAdapter implements ExchangeAdapter {
    * `start = max(since - 1 day, 2018-01-01)`. Both endpoints return the LATEST rows in
    * the window (fills: 100, allOrders: `limit`), so a full page re-requests with
    * `endTime` moved to the oldest timestamp on it, computed from the rows themselves
-   * (response order is never relied on). `endTime` is assumed inclusive; a page that
-   * makes no progress (every row at the window end) steps `endTime` back 1 ms, so a
-   * walk always terminates (more than a page of rows in ONE millisecond could lose the
-   * excess). A call makes at most MAX_REQUESTS_PER_CALL HTTP requests (discovery
+   * (response order is never relied on). The docs do not say whether `endTime` is
+   * inclusive, so the next window ends at oldest + 1 ms: with an inclusive end the
+   * rows at the oldest millisecond come back (deduplicated), with an exclusive end
+   * they are included too, so a same-millisecond group straddling the page edge is
+   * never lost. For orders the docs do not say whether the window uses createTime or
+   * updateTime: the candidates are minimum updateTime + 1 (exact for updateTime
+   * windows, safe for createTime windows since update >= create), then minimum
+   * createTime + 1, then endTime - 1 when neither makes progress, so a walk always
+   * terminates. Only more than a page of rows in ONE millisecond can be lost (the
+   * last fallback; logged once per key). A call makes at most MAX_REQUESTS_PER_CALL HTTP requests (discovery
    * included); no `nextCursor` once the last market and phase are done.
    *
    * A market the API rejects (TRADE_INVALID_SYMBOL / TRADE_PARAMETER_ERROR) is skipped.
@@ -430,8 +439,10 @@ export class PionexAdapter implements ExchangeAdapter {
       .sort((a, b) => a[1] - b[1] || (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0))
       .map(([symbol]) => symbol);
     if (ordered.length > MAX_PIONEX_MARKETS) {
-      this.logger.warn(
-        `Pionex history: ${ordered.length} markets found, only the first ${MAX_PIONEX_MARKETS} are synced`,
+      this.warnOnce(
+        creds,
+        'truncated',
+        `Pionex history: ${ordered.length - MAX_PIONEX_MARKETS} of ${ordered.length} markets are not covered (limit ${MAX_PIONEX_MARKETS} per run)`,
       );
     }
     return ordered.slice(0, MAX_PIONEX_MARKETS);
@@ -464,7 +475,14 @@ export class PionexAdapter implements ExchangeAdapter {
       );
     } catch (e) {
       // A delisted/rejected market never fails the sync (nor trips the cool-down).
-      if (this.isRejectedMarket(e)) return this.nextMarket(cur);
+      if (this.isRejectedMarket(e)) {
+        this.warnOnce(
+          creds,
+          `skip:${symbol}`,
+          `Pionex history: market ${symbol} skipped (${(e as Error).message.match(/TRADE_(?:INVALID_SYMBOL|PARAMETER_ERROR)/)![0]})`,
+        );
+        return this.nextMarket(cur);
+      }
       throw e;
     }
     const rows = fills ? res.data?.fills : res.data?.orders;
@@ -476,6 +494,7 @@ export class PionexAdapter implements ExchangeAdapter {
     }
 
     let oldest: number | undefined;
+    let oldestAlt: number | undefined;
     for (const row of rows) {
       const mapped = fills
         ? this.mapFill(row, cur.endTime)
@@ -490,14 +509,27 @@ export class PionexAdapter implements ExchangeAdapter {
       ) {
         oldest = mapped.walkMs;
       }
+      if (
+        mapped.altMs !== undefined &&
+        (oldestAlt === undefined || mapped.altMs < oldestAlt)
+      ) {
+        oldestAlt = mapped.altMs;
+      }
     }
 
     const cap = fills ? FILLS_PAGE : ORDERS_PAGE;
     if (rows.length >= cap && oldest !== undefined) {
-      return {
-        ...cur,
-        endTime: oldest < cur.endTime ? oldest : cur.endTime - 1,
-      };
+      // First candidate that moves the window back; endTime - 1 is the last resort.
+      const candidates = [oldest + 1, (oldestAlt ?? oldest) + 1];
+      const next = candidates.find((c) => c < cur.endTime);
+      if (next === undefined) {
+        this.warnOnce(
+          creds,
+          'tie',
+          'Pionex history: a full page made no progress; more than a page of rows may share one millisecond and the excess can be missed',
+        );
+      }
+      return { ...cur, endTime: next ?? cur.endTime - 1 };
     }
     return this.afterPhase(cur);
   }
@@ -521,6 +553,18 @@ export class PionexAdapter implements ExchangeAdapter {
 
   private freshEnd(cur: HistoryCursor): number {
     return Math.max(this.now(), cur.start);
+  }
+
+  private warnOnce(creds: Credentials, what: string, message: string) {
+    const id = `${this.hashKey(creds)}:${what}`;
+    if (this.historyWarned.has(id)) return;
+    if (this.historyWarned.size >= 1024) this.historyWarned.clear();
+    this.historyWarned.add(id);
+    this.logger.warn(message); // market symbols and counts only; never keys
+  }
+
+  private hashKey(creds: Credentials): string {
+    return createHash('sha256').update(creds.apiKey).digest('hex');
   }
 
   private isRejectedMarket(e: unknown): boolean {
@@ -558,7 +602,7 @@ export class PionexAdapter implements ExchangeAdapter {
   private mapFill(
     row: unknown,
     at: number,
-  ): { record: RawRecordInput; walkMs?: number } {
+  ): { record: RawRecordInput; walkMs?: number; altMs?: number } {
     const ms = isObject(row) ? this.msOf(row.timestamp) : undefined;
     const id = isObject(row) ? this.idText(row.id) : undefined;
     if (
@@ -592,15 +636,14 @@ export class PionexAdapter implements ExchangeAdapter {
   private mapOrder(
     row: unknown,
     at: number,
-  ): { record: RawRecordInput; walkMs?: number } {
+  ): { record: RawRecordInput; walkMs?: number; altMs?: number } {
     const obj = isObject(row) ? row : undefined;
     const created = obj ? this.msOf(obj.createTime) : undefined;
     const updated = obj ? this.msOf(obj.updateTime) : undefined;
-    // The window may filter on either time; walk by the earlier of the two.
-    const walkMs =
-      created !== undefined && updated !== undefined
-        ? Math.min(created, updated)
-        : (created ?? updated);
+    // The window may use either time: walk by updateTime (>= createTime), with
+    // createTime as the progress fallback (see fetchHistory).
+    const walkMs = updated ?? created;
+    const altMs = created ?? updated;
     const occurred = updated ?? created;
     const id = obj ? this.idText(obj.orderId) : undefined;
     const numeric = ['price', 'size', 'amount', 'filledSize', 'filledAmount']
@@ -622,11 +665,13 @@ export class PionexAdapter implements ExchangeAdapter {
       return {
         record: this.unparsedRecord('order-history', row, occurred ?? at),
         walkMs,
+        altMs,
       };
     }
     // One immutable raw row per status transition: the status is part of the id.
     return {
       walkMs,
+      altMs,
       record: {
         type: 'trade',
         exchangeRecordId: `order:${id}:s${obj.status}`,
