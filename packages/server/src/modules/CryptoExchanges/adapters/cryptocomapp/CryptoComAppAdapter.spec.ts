@@ -63,6 +63,11 @@ describe('classifyScopes', () => {
     'exchange.order:write',
     'fiat.payment:write',
     'crypto.send:write',
+    'crypto.swap:write',
+    'staking:write',
+    'card.spend:write',
+    'earn.deposit:write',
+    'something.unknown:write',
   ])('%s is not read-only', (s) => {
     expect(classifyScopes(['balance:read', s]).readOnly).toBe(false);
   });
@@ -265,16 +270,6 @@ describe('CryptoComAppAdapter', () => {
     const emptyAcct = '{"ok":true,"account":{}}';
     it.each([
       ['crypto no wallets', emptyAcct, fixture('fiat-account.json')],
-      [
-        'wallet bad amount',
-        '{"ok":true,"account":{"wallets":[{"currency":"BTC","balance":{"amount":"1e5"}}]}}',
-        fixture('fiat-account.json'),
-      ],
-      [
-        'wallet missing locked',
-        '{"ok":true,"account":{"wallets":[{"currency":"BTC","balance":{"amount":"1"},"available":{"amount":"1"}}]}}',
-        fixture('fiat-account.json'),
-      ],
       ['fiat no balances', fixture('crypto-account.json'), emptyAcct],
       [
         'fiat bad amount',
@@ -291,6 +286,69 @@ describe('CryptoComAppAdapter', () => {
       await expect(adapter(fn).fetchBalances(creds)).rejects.toBeInstanceOf(
         ExchangeSchemaError,
       );
+    });
+
+    const walletsOnly = (wallets: any[]) =>
+      makeFetch(
+        byPath({
+          '/v1/crypto-account': {
+            body: JSON.stringify({ ok: true, account: { wallets } }),
+          },
+          '/v1/fiat-account': { body: '{"ok":true,"account":{"balances":[]}}' },
+        }),
+      ).fn;
+    const W = (currency: string, balance: any, extra: any = {}) => ({
+      currency,
+      balance: { amount: balance },
+      ...extra,
+    });
+    const amt = (a: string) => ({ amount: a });
+
+    it('balance is authoritative: balance 10, available 0, locked 0 => free 0, locked 10', async () => {
+      const fn = walletsOnly([
+        W('AAA', '10', { available: amt('0'), locked: amt('0') }),
+      ]);
+      expect(await adapter(fn).fetchBalances(creds)).toEqual([
+        { asset: 'AAA', free: '0', locked: '10' },
+      ]);
+    });
+    it('locked is derived from balance - available even if `locked` disagrees', async () => {
+      const fn = walletsOnly([
+        W('AAA', '10.5', { available: amt('4.25'), locked: amt('1') }),
+      ]);
+      expect(await adapter(fn).fetchBalances(creds)).toEqual([
+        { asset: 'AAA', free: '4.25', locked: '6.25' },
+      ]);
+    });
+    it('absent or null available/locked => free = balance, locked 0', async () => {
+      const fn = walletsOnly([
+        W('AAA', '3'),
+        W('BBB', '2', { available: null, locked: null }),
+      ]);
+      expect(await adapter(fn).fetchBalances(creds)).toEqual([
+        { asset: 'AAA', free: '3', locked: '0' },
+        { asset: 'BBB', free: '2', locked: '0' },
+      ]);
+    });
+    it('available > balance clamps locked at 0', async () => {
+      const fn = walletsOnly([W('AAA', '1', { available: amt('2') })]);
+      expect(await adapter(fn).fetchBalances(creds)).toEqual([
+        { asset: 'AAA', free: '2', locked: '0' },
+      ]);
+    });
+    it('skips odd wallets (negative, non-decimal, missing balance) without failing', async () => {
+      const fn = walletsOnly([
+        W('NEG', '-5'),
+        W('BAD', '1e5'),
+        W('NUM', 5),
+        { currency: 'NOBAL' },
+        null,
+        { balance: amt('1') },
+        W('OK', '1'),
+      ]);
+      expect(await adapter(fn).fetchBalances(creds)).toEqual([
+        { asset: 'OK', free: '1', locked: '0' },
+      ]);
     });
 
     it('tolerates a large list of zero wallets', async () => {
@@ -346,6 +404,87 @@ describe('CryptoComAppAdapter', () => {
       expect(ts[1]).toBeGreaterThan(ts[0]); // same clock value, still strictly increasing
       await new Promise((r) => setImmediate(r));
       expect((a as any).lanes.size).toBe(0);
+    });
+  });
+
+  describe('query, drain and drift', () => {
+    it('signature excludes the query, which is serialized in stable order', async () => {
+      const { fn, calls } = makeFetch(() => ({
+        body: fixture('api-key-current.json'),
+      }));
+      const a = adapter(fn);
+      await (a as any).get(
+        { apiKey: 'TEST_KEY', apiSecret: 'TEST_SECRET' },
+        '/v1/crypto-account',
+        { sort_by: 'id', count: 50, order: 'desc' },
+      );
+      expect(calls[0].url).toBe(
+        'https://wapi.crypto.com/v1/crypto-account?count=50&order=desc&sort_by=id',
+      );
+      expect(calls[0].init.headers['Cdc-Api-Signature']).toBe(
+        createHmac('sha256', 'TEST_SECRET')
+          .update(`${NOW}GET/v1/crypto-account`)
+          .digest('base64'),
+      );
+    });
+
+    it('allow-list rejects unknown paths, with or without a query', async () => {
+      const { fn, calls } = makeFetch(() => ({ body: '{}' }));
+      const a = adapter(fn);
+      const c = { apiKey: 'K', apiSecret: 'S' };
+      await expect((a as any).get(c, '/v1/portfolio')).rejects.toThrow(
+        /Refusing/,
+      );
+      await expect(
+        (a as any).get(c, '/v1/portfolio', { a: 1 }),
+      ).rejects.toThrow(/Refusing/);
+      expect(calls).toHaveLength(0);
+    });
+
+    it.each([401, 403, 429])(
+      'reads the body on %s so the connection is released',
+      async (status) => {
+        const text = jest.fn(async () => '');
+        const fn = jest.fn(async () => ({ ok: false, status, text })) as any;
+        await adapter(fn)
+          .inspectKey(creds)
+          .catch(() => undefined);
+        expect(text).toHaveBeenCalled();
+      },
+    );
+
+    it('waits instead of drifting more than 5s ahead of the clock', async () => {
+      let release!: () => void;
+      const gate = new Promise<void>((r) => (release = r));
+      const stamps: string[] = [];
+      const fn = jest.fn(async (_u: any, init: any) => {
+        stamps.push(init.headers['Cdc-Api-Timestamp']);
+        if (stamps.length === 1) await gate;
+        return {
+          ok: true,
+          status: 200,
+          text: async () => fixture('api-key-current.json'),
+        } as any;
+      }) as unknown as typeof fetch;
+      const sleep = jest.fn(async () => undefined);
+      const a = new CryptoComAppAdapter(
+        fn,
+        30_000,
+        () => NOW,
+        undefined,
+        sleep,
+      );
+      const p1 = a.inspectKey(creds);
+      await new Promise((r) => setImmediate(r));
+      // push the lane 10s ahead of the clock, as if many calls had burst
+      const lane: any = [...(a as any).lanes.values()][0];
+      lane.lastTs = NOW + 10_000;
+      const p2 = a.inspectKey(creds);
+      release();
+      await Promise.all([p1, p2]);
+      expect(sleep).toHaveBeenCalledTimes(1);
+      expect(sleep).toHaveBeenCalledWith(5_001);
+      expect(Number(stamps[1])).toBeGreaterThan(Number(stamps[0]));
     });
   });
 

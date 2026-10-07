@@ -16,7 +16,13 @@ import {
   ExchangeRateLimitError,
   ExchangeSchemaError,
 } from '../errors';
-import { addDecimal, isDecimal, isZero, sanitizeText } from '../shared';
+import {
+  addDecimal,
+  isDecimal,
+  isZero,
+  sanitizeText,
+  subDecimal,
+} from '../shared';
 import { cryptoComAppSign } from './cryptocomapp.signing';
 
 const DEFAULT_BASE_URL = 'https://wapi.crypto.com';
@@ -29,15 +35,23 @@ const READ_PATHS = new Set([
   '/v1/fiat-account',
 ]);
 
-/** Resource keywords that make a `:write` scope money-moving. */
-const DANGEROUS_RESOURCE =
-  /withdraw|transfer|trade|trading|purchase|sale|exchange|convert|order|payment|send/;
+/**
+ * `:write` scopes known to be harmless (they cannot move funds out of the account).
+ * Everything else that is writable is refused: this is a fail-closed allowlist, not
+ * a denylist of dangerous names, because new money-moving scopes (swap, staking,
+ * card spend, ...) cannot be enumerated in advance.
+ */
+export const BENIGN_WRITE_RESOURCES = ['fiat.deposit'];
+
+/** Max a per-key timestamp may run ahead of the clock before the lane waits. */
+const MAX_TS_DRIFT_MS = 5_000;
 
 /**
  * Classify App API key scopes (`<resource>:<read|write>`). Fail closed:
- * unknown suffix or an empty list is not read-only; a money-moving write is not
- * read-only; any other write (e.g. `fiat.deposit:write`) is `'unverifiable'`.
- * Precedence: false beats 'unverifiable' beats true.
+ * all `:read` is read-only; a `:write` on a BENIGN_WRITE_RESOURCES resource is
+ * `'unverifiable'`; any other `:write`, any scope that is neither `:read` nor
+ * `:write`, and an empty list are not read-only. Precedence: false beats
+ * 'unverifiable' beats true. `writeScopes` lists every non-read scope.
  */
 export function classifyScopes(scopes: string[]): {
   readOnly: boolean | 'unverifiable';
@@ -46,8 +60,7 @@ export function classifyScopes(scopes: string[]): {
 } {
   const permissions = scopes.map((s) => String(s).trim().toLowerCase());
   const writeScopes: string[] = [];
-  let unknown = false;
-  let dangerous = false;
+  let refused = false;
   let unverifiable = false;
   for (const scope of permissions) {
     const i = scope.lastIndexOf(':');
@@ -55,15 +68,14 @@ export function classifyScopes(scopes: string[]): {
     const resource = i >= 0 ? scope.slice(0, i) : scope;
     if (suffix === 'read') continue;
     writeScopes.push(scope);
-    if (suffix === 'write') {
-      if (DANGEROUS_RESOURCE.test(resource)) dangerous = true;
-      else unverifiable = true;
+    if (suffix === 'write' && BENIGN_WRITE_RESOURCES.includes(resource)) {
+      unverifiable = true;
     } else {
-      unknown = true;
+      refused = true;
     }
   }
   const readOnly: boolean | 'unverifiable' =
-    permissions.length === 0 || unknown || dangerous
+    permissions.length === 0 || refused
       ? false
       : unverifiable
         ? 'unverifiable'
@@ -94,6 +106,8 @@ export class CryptoComAppAdapter implements ExchangeAdapter {
     private readonly requestTimeoutMs: number = 30_000,
     private readonly now: () => number = Date.now,
     private readonly baseUrl: string = DEFAULT_BASE_URL, // overridable for tests only
+    private readonly sleep: (ms: number) => Promise<void> = (ms) =>
+      new Promise((resolve) => setTimeout(resolve, ms)),
   ) {}
 
   async inspectKey(c: Credentials): Promise<KeyInspection> {
@@ -161,22 +175,28 @@ export class CryptoComAppAdapter implements ExchangeAdapter {
       }
     };
     for (const w of wallets) {
+      // `balance` is the authoritative total. One odd wallet never fails the sync:
+      // unusable, zero or negative (liability) balances are skipped.
       const total = w?.balance?.amount;
       if (
         !w ||
         typeof w.currency !== 'string' ||
         w.currency.trim() === '' ||
-        !isDecimal(total)
+        !isDecimal(total) ||
+        isZero(total)
       ) {
-        throw this.schemaError('crypto-account wallet has bad shape', crypto);
+        continue;
       }
-      if (isZero(total)) continue; // most of the ~2000 listed wallets are empty
-      const free = w.available?.amount;
-      const locked = w.locked?.amount;
-      if (!isDecimal(free) || !isDecimal(locked)) {
-        throw this.schemaError('crypto-account wallet has bad amounts', crypto);
+      let free = total;
+      let locked = '0';
+      const available = w.available?.amount;
+      if (isDecimal(available)) {
+        free = available;
+        // locked is derived from the total, not trusted from `locked`. If
+        // available > balance (an exchange-side anomaly) locked clamps to 0 and
+        // free keeps the reported available value.
+        locked = subDecimal(total, available);
       }
-      if (isZero(free) && isZero(locked)) continue;
       add(normalizeAsset('crypto_com_app', w.currency), free, locked);
     }
     for (const b of fiatBalances) {
@@ -206,8 +226,15 @@ export class CryptoComAppAdapter implements ExchangeAdapter {
     return { apiKey: c.apiKey.trim(), apiSecret: c.apiSecret.trim() };
   }
 
-  /** Serialized per api key so timestamps reach the exchange in order. */
-  private get(creds: Credentials, path: string): Promise<Json> {
+  /**
+   * Serialized per api key so timestamps reach the exchange in order. `query` is
+   * appended to the URL but NOT signed or allow-listed (only `path` is).
+   */
+  private get(
+    creds: Credentials,
+    path: string,
+    query?: Record<string, string | number>,
+  ): Promise<Json> {
     const key = createHash('sha256').update(creds.apiKey).digest('hex');
     let lane = this.lanes.get(key);
     if (!lane) {
@@ -217,9 +244,15 @@ export class CryptoComAppAdapter implements ExchangeAdapter {
     const l = lane;
     l.pending++;
     const run = l.tail.then(() =>
-      this.send(creds, path, () => {
-        l.lastTs = Math.max(this.now(), l.lastTs + 1);
-        return l.lastTs;
+      this.send(creds, path, query, async () => {
+        let ts = Math.max(this.now(), l.lastTs + 1);
+        if (ts - this.now() > MAX_TS_DRIFT_MS) {
+          // Do not drift further ahead of the clock: wait until within range.
+          await this.sleep(ts - this.now() - MAX_TS_DRIFT_MS);
+          ts = Math.max(this.now(), l.lastTs + 1);
+        }
+        l.lastTs = ts;
+        return ts;
       }),
     );
     l.tail = run.catch(() => undefined);
@@ -234,12 +267,20 @@ export class CryptoComAppAdapter implements ExchangeAdapter {
   private async send(
     creds: Credentials,
     path: string,
-    nextTimestamp: () => number,
+    query: Record<string, string | number> | undefined,
+    nextTimestamp: () => Promise<number>,
   ): Promise<Json> {
     if (!READ_PATHS.has(path)) {
       throw new Error(`Refusing to call non-read Crypto.com App path ${path}`);
     }
-    const timestamp = nextTimestamp();
+    const qs = query
+      ? new URLSearchParams(
+          Object.keys(query)
+            .sort()
+            .map((k) => [k, String(query[k])]),
+        ).toString()
+      : '';
+    const timestamp = await nextTimestamp();
     const signature = cryptoComAppSign({
       timestamp,
       method: 'GET',
@@ -253,24 +294,30 @@ export class CryptoComAppAdapter implements ExchangeAdapter {
       );
     let res: Response;
     try {
-      res = await this.fetchImpl(`${this.baseUrl}${path}`, {
-        method: 'GET',
-        headers: {
-          'Cdc-Api-Key': creds.apiKey,
-          'Cdc-Api-Timestamp': String(timestamp),
-          'Cdc-Api-Signature': signature,
-          'User-Agent': USER_AGENT,
-          Accept: 'application/json',
+      res = await this.fetchImpl(
+        `${this.baseUrl}${path}${qs ? `?${qs}` : ''}`,
+        {
+          method: 'GET',
+          headers: {
+            'Cdc-Api-Key': creds.apiKey,
+            'Cdc-Api-Timestamp': String(timestamp),
+            'Cdc-Api-Signature': signature,
+            'User-Agent': USER_AGENT,
+            Accept: 'application/json',
+          },
+          redirect: 'error',
+          signal,
         },
-        redirect: 'error',
-        signal,
-      });
+      );
     } catch (err) {
       if (signal.aborted) throw timedOut();
       throw new ExchangeNetworkError(
         `Crypto.com App request failed: ${this.sanitize((err as Error)?.message, creds)}`,
       );
     }
+    // Always read (drain) the body so the connection is released.
+    const text = await res.text().catch(() => '');
+    if (signal.aborted) throw timedOut();
     if (res.status === 429) {
       throw new ExchangeRateLimitError(
         'Crypto.com App rate limit exceeded',
@@ -278,8 +325,6 @@ export class CryptoComAppAdapter implements ExchangeAdapter {
         60_000,
       );
     }
-    const text = await res.text().catch(() => '');
-    if (signal.aborted) throw timedOut();
     if (res.status === 401) {
       throw new ExchangeAuthError(
         'Crypto.com App: key or signature rejected (401)',

@@ -17,6 +17,16 @@ function formatDecimal(scaled: bigint, scale: number): string {
   return frac ? `${int}.${frac}` : int;
 }
 
+/** a - b on non-negative decimal strings, clamped at 0. */
+export function subDecimal(a: string, b: string): string {
+  const [ai, af = ''] = a.split('.');
+  const [bi, bf = ''] = b.split('.');
+  const scale = Math.max(af.length, bf.length);
+  const x = BigInt(ai + af.padEnd(scale, '0'));
+  const y = BigInt(bi + bf.padEnd(scale, '0'));
+  return x > y ? formatDecimal(x - y, scale) : '0';
+}
+
 export const isZero = (v: string) => /^0*\.?0*$/.test(v);
 
 export const isDecimal = (v: unknown): v is string =>
