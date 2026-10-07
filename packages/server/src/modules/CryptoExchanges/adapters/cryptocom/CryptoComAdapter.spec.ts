@@ -39,7 +39,7 @@ describe('CryptoComAdapter', () => {
     const a = adapter(makeFetch(() => ({ body: '{}' })).fn);
     expect(a.id).toBe('crypto_com');
     expect(a.rateLimit).toEqual({
-      capacity: 3,
+      capacity: 10,
       refillPerSec: 10,
       historyPageCost: 10,
     });

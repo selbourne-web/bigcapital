@@ -33,6 +33,7 @@ const READ_METHODS = new Set([
   'private/get-transactions',
   'private/get-deposit-history',
   'private/get-withdrawal-history',
+  'private/staking/get-reward-history',
   'private/get-deposit-address', // inspectKey probe only; addresses are discarded
 ]);
 
@@ -42,19 +43,21 @@ const WITHDRAWAL_WARNING =
 /** API retention for trades/orders/transactions (docs: "recent 6 months"); 180 days, conservative. */
 export const CRYPTOCOM_RETENTION_MS = 180 * 86_400_000;
 const DAY_MS = 86_400_000;
-/** Trades/orders/transactions: one-day windows, 100 rows max. */
-const TIME_WINDOW_MS = DAY_MS;
-const TIME_LIMIT = 100;
-/** Deposits/withdrawals: the API default window is 90 days; page size max 200. */
-const LIST_WINDOW_MS = 90 * DAY_MS;
-const LIST_PAGE_SIZE = 200;
+/**
+ * Deposit/withdrawal lists have no documented retention, so their lower bound is
+ * this fixed date (Crypto.com Exchange launched in 2018), not the 180-day clamp.
+ */
+const LIST_EPOCH_MS = Date.UTC(2018, 0, 1);
 /**
  * Deposit/withdrawal lists are windowed by creation time but their status changes
- * later, so `since` is stepped back this far (ids dedupe the overlap).
+ * later, so `since` is stepped back this far (status is part of the record id, so
+ * each transition becomes a new raw row).
  */
 const LIST_OVERLAP_MS = 14 * DAY_MS;
 /** At most this many API requests per fetchHistory call (empty windows are skipped quickly). */
 const MAX_REQUESTS_PER_CALL = 8;
+/** Cap on queued unseen sub-ranges in a cursor. */
+const MAX_PENDING = 64;
 /** Gap between requests inside one call: get-trades/get-order-history allow 1 req/s. */
 const SLOW_GAP_MS = 1_100;
 const FAST_GAP_MS = 150;
@@ -65,16 +68,76 @@ const STREAMS = [
   'transactions',
   'deposits',
   'withdrawals',
+  'rewards',
 ] as const;
 type Stream = (typeof STREAMS)[number];
-type HistoryCursor = { stream: Stream; windowEnd: number; page?: number };
+type Range = [number, number];
+type HistoryCursor = {
+  stream: Stream;
+  windowEnd: number;
+  page?: number;
+  pending?: Range[];
+};
 
-const STREAM_METHOD: Record<Stream, string> = {
-  trades: 'private/get-trades',
-  orders: 'private/get-order-history',
-  transactions: 'private/get-transactions',
-  deposits: 'private/get-deposit-history',
-  withdrawals: 'private/get-withdrawal-history',
+/**
+ * Per-stream endpoint config. `time`: start_time/end_time windows, `limit` rows max.
+ * `list`: start_ts/end_ts windows with page numbers, `limit` is the page size.
+ * Docs (see CryptoComAdapter.history.spec.ts for URLs): trades/orders/transactions
+ * 100 rows, deposits/withdrawals page_size 200 (90-day default window), staking
+ * rewards limit 500 with start_time >= end_time - 180 days.
+ */
+const STREAM_CONF: Record<
+  Stream,
+  {
+    method: string;
+    kind: 'time' | 'list';
+    windowMs: number;
+    limit: number;
+    gapMs: number;
+  }
+> = {
+  trades: {
+    method: 'private/get-trades',
+    kind: 'time',
+    windowMs: DAY_MS,
+    limit: 100,
+    gapMs: SLOW_GAP_MS,
+  },
+  orders: {
+    method: 'private/get-order-history',
+    kind: 'time',
+    windowMs: DAY_MS,
+    limit: 100,
+    gapMs: SLOW_GAP_MS,
+  },
+  transactions: {
+    method: 'private/get-transactions',
+    kind: 'time',
+    windowMs: DAY_MS,
+    limit: 100,
+    gapMs: FAST_GAP_MS,
+  },
+  deposits: {
+    method: 'private/get-deposit-history',
+    kind: 'list',
+    windowMs: 90 * DAY_MS,
+    limit: 200,
+    gapMs: FAST_GAP_MS,
+  },
+  withdrawals: {
+    method: 'private/get-withdrawal-history',
+    kind: 'list',
+    windowMs: 90 * DAY_MS,
+    limit: 200,
+    gapMs: FAST_GAP_MS,
+  },
+  rewards: {
+    method: 'private/staking/get-reward-history',
+    kind: 'time',
+    windowMs: 30 * DAY_MS,
+    limit: 500,
+    gapMs: FAST_GAP_MS,
+  },
 };
 
 /** Journal types that duplicate other streams (trades, deposits, withdrawals): not recorded. */
@@ -88,7 +151,7 @@ const FEE_JOURNAL_TYPES = new Set([
   'LIQUIDATION_FEE',
   'SETTLEMENT_FEE',
 ]);
-/** No documented get-transactions journal type is a reward (staking rewards live on a separate endpoint). */
+/** No documented get-transactions journal type is a reward (staking rewards have their own stream). */
 const REWARD_JOURNAL_TYPES = new Set<string>();
 
 /**
@@ -99,7 +162,7 @@ const REWARD_JOURNAL_TYPES = new Set<string>();
  */
 export function quoteExactNumbers(text: string): string {
   return text.replace(
-    /("(?:amount|fee)"\s*:\s*)(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)(?=\s*[,}\]])/g,
+    /("(?:amount|fee|reward_quantity|staked_balance)"\s*:\s*)(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)(?=\s*[,}\]])/g,
     '$1"$2"',
   );
 }
@@ -176,10 +239,10 @@ export class CryptoComAdapter implements ExchangeAdapter {
   readonly id: CryptoExchangeId = 'crypto_com';
   readonly historyCoverage: HistoryCoverage = {
     level: 'partial',
-    note: 'Crypto.com Exchange API history is limited to the last 6 months.',
+    note: 'Crypto.com Exchange API trade, order and ledger history is limited to the last 6 months; import a CSV for older records.',
   };
-  /** 3 private calls per 100 ms; trades/order history 1 req/s, so history pages cost 10. */
-  readonly rateLimit = { capacity: 3, refillPerSec: 10, historyPageCost: 10 };
+  /** Most private calls 3 per 100 ms; trades/order history 1 req/s. A history page costs 10 tokens (capacity must be >= cost) and the adapter paces its own 1 req/s calls. */
+  readonly rateLimit = { capacity: 10, refillPerSec: 10, historyPageCost: 10 };
 
   /**
    * Per-api-key serialization state (keyed by a hash of the key). The adapter is a
@@ -272,15 +335,26 @@ export class CryptoComAdapter implements ExchangeAdapter {
 
   /**
    * Streams run in a fixed order (trades, orders, transactions, deposits,
-   * withdrawals), each walked backwards from now in windows (1 day for the three
-   * time-windowed endpoints, 90 days with page numbers for deposits/withdrawals)
-   * down to a floor of `max(since, now - 180 days)`.
+   * withdrawals, rewards), each walked backwards from now in windows (1 day for
+   * trades/orders/transactions, 30 days for staking rewards, 90 days with page
+   * numbers for deposits/withdrawals). Time-windowed streams stop at
+   * `max(since, now - 180 days)` (documented retention); deposit/withdrawal lists
+   * have no documented retention and stop at `max(since - 14d, 2018-01-01)`.
    *
-   * Cursor: opaque JSON `{stream, windowEnd(ms, exclusive), page?}`. A call makes at
-   * most 8 API requests: empty windows are skipped in-call, but a call returns as
-   * soon as one request yields rows (one data page per call). A window returning
-   * exactly 100 rows is re-requested with `end_time = oldest + 1` (never lossy;
-   * duplicates dedupe by exchangeRecordId). The last page returns no `nextCursor`.
+   * Cursor: opaque JSON `{stream, windowEnd(ms, exclusive), page?, pending?}`. A call
+   * makes at most 8 API requests: empty windows are skipped in-call, but a call
+   * returns as soon as one request yields rows (one data page per call).
+   *
+   * Row order within a response is not documented, so a FULL page (limit rows) is
+   * handled order-independently: with min/max row times m/M of a requested range
+   * [s,e), the unseen remainder is [s, m+1) (rows older than the page, ties at m
+   * included) and [M, e) (rows newer than the page, ties at M included). Both are
+   * queued in `pending` and re-requested (and split again if full) before the main
+   * walk continues. Duplicates dedupe by exchangeRecordId.
+   * Known limit: when a range still returns >= limit rows that all share one
+   * millisecond, no sub-range can be smaller than the range itself; the walk
+   * terminates and the rows beyond the first `limit` at that millisecond cannot be
+   * fetched (the API offers no other cursor).
    */
   async fetchHistory(
     c: Credentials,
@@ -304,17 +378,11 @@ export class CryptoComAdapter implements ExchangeAdapter {
       if (requests >= MAX_REQUESTS_PER_CALL) {
         return { records, nextCursor: this.serializeCursor(cur) };
       }
-      if (requests > 0) {
-        await this.sleep(
-          cur.stream === 'trades' || cur.stream === 'orders'
-            ? SLOW_GAP_MS
-            : FAST_GAP_MS,
-        );
-      }
+      if (requests > 0) await this.sleep(STREAM_CONF[cur.stream].gapMs);
       requests++;
       const floor = this.floorFor(cur.stream, now, sinceMs);
       const step =
-        cur.stream === 'deposits' || cur.stream === 'withdrawals'
+        STREAM_CONF[cur.stream].kind === 'list'
           ? await this.listWindow(creds, cur, floor)
           : await this.timeWindow(creds, cur, floor);
       records.push(...step.records);
@@ -329,23 +397,26 @@ export class CryptoComAdapter implements ExchangeAdapter {
   }
 
   private floorFor(stream: Stream, now: number, sinceMs?: number): number {
+    if (STREAM_CONF[stream].kind === 'list') {
+      // No documented retention for deposit/withdrawal lists: never clamp to 180 days.
+      return Math.max((sinceMs ?? 0) - LIST_OVERLAP_MS, LIST_EPOCH_MS);
+    }
     const retention = now - CRYPTOCOM_RETENTION_MS;
-    if (sinceMs === undefined) return retention;
-    const lower =
-      stream === 'deposits' || stream === 'withdrawals'
-        ? sinceMs - LIST_OVERLAP_MS
-        : sinceMs;
-    return Math.max(lower, retention);
+    return sinceMs === undefined ? retention : Math.max(sinceMs, retention);
   }
 
-  /** Moves past streams whose window walk has reached the floor; undefined when all are done. */
+  /** Moves past streams whose walk is finished; undefined when all are done. */
   private settle(
     cur: HistoryCursor,
     now: number,
     sinceMs?: number,
   ): HistoryCursor | undefined {
     let c: HistoryCursor | undefined = cur;
-    while (c && c.windowEnd <= this.floorFor(c.stream, now, sinceMs)) {
+    while (
+      c &&
+      !c.pending?.length &&
+      c.windowEnd <= this.floorFor(c.stream, now, sinceMs)
+    ) {
       const next: Stream | undefined = STREAMS[STREAMS.indexOf(c.stream) + 1];
       c = next ? { stream: next, windowEnd: now } : undefined;
     }
@@ -373,10 +444,31 @@ export class CryptoComAdapter implements ExchangeAdapter {
     ) {
       throw bad();
     }
+    let pending: Range[] | undefined;
+    if (v.pending !== undefined) {
+      if (
+        STREAM_CONF[v.stream as Stream].kind !== 'time' ||
+        !Array.isArray(v.pending) ||
+        v.pending.length > MAX_PENDING ||
+        !v.pending.every(
+          (r: any) =>
+            Array.isArray(r) &&
+            r.length === 2 &&
+            Number.isSafeInteger(r[0]) &&
+            Number.isSafeInteger(r[1]) &&
+            r[0] > 0 &&
+            r[0] < r[1],
+        )
+      ) {
+        throw bad();
+      }
+      pending = v.pending.map((r: Range) => [r[0], r[1]] as Range);
+    }
     return {
       stream: v.stream,
       windowEnd: v.windowEnd,
       ...(v.page !== undefined ? { page: v.page } : {}),
+      ...(pending?.length ? { pending } : {}),
     };
   }
 
@@ -385,47 +477,114 @@ export class CryptoComAdapter implements ExchangeAdapter {
       stream: c.stream,
       windowEnd: c.windowEnd,
       ...(c.page ? { page: c.page } : {}),
+      ...(c.pending?.length ? { pending: c.pending } : {}),
     });
   }
 
-  /** trades / orders / transactions: `start_time` inclusive, `end_time` exclusive, ms. */
+  /** `start_time` inclusive, `end_time` exclusive, ms. */
   private async timeWindow(
     creds: Credentials,
     cur: HistoryCursor,
     floor: number,
   ): Promise<{ records: RawRecordInput[]; next: HistoryCursor }> {
-    const start = Math.max(floor, cur.windowEnd - TIME_WINDOW_MS);
-    const body = await this.call(creds, STREAM_METHOD[cur.stream], {
-      start_time: start,
-      end_time: cur.windowEnd,
-      limit: TIME_LIMIT,
-    });
-    const rows = body.result?.data;
-    if (!Array.isArray(rows)) {
-      throw this.schemaError(`${cur.stream} result.data is not an array`, body);
+    const conf = STREAM_CONF[cur.stream];
+    let range: Range;
+    let rest: Range[];
+    let windowEnd = cur.windowEnd;
+    if (cur.pending?.length) {
+      range = cur.pending[0];
+      rest = cur.pending.slice(1);
+    } else {
+      const start = Math.max(floor, cur.windowEnd - conf.windowMs);
+      range = [start, cur.windowEnd];
+      rest = [];
+      windowEnd = start;
     }
+    const done = (r: RawRecordInput[], nextRest: Range[], end = windowEnd) => ({
+      records: r,
+      next: {
+        stream: cur.stream,
+        windowEnd: end,
+        ...(nextRest.length ? { pending: nextRest } : {}),
+      } as HistoryCursor,
+    });
+
+    let body: Json;
+    try {
+      body = await this.call(creds, conf.method, {
+        start_time: range[0],
+        end_time: range[1],
+        limit: conf.limit,
+      });
+    } catch (err) {
+      // The staking reward endpoint documents `instrument_name` as required, but
+      // the adapter does not know the staking instruments. If the exchange rejects
+      // the call as a bad request (a non-retryable, non-auth error), the optional
+      // rewards stream is treated as unavailable rather than failing the sync.
+      if (
+        cur.stream === 'rewards' &&
+        err instanceof ExchangeNetworkError &&
+        !err.retryable
+      ) {
+        return done([], [], floor);
+      }
+      throw err;
+    }
+    const rows = this.timeRows(cur.stream, body);
     const records: RawRecordInput[] = [];
-    let oldest: number | undefined;
+    let min: number | undefined;
+    let max: number | undefined;
     for (const row of rows) {
-      const mapped = this.mapTimeRow(cur.stream, row, start);
+      const mapped = this.mapTimeRow(cur.stream, row, range[0]);
       if (mapped.at !== undefined) {
-        oldest = oldest === undefined ? mapped.at : Math.min(oldest, mapped.at);
+        min = min === undefined ? mapped.at : Math.min(min, mapped.at);
+        max = max === undefined ? mapped.at : Math.max(max, mapped.at);
       }
       records.push(...mapped.records);
     }
-    if (rows.length < TIME_LIMIT) {
-      return { records, next: { stream: cur.stream, windowEnd: start } };
+    if (rows.length >= conf.limit) {
+      if (min === undefined || max === undefined) {
+        throw this.schemaError(
+          `${cur.stream} full page has no usable times`,
+          body,
+        );
+      }
+      const unseen: Range[] = (
+        [
+          [range[0], min + 1], // older than the page, ties at min included
+          [max, range[1]], // newer than the page, ties at max included
+        ] as Range[]
+      ).filter(([lo, hi]) => lo < hi && !(lo === range[0] && hi === range[1]));
+      rest = [...unseen, ...rest];
+      if (rest.length > MAX_PENDING) {
+        throw this.schemaError(
+          `${cur.stream} history is too dense to page`,
+          body,
+        );
+      }
     }
-    // Full page: more rows may remain in this window. Continue from the oldest row
-    // (plus 1 ms because end_time is exclusive; it is the row itself that repeats).
-    if (oldest === undefined) {
-      throw this.schemaError(
-        `${cur.stream} full page has no usable times`,
-        body,
-      );
+    return done(records, rest);
+  }
+
+  private timeRows(stream: Stream, body: Json): any[] {
+    const result = body.result;
+    if (stream === 'rewards') {
+      // The docs describe the response only as "an array of reward objects"; accept
+      // the usual containers (not verified live).
+      for (const rows of [
+        result?.data,
+        result?.reward_list,
+        result?.reward_history_list,
+        Array.isArray(result) ? result : undefined,
+      ]) {
+        if (Array.isArray(rows)) return rows;
+      }
+      throw this.schemaError('rewards result has no reward array', body);
     }
-    const windowEnd = oldest + 1 < cur.windowEnd ? oldest + 1 : oldest;
-    return { records, next: { stream: cur.stream, windowEnd } };
+    if (!Array.isArray(result?.data)) {
+      throw this.schemaError(`${stream} result.data is not an array`, body);
+    }
+    return result.data;
   }
 
   /** deposits / withdrawals: page-number lists over 90-day `start_ts`..`end_ts` windows. */
@@ -434,14 +593,15 @@ export class CryptoComAdapter implements ExchangeAdapter {
     cur: HistoryCursor,
     floor: number,
   ): Promise<{ records: RawRecordInput[]; next: HistoryCursor }> {
-    const start = Math.max(floor, cur.windowEnd - LIST_WINDOW_MS);
+    const conf = STREAM_CONF[cur.stream];
+    const start = Math.max(floor, cur.windowEnd - conf.windowMs);
     const page = cur.page ?? 0;
     const key = cur.stream === 'deposits' ? 'deposit_list' : 'withdrawal_list';
-    const body = await this.call(creds, STREAM_METHOD[cur.stream], {
+    const body = await this.call(creds, conf.method, {
       start_ts: start,
       end_ts: cur.windowEnd,
       page,
-      page_size: LIST_PAGE_SIZE,
+      page_size: conf.limit,
     });
     const rows = body.result?.[key];
     if (!Array.isArray(rows)) {
@@ -455,7 +615,7 @@ export class CryptoComAdapter implements ExchangeAdapter {
       records.push(this.mapListRow(cur.stream, row, start));
     }
     const next: HistoryCursor =
-      rows.length >= LIST_PAGE_SIZE
+      rows.length >= conf.limit
         ? { stream: cur.stream, windowEnd: cur.windowEnd, page: page + 1 }
         : { stream: cur.stream, windowEnd: start };
     return { records, next };
@@ -482,7 +642,7 @@ export class CryptoComAdapter implements ExchangeAdapter {
             type: 'trade',
             exchangeRecordId: `trade:${id}`,
             occurredAt: new Date(at),
-            payload: row,
+            payload: { ...row, _source: 'trades' },
           },
         ],
       };
@@ -490,15 +650,43 @@ export class CryptoComAdapter implements ExchangeAdapter {
     if (stream === 'orders') {
       const at = toMs(row.create_time) ?? toMs(row.update_time);
       const id = idText(row.order_id);
-      if (!id || at === undefined) return bad(at);
+      const status = idText(row.status);
+      if (!id || !status || at === undefined) return bad(at);
+      // The id carries the status so each status transition is its own immutable
+      // raw row (inserts dedupe by id). `_source` lets consumers tell orders from fills.
       return {
         at,
         records: [
           {
             type: 'trade',
-            exchangeRecordId: `order:${id}`,
+            exchangeRecordId: `order:${id}:s${status}`,
             occurredAt: new Date(at),
-            payload: row,
+            payload: { ...row, _source: 'order-history' },
+          },
+        ],
+      };
+    }
+    if (stream === 'rewards') {
+      const at = toMs(row.event_timestamp_ms);
+      const inst =
+        idText(row.staking_inst_name) ?? idText(row.reward_inst_name);
+      const qty = exactDecimal(row.reward_quantity);
+      const rewardInst = idText(row.reward_inst_name);
+      if (!inst || qty === undefined || at === undefined || !rewardInst) {
+        return bad(at);
+      }
+      return {
+        at,
+        records: [
+          {
+            type: 'reward',
+            exchangeRecordId: `reward:${inst}:${at}:${qty}`,
+            occurredAt: new Date(at),
+            payload: {
+              ...row,
+              reward_quantity: qty,
+              normalizedAsset: normalizeAsset('crypto_com', rewardInst),
+            },
           },
         ],
       };
@@ -538,12 +726,17 @@ export class CryptoComAdapter implements ExchangeAdapter {
     windowStart: number,
   ): RawRecordInput {
     const deposit = stream === 'deposits';
-    const id = row && typeof row === 'object' ? idText(row.id) : undefined;
+    const isRow = row && typeof row === 'object' && !Array.isArray(row);
+    const id = isRow ? idText(row.id) : undefined;
+    const status = isRow ? idText(row.status) : undefined;
     const amount = exactDecimal(row?.amount);
-    const fee = exactDecimal(row?.fee);
+    // A missing fee is not schema drift: treat it as zero.
+    const fee =
+      row?.fee === undefined || row?.fee === null ? '0' : exactDecimal(row.fee);
     const at = toMs(row?.create_time);
     if (
       !id ||
+      status === undefined ||
       amount === undefined ||
       fee === undefined ||
       at === undefined ||
@@ -552,9 +745,10 @@ export class CryptoComAdapter implements ExchangeAdapter {
     ) {
       return this.unparsedRecord(stream, row, at ?? windowStart);
     }
+    // The status is part of the id: each status transition is a new immutable raw row.
     return {
       type: deposit ? 'deposit' : 'withdrawal',
-      exchangeRecordId: `${deposit ? 'dep' : 'wd'}:${id}`,
+      exchangeRecordId: `${deposit ? 'dep' : 'wd'}:${id}:s${status}`,
       occurredAt: new Date(at),
       payload: {
         ...row,
@@ -684,7 +878,8 @@ export class CryptoComAdapter implements ExchangeAdapter {
     try {
       parsed = JSON.parse(
         method === 'private/get-deposit-history' ||
-          method === 'private/get-withdrawal-history'
+          method === 'private/get-withdrawal-history' ||
+          method === 'private/staking/get-reward-history'
           ? quoteExactNumbers(text)
           : text,
       );

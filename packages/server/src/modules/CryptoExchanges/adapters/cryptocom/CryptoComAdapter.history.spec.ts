@@ -96,6 +96,7 @@ describe('CryptoComAdapter.fetchHistory', () => {
       'private/get-transactions',
       'private/get-deposit-history',
       'private/get-withdrawal-history',
+      'private/staking/get-reward-history',
     ]);
     const trades = calls.filter((c) => c.body.method === 'private/get-trades');
     expect(trades[0].body.params).toEqual({
@@ -113,10 +114,32 @@ describe('CryptoComAdapter.fetchHistory', () => {
     );
     for (const c of calls) {
       const p = c.body.params;
-      expect(p.start_time ?? p.start_ts).toBeGreaterThanOrEqual(
-        NOW - RETENTION,
-      );
+      if (p.start_time !== undefined) {
+        expect(p.start_time).toBeGreaterThanOrEqual(NOW - RETENTION);
+      }
     }
+    // I4: deposit/withdrawal lists are NOT clamped to 180 days; they follow since - 14d
+    for (const m of [
+      'private/get-deposit-history',
+      'private/get-withdrawal-history',
+    ]) {
+      const lists = calls.filter((c) => c.body.method === m);
+      const lowest = Math.min(...lists.map((c) => c.body.params.start_ts));
+      expect(lowest).toBe(NOW - 14 * 30 * DAY - 14 * DAY);
+      expect(lowest).toBeLessThan(NOW - RETENTION);
+    }
+  });
+
+  it('walks deposit lists back to 2018-01-01 when there is no since', async () => {
+    const { fn, calls } = makeFetch((c) => emptyFor(c.body.method));
+    await drain(hist(fn), {});
+    const deps = calls.filter(
+      (c) => c.body.method === 'private/get-deposit-history',
+    );
+    expect(deps[deps.length - 1].body.params.start_ts).toBe(
+      Date.UTC(2018, 0, 1),
+    );
+    expect(deps.length).toBeGreaterThan(20);
   });
 
   it('never exceeds 8 requests per call and paces slow endpoints', async () => {
@@ -130,40 +153,109 @@ describe('CryptoComAdapter.fetchHistory', () => {
     expect(sleeps).toEqual(Array(7).fill(1100));
   });
 
-  it('re-requests a window that returned exactly 100 rows from the oldest row, losing nothing', async () => {
-    const rows = Array.from({ length: 100 }, (_, i) => ({
+  // A fake server over a dataset: honours start_time (inclusive) / end_time
+  // (exclusive) / limit, and returns rows newest-first or oldest-first.
+  const serve =
+    (
+      method: string,
+      rows: any[],
+      timeKey: string,
+      limit: number,
+      order: 'asc' | 'desc',
+    ) =>
+    (c: Call) => {
+      if (c.body.method !== method) return emptyFor(c.body.method);
+      const { start_time: s, end_time: e } = c.body.params;
+      const hit = rows
+        .filter((r) => r[timeKey] >= s && r[timeKey] < e)
+        .sort((a, b) =>
+          order === 'asc' ? a[timeKey] - b[timeKey] : b[timeKey] - a[timeKey],
+        )
+        .slice(0, limit);
+      return ok({ data: hit });
+    };
+  const tradeRows = (n: number, at: (i: number) => number) =>
+    Array.from({ length: n }, (_, i) => ({
       trade_id: String(1000 + i),
-      create_time: NOW - 1000 - i * 10, // newest first; oldest = NOW - 1990
+      create_time: at(i),
     }));
+
+  it.each(['desc', 'asc'] as const)(
+    'loses no rows when a window is full and the API returns rows %s',
+    async (order) => {
+      // 250 distinct rows in the first day plus a boundary row exactly at the window start
+      const rows = tradeRows(250, (i) => NOW - 1000 - i * 5000);
+      const { fn } = makeFetch(
+        serve('private/get-trades', rows, 'create_time', 100, order),
+      );
+      const { records } = await drain(hist(fn), {
+        since: new Date(NOW - 2 * DAY),
+      });
+      const ids = new Set(
+        records
+          .filter((r) => r.type === 'trade')
+          .map((r) => r.exchangeRecordId),
+      );
+      expect(ids.size).toBe(250);
+    },
+  );
+
+  it('queues both unseen sub-ranges in a resumable cursor after a full page', async () => {
+    const rows = tradeRows(100, (i) => NOW - 1000 - i * 10); // oldest = NOW-1990
     const { fn, calls } = makeFetch((c, n) =>
       n === 1 ? ok({ data: rows }) : emptyFor(c.body.method),
     );
     const a = hist(fn);
     const first = await a.fetchHistory(creds, {});
     expect(first.records).toHaveLength(100);
-    expect(new Set(first.records.map((r) => r.exchangeRecordId)).size).toBe(
-      100,
-    );
     expect(JSON.parse(first.nextCursor!)).toEqual({
       stream: 'trades',
-      windowEnd: NOW - 1989,
+      windowEnd: NOW - DAY,
+      pending: [
+        [NOW - DAY, NOW - 1989], // older than the page, ties at the oldest ms included
+        [NOW - 1000, NOW], // newer than the page, ties at the newest ms included
+      ],
     });
     await a.fetchHistory(creds, { cursor: first.nextCursor });
-    // same window re-requested, ending just after (so including) the oldest row
-    expect(calls[1].body.params.end_time).toBe(NOW - 1989);
-    expect(calls[1].body.params.start_time).toBe(NOW - 1989 - DAY);
+    expect(calls[1].body.params).toMatchObject({
+      start_time: NOW - DAY,
+      end_time: NOW - 1989,
+    });
+    expect(calls[2].body.params).toMatchObject({
+      start_time: NOW - 1000,
+      end_time: NOW,
+    });
   });
 
-  it('does not loop when 100 rows share the last millisecond of the window', async () => {
-    const rows = Array.from({ length: 100 }, (_, i) => ({
-      trade_id: String(i),
-      create_time: NOW - 1,
-    }));
-    const { fn } = makeFetch((c, n) =>
-      n === 1 ? ok({ data: rows }) : emptyFor(c.body.method),
+  it('terminates when 100+ rows share one millisecond (rows past the limit at that ms are unreachable)', async () => {
+    // Documented limitation: the API has no cursor inside one millisecond.
+    const rows = tradeRows(150, () => NOW - 5000);
+    const { fn, calls } = makeFetch(
+      serve('private/get-trades', rows, 'create_time', 100, 'desc'),
     );
-    const r = await hist(fn).fetchHistory(creds, {});
-    expect(JSON.parse(r.nextCursor!).windowEnd).toBe(NOW - 1);
+    const { records, calls: n } = await drain(hist(fn), {
+      since: new Date(NOW - 2 * DAY),
+    });
+    const trades = records.filter((r) => r.type === 'trade');
+    expect(trades.length).toBeGreaterThanOrEqual(100);
+    expect(n).toBeLessThan(40);
+    expect(
+      calls.filter((c) => c.body.method === 'private/get-trades').length,
+    ).toBeLessThan(40);
+  });
+
+  it('rejects pending ranges that are malformed or on a list stream', async () => {
+    const a = hist(makeFetch((c) => emptyFor(c.body.method)).fn);
+    for (const bad of [
+      '{"stream":"trades","windowEnd":5,"pending":"x"}',
+      '{"stream":"trades","windowEnd":5,"pending":[[3,2]]}',
+      '{"stream":"trades","windowEnd":5,"pending":[[1]]}',
+      '{"stream":"deposits","windowEnd":5,"pending":[[1,2]]}',
+    ]) {
+      await expect(
+        a.fetchHistory(creds, { cursor: bad }),
+      ).rejects.toBeInstanceOf(ExchangeSchemaError);
+    }
   });
 
   it('is idempotent for a record seen in two overlapping windows', async () => {
@@ -188,10 +280,11 @@ describe('CryptoComAdapter.fetchHistory', () => {
     );
     const r = await a.fetchHistory(creds, { cursor: cur('orders', NOW) });
     expect(r.records.map((x) => [x.type, x.exchangeRecordId])).toEqual([
-      ['trade', 'order:19848525'],
-      ['trade', 'order:19848527'],
+      ['trade', 'order:19848525:sFILLED'],
+      ['trade', 'order:19848527:sCANCELED'],
     ]);
     expect((r.records[1].payload as any).status).toBe('CANCELED');
+    expect((r.records[1].payload as any)._source).toBe('order-history');
   });
 
   it('maps transactions: fee rows, skips duplicates of other streams, keeps the rest as unparsed', async () => {
@@ -273,9 +366,9 @@ describe('CryptoComAdapter.fetchHistory', () => {
     const p1 = await a.fetchHistory(creds, { cursor: p0.nextCursor });
     expect(calls[1].body.params.page).toBe(1);
     expect(p1.records.map((r) => r.exchangeRecordId)).toEqual([
-      'dep:2220',
-      'dep:2219',
-      'dep:2218',
+      'dep:2220:s1',
+      'dep:2219:s1',
+      'dep:2218:s1',
     ]);
     // short page: window done, next window ends where this one started
     expect(JSON.parse(p1.nextCursor!)).toEqual({
@@ -294,7 +387,7 @@ describe('CryptoComAdapter.fetchHistory', () => {
     expect(p1.records[0].occurredAt).toEqual(new Date(1693000200000));
   });
 
-  it('maps withdrawals; the final window of the final stream returns no cursor', async () => {
+  it('maps withdrawals; after the last list window the walk moves to rewards', async () => {
     const { fn } = makeFetch((c) =>
       c.body.method === 'private/get-withdrawal-history'
         ? { body: fixture('withdrawal-history.json') }
@@ -302,14 +395,17 @@ describe('CryptoComAdapter.fetchHistory', () => {
     );
     const a = hist(fn);
     const r = await a.fetchHistory(creds, {
-      cursor: cur('withdrawals', NOW - 90 * DAY),
+      cursor: cur('withdrawals', Date.UTC(2018, 0, 1) + DAY),
     });
     expect(r.records.map((x) => [x.type, x.exchangeRecordId])).toEqual([
-      ['withdrawal', 'wd:3301'],
+      ['withdrawal', 'wd:3301:s5'],
     ]);
     expect((r.records[0].payload as any).amount).toBe('250.00000000');
     expect((r.records[0].payload as any).fee).toBe('0.02000000');
-    expect(r.nextCursor).toBeUndefined(); // window reached the 180-day floor
+    expect(JSON.parse(r.nextCursor!)).toEqual({
+      stream: 'rewards',
+      windowEnd: NOW,
+    });
     const mid = await a.fetchHistory(creds, {
       cursor: cur('withdrawals', NOW),
     });
@@ -342,6 +438,7 @@ describe('CryptoComAdapter.fetchHistory', () => {
         'garbage',
         {
           id: '2',
+          status: 1,
           currency: 'BTC',
           amount: 1e-7,
           fee: 0,
@@ -382,6 +479,123 @@ describe('CryptoComAdapter.fetchHistory', () => {
     await expect(a.fetchHistory(creds, {})).rejects.toBeInstanceOf(
       ExchangeSchemaError,
     );
+  });
+
+  it('gives each deposit/withdrawal/order status transition its own record id', async () => {
+    const dep = (status: number) =>
+      `{"code":0,"result":{"deposit_list":[{"id":"77","currency":"BTC","amount":0.5,"fee":0,"create_time":1693000000000,"status":${status}}]}}`;
+    let status = 0;
+    const a = hist(makeFetch(() => ({ body: dep(status) })).fn);
+    const c = { cursor: cur('deposits', NOW) };
+    const pending = await a.fetchHistory(creds, c);
+    status = 1;
+    const arrived = await a.fetchHistory(creds, c);
+    expect(pending.records[0].exchangeRecordId).toBe('dep:77:s0');
+    expect(arrived.records[0].exchangeRecordId).toBe('dep:77:s1');
+
+    const ord = (s: string) =>
+      ok({
+        data: [{ order_id: '5', status: s, create_time: 1693000000000 }],
+      });
+    let st = 'ACTIVE';
+    const o = hist(makeFetch(() => ord(st)).fn);
+    const oc = { cursor: cur('orders', NOW) };
+    const before = await o.fetchHistory(creds, oc);
+    st = 'FILLED';
+    const after = await o.fetchHistory(creds, oc);
+    expect([
+      before.records[0].exchangeRecordId,
+      after.records[0].exchangeRecordId,
+    ]).toEqual(['order:5:sACTIVE', 'order:5:sFILLED']);
+  });
+
+  it('treats a missing or null fee as 0 (not unparsed)', async () => {
+    const raw = `{"code":0,"result":{"withdrawal_list":[
+      {"id":"1","currency":"CRO","amount":5,"create_time":1693000000000,"status":5},
+      {"id":"2","currency":"CRO","amount":6,"fee":null,"create_time":1693000000000,"status":5}]}}`;
+    const a = hist(makeFetch(() => ({ body: raw })).fn);
+    const r = await a.fetchHistory(creds, { cursor: cur('withdrawals', NOW) });
+    expect(r.records.map((x) => x.type)).toEqual(['withdrawal', 'withdrawal']);
+    expect(r.records.map((x) => (x.payload as any).fee)).toEqual(['0', '0']);
+  });
+
+  describe('staking rewards stream', () => {
+    // Docs: https://exchange-developer.crypto.com/exchange/v1/docs/api/rest/private-staking-get-reward-history.md
+    // (limit max 500, start_time >= end_time - 180d). The fixture is docs-derived.
+    it('maps reward rows with stable ids and ends the whole walk with no cursor', async () => {
+      const a = hist(
+        makeFetch((c) =>
+          c.body.method === 'private/staking/get-reward-history'
+            ? { body: fixture('rewards-page.json') }
+            : emptyFor(c.body.method),
+        ).fn,
+      );
+      const r = await a.fetchHistory(creds, {
+        cursor: cur('rewards', NOW - 170 * DAY),
+      });
+      expect(r.records.map((x) => [x.type, x.exchangeRecordId])).toEqual([
+        ['reward', 'reward:SOL.staked:1693000100000:0.00012345'],
+        ['reward', 'reward:CRO.staked:1692990000000:1.5'],
+      ]);
+      expect(r.records[0].occurredAt).toEqual(new Date(1693000100000));
+      expect((r.records[0].payload as any).normalizedAsset).toBe('SOL');
+      // window start hit the 180-day floor, last stream: no more cursor
+      expect(r.nextCursor).toBeUndefined();
+    });
+
+    it('requests 30-day windows with limit 500 and pages order-independently', async () => {
+      const rows = Array.from({ length: 700 }, (_, i) => ({
+        staking_inst_name: 'SOL.staked',
+        reward_inst_name: 'SOL',
+        reward_quantity: '1',
+        event_timestamp_ms: NOW - 1000 - i * 1000,
+      }));
+      const { fn, calls } = makeFetch(
+        serve(
+          'private/staking/get-reward-history',
+          rows,
+          'event_timestamp_ms',
+          500,
+          'asc',
+        ),
+      );
+      const { records } = await drain(hist(fn), {});
+      const rewards = records.filter((r) => r.type === 'reward');
+      expect(new Set(rewards.map((r) => r.exchangeRecordId)).size).toBe(700);
+      const first = calls.find(
+        (c) => c.body.method === 'private/staking/get-reward-history',
+      )!;
+      expect(first.body.params).toEqual({
+        start_time: NOW - 30 * DAY,
+        end_time: NOW,
+        limit: 500,
+      });
+    });
+
+    it('keeps unknown reward shapes as unparsed and rejects an unknown container', async () => {
+      const a = hist(
+        makeFetch(() =>
+          ok({
+            data: [{ reward_quantity: 'abc' }, { staking_inst_name: 'X' }],
+          }),
+        ).fn,
+      );
+      const r = await a.fetchHistory(creds, { cursor: cur('rewards', NOW) });
+      expect(r.records.map((x) => x.type)).toEqual(['unparsed', 'unparsed']);
+      const b = hist(makeFetch(() => ok({ weird: 1 })).fn);
+      await expect(
+        b.fetchHistory(creds, { cursor: cur('rewards', NOW) }),
+      ).rejects.toBeInstanceOf(ExchangeSchemaError);
+    });
+
+    it('treats a rejected (bad request) reward call as an unavailable optional stream', async () => {
+      const a = hist(
+        makeFetch(() => ({ body: '{"code":40001,"message":"BAD_REQUEST"}' }))
+          .fn,
+      );
+      const r = await a.fetchHistory(creds, { cursor: cur('rewards', NOW) });
+      expect(r).toEqual({ records: [] });
+    });
   });
 
   describe('quoteExactNumbers', () => {

@@ -18,6 +18,20 @@ describe('AdapterRegistry', () => {
     expect(registry.get('crypto_com').id).toBe('crypto_com');
   });
 
+  // The sync service acquires `historyPageCost` tokens per history page and the rate
+  // limiter throws when a cost can never be satisfied (cost > capacity).
+  it.each(['kraken', 'binance', 'crypto_com'] as const)(
+    '%s: every token cost fits its bucket capacity',
+    (id) => {
+      const { capacity, refillPerSec, historyPageCost } =
+        registry.get(id).rateLimit;
+      expect(capacity).toBeGreaterThan(0);
+      expect(refillPerSec).toBeGreaterThan(0);
+      expect(historyPageCost ?? 1).toBeLessThanOrEqual(capacity);
+      expect(1).toBeLessThanOrEqual(capacity); // balance / inspect calls cost 1
+    },
+  );
+
   it.each(['nexo', 'pionex'] as const)(
     'throws for unsupported exchange %s',
     (id) => {

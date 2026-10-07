@@ -1,0 +1,26 @@
+{
+  "_note": "DOCS-DERIVED fixture (not probed live). Fields from https://exchange-developer.crypto.com/exchange/v1/docs/api/rest/private-staking-get-reward-history.md; the docs do not show the result container key, the adapter accepts result.data / reward_list / reward_history_list.",
+  "id": 1,
+  "method": "private/staking/get-reward-history",
+  "code": 0,
+  "result": {
+    "data": [
+      {
+        "staking_inst_name": "SOL.staked",
+        "underlying_inst_name": "SOL",
+        "reward_inst_name": "SOL",
+        "reward_quantity": "0.00012345",
+        "staked_balance": "10.5",
+        "event_timestamp_ms": 1693000100000
+      },
+      {
+        "staking_inst_name": "CRO.staked",
+        "underlying_inst_name": "CRO",
+        "reward_inst_name": "CRO",
+        "reward_quantity": "1.5",
+        "staked_balance": "1000",
+        "event_timestamp_ms": 1692990000000
+      }
+    ]
+  }
+}
