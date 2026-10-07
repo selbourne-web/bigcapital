@@ -39,9 +39,11 @@ describe('cryptoComSign', () => {
     );
   });
 
+  // Top-level null is '' (docs JS sample); nested null is 'null' (docs Python/Java
+  // samples). The adapter only sends flat params.
   it('sorts keys and recurses into nested objects, arrays and nulls', () => {
     expect(
       paramString({ b: 1, a: { z: 'x', c: [1, 2, { q: null }] }, n: null }),
-    ).toBe('a' + 'c' + '12' + 'q' + '' + 'zx' + 'b1' + 'n');
+    ).toBe('a' + 'c' + '12' + 'q' + 'null' + 'zx' + 'b1' + 'n');
   });
 });

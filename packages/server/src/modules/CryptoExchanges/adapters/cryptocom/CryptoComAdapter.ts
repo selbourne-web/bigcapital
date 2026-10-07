@@ -1,3 +1,4 @@
+import { createHash } from 'crypto';
 import { CryptoExchangeId } from '../../CryptoExchanges.constants';
 import { redactSecrets } from '../../utils/redact';
 import {
@@ -79,8 +80,20 @@ export class CryptoComAdapter implements ExchangeAdapter {
   /** 3 private calls per 100 ms; trades/order history 1 req/s, so history pages cost 10. */
   readonly rateLimit = { capacity: 3, refillPerSec: 10, historyPageCost: 10 };
 
-  private nextId = 0;
-  private queue: Promise<unknown> = Promise.resolve();
+  /**
+   * Per-api-key serialization state (keyed by a hash of the key). The adapter is a
+   * shared singleton, so a global queue would let one tenant's slow call delay
+   * another's. Entries are removed when the key has no calls in flight.
+   */
+  private readonly lanes = new Map<
+    string,
+    {
+      tail: Promise<unknown>;
+      pending: number;
+      lastId: number;
+      lastNonce: number;
+    }
+  >();
 
   constructor(
     private readonly fetchImpl: typeof fetch = (...args) => fetch(...args),
@@ -105,8 +118,9 @@ export class CryptoComAdapter implements ExchangeAdapter {
         currency: 'BTC',
       });
       return unverifiable([WITHDRAWAL_WARNING]);
-    } catch (err) {
-      if (err instanceof ExchangeAuthError) throw err;
+    } catch {
+      // Ruling: no probe error propagates (not even auth errors). user-balance has
+      // already authenticated the key, so any failure here just means we cannot tell.
       return unverifiable([]);
     }
   }
@@ -128,11 +142,15 @@ export class CryptoComAdapter implements ExchangeAdapter {
         if (
           !p ||
           typeof p.instrument_name !== 'string' ||
-          !isDecimal(p.quantity) ||
+          typeof p.quantity !== 'string' ||
+          !/^-?\d+(\.\d+)?$/.test(p.quantity) ||
           !isDecimal(p.reserved_qty)
         ) {
           throw this.schemaError('user-balance position has bad shape', body);
         }
+        // A negative quantity is a margin borrow: a liability, not a holding. It is
+        // skipped (not an error) so one borrowed asset cannot fail the whole sync.
+        if (p.quantity.startsWith('-')) continue;
         if (isZero(p.quantity) && isZero(p.reserved_qty)) continue;
         const asset = normalizeAsset('crypto_com', p.instrument_name);
         const free = subDecimal(p.quantity, p.reserved_qty);
@@ -167,8 +185,32 @@ export class CryptoComAdapter implements ExchangeAdapter {
     method: string,
     params: Record<string, unknown>,
   ): Promise<Json> {
-    const run = this.queue.then(() => this.send(creds, method, params));
-    this.queue = run.catch(() => undefined);
+    const key = createHash('sha256').update(creds.apiKey).digest('hex');
+    let lane = this.lanes.get(key);
+    if (!lane) {
+      lane = {
+        tail: Promise.resolve(),
+        pending: 0,
+        lastId: 0,
+        lastNonce: 0,
+      };
+      this.lanes.set(key, lane);
+    }
+    const l = lane;
+    l.pending++;
+    const run = l.tail.then(() =>
+      this.send(creds, method, params, () => {
+        l.lastId += 1;
+        l.lastNonce = Math.max(this.now(), l.lastNonce + 1);
+        return { id: l.lastId, nonce: l.lastNonce };
+      }),
+    );
+    l.tail = run.catch(() => undefined);
+    const done = () => {
+      if (--l.pending === 0 && this.lanes.get(key) === l)
+        this.lanes.delete(key);
+    };
+    run.then(done, done);
     return run;
   }
 
@@ -176,12 +218,12 @@ export class CryptoComAdapter implements ExchangeAdapter {
     creds: Credentials,
     method: string,
     params: Record<string, unknown>,
+    next: () => { id: number; nonce: number },
   ): Promise<Json> {
     if (!READ_METHODS.has(method)) {
       throw new Error(`Refusing to call non-read Crypto.com method ${method}`);
     }
-    const id = ++this.nextId;
-    const nonce = this.now();
+    const { id, nonce } = next();
     const sig = cryptoComSign({
       method,
       id,
@@ -267,6 +309,8 @@ export class CryptoComAdapter implements ExchangeAdapter {
           'Crypto.com: IP address not allow-listed (40103)',
           'This API key is IP-restricted and this server is not on its allow-list. Add the server IP in Crypto.com or remove the restriction.',
         );
+      case 40801: // REQUEST_TIMEOUT (HTTP 408): retryable
+        return new ExchangeNetworkError('Crypto.com: request timeout (40801)');
       case 42901:
         return new ExchangeRateLimitError(
           'Crypto.com: too many requests (42901)',

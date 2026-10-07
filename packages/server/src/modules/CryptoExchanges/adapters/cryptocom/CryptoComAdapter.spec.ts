@@ -105,6 +105,8 @@ describe('CryptoComAdapter', () => {
       expect(calls[1].body.params).toEqual({ currency: 'BTC' });
     });
 
+    // The denied fixture uses code 40004 (MISSING_OR_INVALID_ARGUMENT) as a stand-in:
+    // the real code returned when withdrawal permission is off has not been observed.
     it('returns no warning when the probe is denied', async () => {
       const { fn } = makeFetch(
         byMethod({
@@ -170,6 +172,127 @@ describe('CryptoComAdapter', () => {
         permissions: ['read'],
         warnings: [],
       });
+    });
+  });
+
+  const balanceBody = (positions: any[]) =>
+    JSON.stringify({
+      code: 0,
+      result: { data: [{ position_balances: positions }] },
+    });
+
+  it('skips negative (margin borrow) quantities without failing the sync', async () => {
+    const { fn } = makeFetch(() => ({
+      body: balanceBody([
+        { instrument_name: 'BTC', quantity: '-0.5', reserved_qty: '0' },
+        { instrument_name: 'ETH', quantity: '2', reserved_qty: '0.5' },
+      ]),
+    }));
+    expect(await adapter(fn).fetchBalances(creds)).toEqual([
+      { asset: 'ETH', free: '1.5', locked: '0.5' },
+    ]);
+  });
+
+  it.each(['abc', '--1', '1e5', '', 5])(
+    'still throws ExchangeSchemaError for malformed quantity %p',
+    async (quantity) => {
+      const { fn } = makeFetch(() => ({
+        body: balanceBody([
+          { instrument_name: 'BTC', quantity, reserved_qty: '0' },
+        ]),
+      }));
+      await expect(adapter(fn).fetchBalances(creds)).rejects.toBeInstanceOf(
+        ExchangeSchemaError,
+      );
+    },
+  );
+
+  it('keeps distinct symbols like SOL.staked and CDCETH (upper-cased only, not collapsed)', async () => {
+    const { fn } = makeFetch(() => ({
+      body: balanceBody([
+        { instrument_name: 'SOL.staked', quantity: '1', reserved_qty: '0' },
+        { instrument_name: 'CDCETH', quantity: '2', reserved_qty: '0' },
+      ]),
+    }));
+    const assets = (await adapter(fn).fetchBalances(creds)).map((b) => b.asset);
+    expect(assets).toEqual(['SOL.STAKED', 'CDCETH']);
+  });
+
+  it('never propagates probe errors, including auth errors', async () => {
+    for (const code of [40101, 40103]) {
+      const { fn } = makeFetch(
+        byMethod({
+          'private/user-balance': { body: fixture('user-balance.json') },
+          'private/get-deposit-address': {
+            status: 401,
+            body: JSON.stringify({ code }),
+          },
+        }),
+      );
+      expect(await adapter(fn).inspectKey(creds)).toEqual({
+        readOnly: 'unverifiable',
+        permissions: ['read'],
+        warnings: [],
+      });
+    }
+  });
+
+  it('maps code 40801 to a retryable network error', async () => {
+    const { fn } = makeFetch(() => ({
+      status: 408,
+      body: JSON.stringify({ code: 40801 }),
+    }));
+    const err: any = await adapter(fn)
+      .fetchBalances(creds)
+      .catch((e) => e);
+    expect(err).toBeInstanceOf(ExchangeNetworkError);
+    expect(err.retryable).toBe(true);
+  });
+
+  describe('per-key serialization', () => {
+    it('a slow call for key A does not delay key B', async () => {
+      let releaseA!: () => void;
+      const gate = new Promise<void>((r) => (releaseA = r));
+      const fn = jest.fn(async (_url: any, init: any) => {
+        const body = JSON.parse(init.body);
+        if (body.api_key === 'KEY_A') await gate;
+        return {
+          ok: true,
+          status: 200,
+          text: async () => fixture('user-balance.json'),
+        } as any;
+      }) as unknown as typeof fetch;
+      const a = adapter(fn);
+      const pA = a.fetchBalances({ apiKey: 'KEY_A', apiSecret: 's' });
+      const resB = await a.fetchBalances({ apiKey: 'KEY_B', apiSecret: 's' });
+      expect(resB.length).toBeGreaterThan(0);
+      releaseA();
+      await pA;
+    });
+
+    it('concurrent calls for one key get distinct increasing ids and nonces', async () => {
+      const { fn, calls } = makeFetch(() => ({
+        body: fixture('user-balance.json'),
+      }));
+      const a = adapter(fn); // clock is frozen, so nonces must still increase
+      await Promise.all([
+        a.fetchBalances(creds),
+        a.fetchBalances(creds),
+        a.fetchBalances(creds),
+      ]);
+      const ids = calls.map((c) => c.body.id);
+      const nonces = calls.map((c) => c.body.nonce);
+      expect(ids).toEqual([1, 2, 3]);
+      expect(nonces[1]).toBeGreaterThan(nonces[0]);
+      expect(nonces[2]).toBeGreaterThan(nonces[1]);
+    });
+
+    it('cleans up idle per-key state', async () => {
+      const { fn } = makeFetch(() => ({ body: fixture('user-balance.json') }));
+      const a = adapter(fn);
+      await a.fetchBalances(creds);
+      await new Promise((r) => setImmediate(r));
+      expect((a as any).lanes.size).toBe(0);
     });
   });
 
