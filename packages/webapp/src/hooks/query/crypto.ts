@@ -7,6 +7,7 @@ import {
 import { getCookie } from '../../utils';
 import { useAuthOrganizationId, useAuthToken } from '../state';
 import { useApiFetcherOnError } from '../useApiFetcherOnError';
+import { accountsKeys } from './accounts/query-keys';
 
 /*
  * Crypto exchange connections: raw-fetch hooks.
@@ -444,7 +445,12 @@ export function useCryptoSyncRuns(
 
 function useInvalidateCrypto() {
   const client = useQueryClient();
-  return () => client.invalidateQueries({ queryKey: CRYPTO_QUERY_KEYS.all });
+  // A connection change can create or re-map Chart-of-Accounts accounts
+  // server-side, so the accounts list must be refetched too.
+  return () => {
+    client.invalidateQueries({ queryKey: CRYPTO_QUERY_KEYS.all });
+    client.invalidateQueries({ queryKey: accountsKeys.all() });
+  };
 }
 
 /**

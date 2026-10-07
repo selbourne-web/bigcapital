@@ -1,8 +1,9 @@
 import { Button, Icon, Intent, Tag } from '@blueprintjs/core';
 import React from 'react';
-import { describeCryptoError, exchangeLabel } from './AddConnectionDialog';
+import { describeCryptoError } from './AddConnectionDialog';
 import styles from './CryptoConnections.module.scss';
 import { AppToaster } from '@/components';
+import { exchangeLabel } from '@/containers/Crypto/exchanges';
 import {
   useSyncCryptoConnection,
   useUpdateCryptoConnection,

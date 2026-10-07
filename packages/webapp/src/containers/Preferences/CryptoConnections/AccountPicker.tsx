@@ -10,6 +10,22 @@ export interface PickableAccount {
   currencyCode?: string | null;
 }
 
+/** Flattens an accounts tree (nested children) into a flat list. */
+export const flattenAccounts = (
+  accounts: Array<Record<string, any>> | undefined,
+): Array<Record<string, any>> => {
+  const out: Array<Record<string, any>> = [];
+  const walk = (list: Array<Record<string, any>>) =>
+    list.forEach((account) => {
+      out.push(account);
+      if (Array.isArray(account.children) && account.children.length) {
+        walk(account.children);
+      }
+    });
+  walk(accounts ?? []);
+  return out;
+};
+
 /**
  * Narrows the accounts list to asset accounts that are active and not already
  * mapped to another crypto connection. `keepId` keeps the connection's own
@@ -20,7 +36,7 @@ export const pickAssetAccounts = (
   mappedIds: ReadonlySet<number>,
   keepId?: number | null,
 ): PickableAccount[] =>
-  (accounts ?? [])
+  flattenAccounts(accounts)
     .filter((account) => {
       const rootType = account.accountRootType ?? account.account_root_type;
       const id = Number(account.id);

@@ -24,6 +24,7 @@ import { useMoney } from './Widgets';
 import type { HoldingRow } from '@/containers/Crypto/valuation';
 import type { CryptoConnection } from '@/hooks/query/crypto';
 import { DonutChart, chartCssVars } from '@/components/Charts';
+import { exchangeLabel } from '@/containers/Crypto/exchanges';
 import { usePrices } from '@/containers/Crypto/priceStore';
 import { useCryptoLive } from '@/containers/Crypto/useCryptoLive';
 import { useUsdToBase, valueHoldings } from '@/containers/Crypto/valuation';
@@ -133,9 +134,6 @@ const priceFormat = (value: number) =>
 const formatChange = (pct: number) =>
   `${pct > 0 ? '+' : pct < 0 ? '-' : ''}${Math.abs(pct).toFixed(2)}%`;
 
-const capitalize = (value: string) =>
-  value ? value.charAt(0).toUpperCase() + value.slice(1) : value;
-
 // --- parts ------------------------------------------------------------------
 
 interface AssetRow {
@@ -195,7 +193,7 @@ function StatusStrip({ connections }: { connections: CryptoConnection[] }) {
           >
             <span className="dash-crypto__conn-name">{connection.label}</span>
             <span className="dash-crypto__conn-exchange">
-              {capitalize(connection.exchange)}
+              {exchangeLabel(connection.exchange)}
             </span>
             <span
               className={`dash-crypto__badge${isError ? ' dash-crypto__badge--error' : ''}`}

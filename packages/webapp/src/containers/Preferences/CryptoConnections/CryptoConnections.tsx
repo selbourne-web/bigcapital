@@ -1,7 +1,7 @@
 import { Alert, Button, Callout, Intent, Spinner } from '@blueprintjs/core';
 import * as FF from 'fp-ts/function';
-import React, { useEffect, useMemo, useState } from 'react';
-import { pickAssetAccounts } from './AccountPicker';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { flattenAccounts, pickAssetAccounts } from './AccountPicker';
 import {
   AddConnectionDialog,
   describeCryptoError,
@@ -72,13 +72,44 @@ function CryptoConnectionsPreferences({
   );
 
   const connections = connectionsQuery.data;
-  const accounts = accountsQuery.data as Array<Record<string, any>> | undefined;
+  // GET /accounts may return a tree (children nested): flatten it.
+  const accounts = useMemo(
+    () =>
+      accountsQuery.data
+        ? flattenAccounts(accountsQuery.data as Array<Record<string, any>>)
+        : undefined,
+    [accountsQuery.data],
+  );
 
   const accountsById = useMemo(() => {
     const map = new Map<number, Record<string, any>>();
     (accounts ?? []).forEach((account) => map.set(Number(account.id), account));
     return map;
   }, [accounts]);
+
+  // A connection can point at an account created after the list was loaded.
+  // Refetch once per distinct set of missing ids before calling it unmapped.
+  const missingKey = useMemo(
+    () =>
+      accounts
+        ? (connections ?? [])
+            .filter(
+              (c) => c.accountId != null && !accountsById.has(c.accountId),
+            )
+            .map((c) => c.accountId)
+            .sort()
+            .join(',')
+        : '',
+    [accounts, connections, accountsById],
+  );
+  const refetchedFor = useRef<string>('');
+  const refetchAccounts = accountsQuery.refetch;
+  useEffect(() => {
+    if (missingKey && refetchedFor.current !== missingKey) {
+      refetchedFor.current = missingKey;
+      refetchAccounts();
+    }
+  }, [missingKey, refetchAccounts]);
 
   const mappedIds = useMemo(
     () =>
@@ -192,7 +223,9 @@ function CryptoConnectionsPreferences({
                   connection={connection}
                   accountName={account ? String(account.name) : null}
                   accountMissing={
-                    accountsReady && (connection.accountId == null || !account)
+                    accountsReady &&
+                    (connection.accountId == null ||
+                      (!account && !accountsQuery.isFetching))
                   }
                   canEdit={canEdit}
                   canDelete={canDelete}
