@@ -3,6 +3,7 @@ import { CryptoExchangeId } from '../CryptoExchanges.constants';
 import { ExchangeAdapter } from './ExchangeAdapter';
 import { KrakenAdapter } from './kraken/KrakenAdapter';
 import { BinanceAdapter } from './binance/BinanceAdapter';
+import { CryptoComAdapter } from './cryptocom/CryptoComAdapter';
 
 /**
  * Maps an exchange id to its adapter. Add a new adapter to `buildAdapters`
@@ -19,7 +20,7 @@ export class AdapterRegistry {
   }
 
   private static buildAdapters(): ExchangeAdapter[] {
-    return [new KrakenAdapter(), new BinanceAdapter()];
+    return [new KrakenAdapter(), new BinanceAdapter(), new CryptoComAdapter()];
   }
 
   get(exchange: CryptoExchangeId): ExchangeAdapter {

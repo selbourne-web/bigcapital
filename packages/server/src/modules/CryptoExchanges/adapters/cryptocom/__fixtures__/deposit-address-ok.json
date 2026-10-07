@@ -1,0 +1,17 @@
+{
+  "id": 2,
+  "method": "private/get-deposit-address",
+  "code": 0,
+  "result": {
+    "deposit_address_list": [
+      {
+        "currency": "BTC",
+        "create_time": 1700000000000,
+        "id": "1",
+        "address": "bc1qSECRETADDRESSPROBE000000000000000",
+        "status": "1",
+        "network": "BTC"
+      }
+    ]
+  }
+}

@@ -1,6 +1,7 @@
 import { AdapterRegistry } from './AdapterRegistry';
 import { KrakenAdapter } from './kraken/KrakenAdapter';
 import { BinanceAdapter } from './binance/BinanceAdapter';
+import { CryptoComAdapter } from './cryptocom/CryptoComAdapter';
 
 describe('AdapterRegistry', () => {
   const registry = new AdapterRegistry();
@@ -12,7 +13,12 @@ describe('AdapterRegistry', () => {
     expect(registry.get('binance').id).toBe('binance');
   });
 
-  it.each(['nexo', 'pionex', 'crypto_com'] as const)(
+  it('returns the Crypto.com Exchange adapter', () => {
+    expect(registry.get('crypto_com')).toBeInstanceOf(CryptoComAdapter);
+    expect(registry.get('crypto_com').id).toBe('crypto_com');
+  });
+
+  it.each(['nexo', 'pionex'] as const)(
     'throws for unsupported exchange %s',
     (id) => {
       expect(() => registry.get(id)).toThrow(`Unsupported exchange: ${id}`);

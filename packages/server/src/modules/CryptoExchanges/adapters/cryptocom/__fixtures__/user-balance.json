@@ -1,0 +1,33 @@
+{
+  "id": 1,
+  "method": "private/user-balance",
+  "code": 0,
+  "result": {
+    "data": [
+      {
+        "total_available_balance": "1000.5",
+        "instrument_name": "USD",
+        "position_balances": [
+          {
+            "quantity": "1.50000000",
+            "reserved_qty": "0.25",
+            "collateral_amount": "1",
+            "haircut": "0",
+            "market_value": "1",
+            "max_withdrawal_balance": "1",
+            "hourly_interest_rate": "0",
+            "collateral_eligible": true,
+            "instrument_name": "BTC"
+          },
+          { "quantity": "0", "reserved_qty": "0", "instrument_name": "ETH" },
+          {
+            "quantity": "250.123456789012345678",
+            "reserved_qty": "0",
+            "instrument_name": "CRO"
+          },
+          { "quantity": "10", "reserved_qty": "10", "instrument_name": "USDT" }
+        ]
+      }
+    ]
+  }
+}
