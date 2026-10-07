@@ -3,6 +3,7 @@ import { KrakenAdapter } from './kraken/KrakenAdapter';
 import { BinanceAdapter } from './binance/BinanceAdapter';
 import { CryptoComAdapter } from './cryptocom/CryptoComAdapter';
 import { CryptoComAppAdapter } from './cryptocomapp/CryptoComAppAdapter';
+import { PionexAdapter } from './pionex/PionexAdapter';
 
 describe('AdapterRegistry', () => {
   const registry = new AdapterRegistry();
@@ -26,22 +27,27 @@ describe('AdapterRegistry', () => {
 
   // The sync service acquires `historyPageCost` tokens per history page and the rate
   // limiter throws when a cost can never be satisfied (cost > capacity).
-  it.each(['kraken', 'binance', 'crypto_com', 'crypto_com_app'] as const)(
-    '%s: every token cost fits its bucket capacity',
-    (id) => {
-      const { capacity, refillPerSec, historyPageCost } =
-        registry.get(id).rateLimit;
-      expect(capacity).toBeGreaterThan(0);
-      expect(refillPerSec).toBeGreaterThan(0);
-      expect(historyPageCost ?? 1).toBeLessThanOrEqual(capacity);
-      expect(1).toBeLessThanOrEqual(capacity); // balance / inspect calls cost 1
-    },
-  );
+  it('returns the Pionex adapter', () => {
+    expect(registry.get('pionex')).toBeInstanceOf(PionexAdapter);
+    expect(registry.get('pionex').id).toBe('pionex');
+  });
 
-  it.each(['nexo', 'pionex'] as const)(
-    'throws for unsupported exchange %s',
-    (id) => {
-      expect(() => registry.get(id)).toThrow(`Unsupported exchange: ${id}`);
-    },
-  );
+  it.each([
+    'kraken',
+    'binance',
+    'crypto_com',
+    'crypto_com_app',
+    'pionex',
+  ] as const)('%s: every token cost fits its bucket capacity', (id) => {
+    const { capacity, refillPerSec, historyPageCost } =
+      registry.get(id).rateLimit;
+    expect(capacity).toBeGreaterThan(0);
+    expect(refillPerSec).toBeGreaterThan(0);
+    expect(historyPageCost ?? 1).toBeLessThanOrEqual(capacity);
+    expect(1).toBeLessThanOrEqual(capacity); // balance / inspect calls cost 1
+  });
+
+  it('throws for unsupported exchange nexo', () => {
+    expect(() => registry.get('nexo')).toThrow('Unsupported exchange: nexo');
+  });
 });

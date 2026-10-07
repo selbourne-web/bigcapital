@@ -1,0 +1,10 @@
+{
+  "data": {
+    "symbols": [
+      { "symbol": "BTC_USDT", "type": "SPOT", "baseCurrency": "BTC", "quoteCurrency": "USDT", "basePrecision": 6, "quotePrecision": 2, "amountPrecision": 2, "minAmount": "10", "minTradeSize": "0.0001", "maxTradeSize": "100", "minTradeDumping": "0.0001", "maxTradeDumping": "10", "buyCeiling": "0.1", "sellFloor": "0.1", "enable": true },
+      { "symbol": "xDOGE_USDT", "type": "SPOT", "baseCurrency": "DOGE", "quoteCurrency": "USDT", "basePrecision": 2, "quotePrecision": 5, "amountPrecision": 2, "minAmount": "10", "minTradeSize": "1", "maxTradeSize": "1000000", "minTradeDumping": "1", "maxTradeDumping": "100000", "buyCeiling": "0.1", "sellFloor": "0.1", "enable": false }
+    ]
+  },
+  "result": true,
+  "timestamp": 1700000000789
+}

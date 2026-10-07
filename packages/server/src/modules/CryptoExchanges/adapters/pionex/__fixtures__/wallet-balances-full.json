@@ -1,0 +1,99 @@
+{
+  "data": {
+    "totalInUsdt": "99999.99",
+    "totalInBtc": "1.5",
+    "circuitBreakerTag": null,
+    "botAccount": {
+      "totalInUsdt": "1000.5",
+      "detail": [
+        {
+          "type": "trading_bot",
+          "title": "Trading bot",
+          "totalInUsdt": "254.25",
+          "list": [
+            {
+              "buOrderId": "00000000-0000-4000-8000-000000000001",
+              "buOrderType": "futures_grid",
+              "title": "Bot one",
+              "cateType": "",
+              "copyFrom": "",
+              "investmentToken": "USDT",
+              "investmentAmount": "200",
+              "profit": "5.5",
+              "baseList": ["XYZ.PERP"]
+            },
+            {
+              "buOrderId": "00000000-0000-4000-8000-000000000002",
+              "buOrderType": "grid_v3",
+              "title": "Bot two",
+              "cateType": "",
+              "copyFrom": "",
+              "investmentToken": "USDT",
+              "investmentAmount": "50",
+              "profit": "-1.25",
+              "baseList": ["XYZ"]
+            }
+          ],
+          "hasMore": false,
+          "count": 2,
+          "timestamp": 1700000000100
+        },
+        {
+          "type": "spot",
+          "title": "Spot Balances",
+          "totalInUsdt": "9999.99",
+          "list": [
+            { "coin": "BTC", "displayName": "BTC", "free": "0.5", "frozen": "0.1", "assets": "0.6", "frozenByOrder": "0.1", "frozenByMoveout": "0", "frozenByCoinout": "0", "debts": "0", "loan": "0", "payable": "0", "interest": "0" },
+            { "coin": "USDT", "displayName": "USDT", "free": "100.25", "frozen": "0", "assets": "100.25", "frozenByOrder": "0", "frozenByMoveout": "0", "frozenByCoinout": "0", "debts": "0", "loan": "0", "payable": "0", "interest": "0" }
+          ],
+          "hasMore": false,
+          "count": 2,
+          "timestamp": 1700000000100
+        },
+        {
+          "type": "arbitrage",
+          "title": "Arbitrage",
+          "totalInUsdt": "0",
+          "list": null,
+          "hasMore": false,
+          "count": 0,
+          "timestamp": 1700000000100
+        },
+        {
+          "type": "lending",
+          "title": "Earning",
+          "totalInUsdt": "10.5",
+          "list": [
+            {
+              "productId": "12345",
+              "title": "Flexible earn",
+              "investmentToken": "BTC",
+              "investmentAmount": "0.2",
+              "profit": "0.001",
+              "trialFund": "0"
+            }
+          ],
+          "hasMore": false,
+          "count": 1,
+          "timestamp": 1700000000100
+        }
+      ]
+    },
+    "traderAccount": {
+      "title": "Trader",
+      "totalInUsdt": "0",
+      "detail": [
+        { "type": "trader_account", "title": "", "totalInUsdt": "0", "riskState": "TRADING", "balances": null, "positions": null, "quoteRisks": [] }
+      ]
+    },
+    "extractBalances": {
+      "propTrading": { "coins": null },
+      "trialFundCoupon": { "coins": [] }
+    },
+    "prices": {
+      "btc": { "fullName": "Bitcoin", "priceInUsd": "50000", "priceInBtc": "1", "change24hInUsd": "0", "change24hInBtc": "0" }
+    }
+  },
+  "result": true,
+  "timestamp": 1700000000456
+}

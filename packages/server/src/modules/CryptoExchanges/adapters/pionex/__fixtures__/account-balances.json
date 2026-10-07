@@ -1,0 +1,12 @@
+{
+  "data": {
+    "balances": [
+      { "coin": "BTC", "free": "0.5", "frozen": "0.1" },
+      { "coin": "USDT", "free": "100.25", "frozen": "0" },
+      { "coin": "ETH", "free": "0", "frozen": "0" },
+      { "coin": "xDOGE", "free": "1000", "frozen": "0" }
+    ]
+  },
+  "result": true,
+  "timestamp": 1700000000123
+}
