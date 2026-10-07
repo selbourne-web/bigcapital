@@ -138,7 +138,7 @@ export class CryptoSyncScheduler {
 
   /**
    * Removes the repeatable job and any waiting/delayed job of the connection.
-   * The exchange is unknown here (the row may be archived), so both queues are
+   * The exchange is unknown here (the row may be archived), so all queues are
    * tried. A job that is running or locked is left; the processor skips it
    * because the connection is paused or archived by then.
    */

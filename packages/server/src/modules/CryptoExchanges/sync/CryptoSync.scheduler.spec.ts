@@ -202,7 +202,7 @@ describe('CryptoSyncScheduler', () => {
     });
   });
 
-  it('unschedule removes the repeatable on both queues and the pending jobs of that connection only', async () => {
+  it('unschedule removes the repeatable on all queues and the pending jobs of that connection only', async () => {
     const { scheduler, kraken, binance } = makeScheduler();
     await scheduler.schedule({ id: 7, exchange: 'kraken' } as any, '42');
     await scheduler.enqueue(

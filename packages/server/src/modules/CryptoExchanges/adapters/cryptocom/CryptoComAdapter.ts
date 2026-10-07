@@ -17,7 +17,13 @@ import {
   ExchangeRateLimitError,
   ExchangeSchemaError,
 } from '../errors';
-import { isDecimal, isZero, sanitizeText } from '../shared';
+import {
+  addDecimal,
+  isDecimal,
+  isZero,
+  sanitizeText,
+  subDecimal,
+} from '../shared';
 import { cryptoComSign } from './cryptocom.signing';
 
 const DEFAULT_BASE_URL = 'https://api.crypto.com/exchange/v1';
@@ -28,7 +34,6 @@ const DEFAULT_BASE_URL = 'https://api.crypto.com/exchange/v1';
  */
 const READ_METHODS = new Set([
   'private/user-balance',
-  'private/get-accounts',
   'private/get-trades',
   'private/get-order-history',
   'private/get-transactions',
@@ -62,6 +67,8 @@ const MAX_PENDING = 64;
 /** Gap between requests inside one call: get-trades/get-order-history allow 1 req/s. */
 const SLOW_GAP_MS = 1_100;
 const FAST_GAP_MS = 150;
+/** Per-method minimum gap between requests of one api key (filled from STREAM_CONF below). */
+const METHOD_GAP_MS: Record<string, number> = {};
 
 const STREAMS = [
   'trades',
@@ -141,6 +148,10 @@ const STREAM_CONF: Record<
   },
 };
 
+for (const conf of Object.values(STREAM_CONF)) {
+  METHOD_GAP_MS[conf.method] = conf.gapMs;
+}
+
 /** Journal types that duplicate other streams (trades, deposits, withdrawals): not recorded. */
 const DUPLICATE_JOURNAL_TYPES = new Set([
   'TRADING',
@@ -198,43 +209,20 @@ function toMs(v: unknown): number | undefined {
   return Number.isSafeInteger(n) && n > 0 ? n : undefined;
 }
 
+/** Longest id fragment used raw; longer ones are shortened with a hash so composed ids stay well under varchar(191). */
+const MAX_ID_FRAGMENT = 64;
+
 function idText(v: unknown): string | undefined {
-  if (typeof v === 'string' && v.length > 0 && v.length <= 100) return v;
+  if (typeof v === 'string' && v.length > 0 && v.length <= 1000) {
+    if (v.length <= MAX_ID_FRAGMENT) return v;
+    const hash = createHash('sha256').update(v).digest('hex').slice(0, 16);
+    return `${v.slice(0, 40)}~${hash}`; // 57 chars
+  }
   if (typeof v === 'number' && Number.isSafeInteger(v)) return String(v);
   return undefined;
 }
 
 type Json = Record<string, any>;
-
-/** Exact decimal arithmetic on non-negative decimal strings. */
-function scaled(a: string, b: string) {
-  const [ai, af = ''] = a.split('.');
-  const [bi, bf = ''] = b.split('.');
-  const scale = Math.max(af.length, bf.length);
-  return {
-    scale,
-    x: BigInt(ai + af.padEnd(scale, '0')),
-    y: BigInt(bi + bf.padEnd(scale, '0')),
-  };
-}
-
-function format(value: bigint, scale: number): string {
-  const digits = value.toString().padStart(scale + 1, '0');
-  const int = digits.slice(0, digits.length - scale);
-  const frac = digits.slice(digits.length - scale).replace(/0+$/, '');
-  return frac ? `${int}.${frac}` : int;
-}
-
-/** a - b, clamped at 0. */
-function subDecimal(a: string, b: string): string {
-  const { scale, x, y } = scaled(a, b);
-  return x > y ? format(x - y, scale) : '0';
-}
-
-function addDecimal(a: string, b: string): string {
-  const { scale, x, y } = scaled(a, b);
-  return format(x + y, scale);
-}
 
 export class CryptoComAdapter implements ExchangeAdapter {
   readonly id: CryptoExchangeId = 'crypto_com';
@@ -252,6 +240,8 @@ export class CryptoComAdapter implements ExchangeAdapter {
    */
   private readonly logger = new Logger('CryptoComAdapter');
   /** api-key hashes already warned about a skipped rewards stream (bounded, process lifetime). */
+  /** Last send time per "<key hash>:<method>" (bounded; see markSent). */
+  private readonly sentAt = new Map<string, number>();
   private readonly rewardsWarned = new Set<string>();
 
   private readonly lanes = new Map<
@@ -383,7 +373,6 @@ export class CryptoComAdapter implements ExchangeAdapter {
       if (requests >= MAX_REQUESTS_PER_CALL) {
         return { records, nextCursor: this.serializeCursor(cur) };
       }
-      if (requests > 0) await this.sleep(STREAM_CONF[cur.stream].gapMs);
       requests++;
       const floor = this.floorFor(cur.stream, now, sinceMs);
       const step =
@@ -702,7 +691,7 @@ export class CryptoComAdapter implements ExchangeAdapter {
         records: [
           {
             type: 'reward',
-            exchangeRecordId: `reward:${inst}:${at}:${qty}`,
+            exchangeRecordId: this.rewardId(inst, at, qty),
             occurredAt: new Date(at),
             payload: {
               ...row,
@@ -781,6 +770,14 @@ export class CryptoComAdapter implements ExchangeAdapter {
     };
   }
 
+  /** Stable reward id; hashed if it would be unreasonably long. */
+  private rewardId(inst: string, at: number, qty: string): string {
+    const id = `reward:${inst}:${at}:${qty}`;
+    return id.length <= 150
+      ? id
+      : `reward:${createHash('sha256').update(id).digest('hex').slice(0, 40)}`;
+  }
+
   private nsToMs(v: unknown): number | undefined {
     if (typeof v !== 'string' || !/^\d{16,}$/.test(v)) return undefined;
     return toMs(Number(BigInt(v) / BigInt(1_000_000)));
@@ -827,13 +824,24 @@ export class CryptoComAdapter implements ExchangeAdapter {
     }
     const l = lane;
     l.pending++;
-    const run = l.tail.then(() =>
-      this.send(creds, method, params, () => {
+    const run = l.tail.then(async () => {
+      // Per key AND method pacing across fetchHistory calls too: the exchange allows
+      // 1 request/s on get-trades/get-order-history. `sentAt` outlives the lane (which
+      // is deleted when idle) for a short TTL, so back-to-back calls stay paced.
+      const gap = METHOD_GAP_MS[method] ?? FAST_GAP_MS;
+      const sentKey = `${key}:${method}`;
+      const last = this.sentAt.get(sentKey);
+      if (last !== undefined) {
+        const wait = last + gap - this.now();
+        if (wait > 0) await this.sleep(wait);
+      }
+      this.markSent(sentKey);
+      return this.send(creds, method, params, () => {
         l.lastId += 1;
         l.lastNonce = Math.max(this.now(), l.lastNonce + 1);
         return { id: l.lastId, nonce: l.lastNonce };
-      }),
-    );
+      });
+    });
     l.tail = run.catch(() => undefined);
     const done = () => {
       if (--l.pending === 0 && this.lanes.get(key) === l)
@@ -841,6 +849,17 @@ export class CryptoComAdapter implements ExchangeAdapter {
     };
     run.then(done, done);
     return run;
+  }
+
+  /** Records a send time; entries older than the longest gap are pruned (bounded map). */
+  private markSent(sentKey: string) {
+    const t = this.now();
+    this.sentAt.set(sentKey, t);
+    if (this.sentAt.size > 256) {
+      for (const [k, v] of this.sentAt) {
+        if (t - v > SLOW_GAP_MS) this.sentAt.delete(k);
+      }
+    }
   }
 
   private async send(
@@ -889,8 +908,9 @@ export class CryptoComAdapter implements ExchangeAdapter {
       );
     }
 
-    if (res.status === 429) throw new ExchangeRateLimitError();
+    // Always drain the body (also on 429) so the connection is released.
     const text = await res.text().catch(() => '');
+    if (res.status === 429) throw new ExchangeRateLimitError();
     if (signal.aborted) throw timedOut();
     if (res.status >= 500) {
       throw new ExchangeNetworkError(`Crypto.com returned HTTP ${res.status}`);
@@ -917,9 +937,17 @@ export class CryptoComAdapter implements ExchangeAdapter {
       typeof parsed !== 'object' ||
       typeof parsed.code !== 'number'
     ) {
+      if (res.status === 401) throw this.mapCode(40101);
       throw this.schemaError('Crypto.com response has no numeric code', parsed);
     }
-    if (parsed.code !== 0) throw this.mapCode(parsed.code);
+    if (parsed.code !== 0) {
+      const err = this.mapCode(parsed.code);
+      // HTTP 401 is always an authentication problem, whatever the code says.
+      if (res.status === 401 && !(err instanceof ExchangeAuthError)) {
+        throw this.mapCode(40101);
+      }
+      throw err;
+    }
     if (!res.ok) {
       throw new ExchangeNetworkError(`Crypto.com returned HTTP ${res.status}`);
     }
@@ -946,6 +974,13 @@ export class CryptoComAdapter implements ExchangeAdapter {
         );
       case 40801: // REQUEST_TIMEOUT (HTTP 408): retryable
         return new ExchangeNetworkError('Crypto.com: request timeout (40801)');
+      case 40104: // USER_TIER_INVALID (HTTP 401): the account tier disallows this call
+        return new ExchangeAuthError(
+          'Crypto.com: disallowed based on user tier (40104)',
+          'Crypto.com says this account tier is not allowed to use this API. Check the account tier and key.',
+        );
+      case 50001: // ERR_INTERNAL (HTTP 500): retryable
+        return new ExchangeNetworkError('Crypto.com: internal error (50001)');
       case 42901:
         return new ExchangeRateLimitError(
           'Crypto.com: too many requests (42901)',

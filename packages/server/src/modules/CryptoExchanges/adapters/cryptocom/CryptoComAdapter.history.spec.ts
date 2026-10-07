@@ -6,7 +6,12 @@ import {
   CryptoComAdapter,
   quoteExactNumbers,
 } from './CryptoComAdapter';
-import { ExchangeSchemaError } from '../errors';
+import {
+  ExchangeAuthError,
+  ExchangeNetworkError,
+  ExchangeRateLimitError,
+  ExchangeSchemaError,
+} from '../errors';
 
 // Fixtures for trades/orders/transactions are DOCS-DERIVED (the probed key had none):
 // https://exchange-developer.crypto.com/exchange/v1/docs/api/rest/private-get-trades.md
@@ -614,6 +619,187 @@ describe('CryptoComAdapter.fetchHistory', () => {
           { cursor: cur('rewards', NOW) },
         );
         expect(warn).toHaveBeenCalledTimes(2);
+      } finally {
+        warn.mockRestore();
+      }
+    });
+  });
+
+  describe('pacing across fetchHistory calls', () => {
+    it('keeps get-trades >= 1.1 s apart per key even across back-to-back calls', async () => {
+      let t = NOW;
+      const sent: number[] = [];
+      const fn = jest.fn(async (_url: any, init: any) => {
+        const body = JSON.parse(init.body);
+        if (body.method === 'private/get-trades') sent.push(t);
+        // call A: the third trades request (t0 + 2.2 s) returns a row
+        const rows =
+          body.method === 'private/get-trades' && sent.length === 3
+            ? [{ trade_id: '1', create_time: NOW - 5 }]
+            : [];
+        return {
+          ok: true,
+          status: 200,
+          text: async () => JSON.stringify({ code: 0, result: { data: rows } }),
+        } as any;
+      }) as unknown as typeof fetch;
+      const a = new CryptoComAdapter(
+        fn,
+        30_000,
+        () => t,
+        undefined,
+        async (ms) => {
+          t += ms;
+        },
+      );
+      const first = await a.fetchHistory(creds, {});
+      expect(first.records).toHaveLength(1);
+      expect(sent).toEqual([NOW, NOW + 1100, NOW + 2200]);
+      // call B starts immediately (the sync service may grant the page at once)
+      await a.fetchHistory(creds, { cursor: first.nextCursor });
+      expect(sent[3] - sent[2]).toBeGreaterThanOrEqual(1100);
+    });
+
+    it('paces per api key independently', async () => {
+      let t = NOW;
+      const sleptFor: number[] = [];
+      const fn = jest.fn(async () => ({
+        ok: true,
+        status: 200,
+        text: async () => JSON.stringify({ code: 0, result: { data: [] } }),
+      })) as unknown as typeof fetch;
+      const a = new CryptoComAdapter(
+        fn,
+        30_000,
+        () => t,
+        undefined,
+        async (ms) => {
+          sleptFor.push(ms);
+          t += ms;
+        },
+      );
+      await a.fetchHistory(creds, {
+        cursor: cur('trades', NOW),
+      });
+      sleptFor.length = 0;
+      t = NOW;
+      await a.fetchHistory(
+        { apiKey: 'OTHER_KEY', apiSecret: 'OTHER_SECRET' },
+        { cursor: cur('trades', NOW) },
+      );
+      // the other key's first trades request is not delayed by this key's history
+      expect(sleptFor[0]).toBe(1100); // its own 2nd request, not the 1st
+      expect(sleptFor.length).toBe(7);
+    });
+  });
+
+  describe('error mapping and ids', () => {
+    const callWith = (status: number, body: string) => {
+      const fn = (async () => ({
+        ok: status >= 200 && status < 300,
+        status,
+        text: async () => body,
+      })) as unknown as typeof fetch;
+      return hist(fn).fetchHistory(creds, {});
+    };
+
+    it('maps HTTP 401 to an auth error whatever the code or body', async () => {
+      await expect(
+        callWith(401, '{"code":40001,"message":"x"}'),
+      ).rejects.toBeInstanceOf(ExchangeAuthError);
+      await expect(callWith(401, '{"foo":1}')).rejects.toBeInstanceOf(
+        ExchangeAuthError,
+      );
+      await expect(callWith(401, 'not json')).rejects.toBeInstanceOf(
+        ExchangeAuthError,
+      );
+    });
+
+    it('maps documented codes: 40104 auth, 50001 retryable, 42901 rate limit', async () => {
+      await expect(
+        callWith(401, '{"code":40104,"message":"x"}'),
+      ).rejects.toBeInstanceOf(ExchangeAuthError);
+      const internal: any = await callWith(
+        500,
+        '{"code":50001,"message":"x"}',
+      ).catch((e) => e);
+      expect(internal).toBeInstanceOf(ExchangeNetworkError);
+      expect(internal.retryable).toBe(true);
+      const internal200: any = await callWith(
+        200,
+        '{"code":50001,"message":"x"}',
+      ).catch((e) => e);
+      expect(internal200.retryable).toBe(true);
+      await expect(
+        callWith(429, '{"code":42901,"message":"x"}'),
+      ).rejects.toBeInstanceOf(ExchangeRateLimitError);
+    });
+
+    it('drains the response body on HTTP 429', async () => {
+      const text = jest.fn(async () => '{"code":42901}');
+      const fn = (async () => ({
+        ok: false,
+        status: 429,
+        text,
+      })) as unknown as typeof fetch;
+      await expect(hist(fn).fetchHistory(creds, {})).rejects.toBeInstanceOf(
+        ExchangeRateLimitError,
+      );
+      expect(text).toHaveBeenCalledTimes(1);
+    });
+
+    it('never calls private/get-accounts (not an allowed method)', async () => {
+      const a = hist(makeFetch(() => ok({})).fn);
+      await expect(
+        (a as any).call(creds, 'private/get-accounts', {}),
+      ).rejects.toThrow(/non-read/);
+    });
+
+    it('caps composed record ids for very long exchange ids', async () => {
+      const long = 'X'.repeat(100);
+      const a = hist(
+        makeFetch(() =>
+          ok({
+            data: [
+              {
+                order_id: long,
+                status: long,
+                create_time: 1693000000000,
+              },
+            ],
+          }),
+        ).fn,
+      );
+      const r = await a.fetchHistory(creds, { cursor: cur('orders', NOW) });
+      expect(r.records[0].type).toBe('trade');
+      expect(r.records[0].exchangeRecordId.length).toBeLessThan(191);
+      // stable: the same long id maps to the same record id
+      const again = await a.fetchHistory(creds, {
+        cursor: cur('orders', NOW),
+      });
+      expect(again.records[0].exchangeRecordId).toBe(
+        r.records[0].exchangeRecordId,
+      );
+    });
+
+    it('retries the rewards stream on every sync (a skip is not remembered)', async () => {
+      const { fn, calls } = makeFetch((c) =>
+        c.body.method === 'private/staking/get-reward-history'
+          ? { body: '{"code":40001,"message":"BAD_REQUEST"}' }
+          : emptyFor(c.body.method),
+      );
+      const a = hist(fn);
+      const warn = jest
+        .spyOn(Logger.prototype, 'warn')
+        .mockImplementation(() => undefined);
+      try {
+        await drain(a, { since: new Date(NOW - 2 * DAY) });
+        await drain(a, { since: new Date(NOW - 1 * DAY) });
+        const rewardCalls = calls.filter(
+          (c) => c.body.method === 'private/staking/get-reward-history',
+        );
+        expect(rewardCalls).toHaveLength(2);
+        expect(warn).toHaveBeenCalledTimes(1);
       } finally {
         warn.mockRestore();
       }

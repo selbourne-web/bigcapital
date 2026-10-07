@@ -357,10 +357,10 @@ describe('CryptoComAppAdapter', () => {
         { asset: 'BBB', free: '2', locked: '0' },
       ]);
     });
-    it('available > balance clamps locked at 0', async () => {
+    it('available > balance caps free at balance and locked at 0', async () => {
       const fn = walletsOnly([W('AAA', '1', { available: amt('2') })]);
       expect(await adapter(fn).fetchBalances(creds)).toEqual([
-        { asset: 'AAA', free: '2', locked: '0' },
+        { asset: 'AAA', free: '1', locked: '0' },
       ]);
     });
     it('skips odd wallets (negative, non-decimal, missing balance) without failing', async () => {

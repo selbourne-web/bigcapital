@@ -210,11 +210,11 @@ export class CryptoComAppAdapter implements ExchangeAdapter {
       let locked = '0';
       const available = w.available?.amount;
       if (isDecimal(available)) {
-        free = available;
         // locked is derived from the total, not trusted from `locked`. If
-        // available > balance (an exchange-side anomaly) locked clamps to 0 and
-        // free keeps the reported available value.
-        locked = subDecimal(total, available);
+        // available > balance (an exchange-side anomaly) free is capped at the
+        // authoritative balance, so free + locked never exceeds it.
+        free = isZero(subDecimal(available, total)) ? available : total;
+        locked = subDecimal(total, free);
       }
       add(normalizeAsset('crypto_com_app', w.currency), free, locked);
     }
