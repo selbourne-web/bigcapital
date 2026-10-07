@@ -18,6 +18,9 @@ const connection = {
   last_sync_at: '2026-10-05T10:00:00.000Z',
   last_error: null,
   created_at: '2026-10-01T09:00:00.000Z',
+  key_expires_at: null,
+  // present on the list response only
+  history_coverage: { level: 'full' },
 };
 
 export const EXAMPLES = {
@@ -75,7 +78,11 @@ export const EXAMPLES = {
     message:
       'This API key can do more than read data (for example trade or withdraw). Create a read-only key and try again.',
   },
-  attestationRequired: { code: 'ATTESTATION_REQUIRED' },
+  attestationRequired: {
+    code: 'ATTESTATION_REQUIRED',
+    permissions: ['fiat.deposit:write'],
+    warnings: [],
+  },
   exchangeAuth: {
     code: 'EXCHANGE_AUTH_FAILED',
     message:

@@ -48,6 +48,7 @@ type Page = { records: RawRecordInput[]; nextCursor?: string } | Error;
 
 class StubAdapter implements ExchangeAdapter {
   id = 'kraken' as const;
+  historyCoverage: ExchangeAdapter['historyCoverage'] = { level: 'full' };
   rateLimit: ExchangeAdapter['rateLimit'] = {
     capacity: 15,
     refillPerSec: 1,

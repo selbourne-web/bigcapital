@@ -1,3 +1,4 @@
+import { HistoryCoverage } from '../adapters/ExchangeAdapter';
 import { CryptoConnection } from '../models/CryptoConnection';
 import {
   CryptoConnectionStatus,
@@ -15,6 +16,9 @@ export interface CryptoConnectionView {
   lastSyncAt: Date | null;
   lastError: string | null;
   createdAt: Date | null;
+  keyExpiresAt: Date | null;
+  /** Added by `GetCryptoConnections` from the adapter; absent on create/update responses. */
+  historyCoverage?: HistoryCoverage;
 }
 
 /** Explicit allow-list copy so a new column can never leak by accident. */
@@ -30,4 +34,5 @@ export const toConnectionView = (
   lastSyncAt: c.lastSyncAt ?? null,
   lastError: c.lastError ?? null,
   createdAt: c.createdAt ?? null,
+  keyExpiresAt: c.keyExpiresAt ?? null,
 });

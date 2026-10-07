@@ -182,6 +182,7 @@ export class FakeCreateAccount {
 
 export class FakeAdapter {
   id = 'kraken' as const;
+  historyCoverage = { level: 'full' as const };
   rateLimit = { capacity: 15, refillPerSec: 1 };
   inspected: any[] = [];
   inspection: KeyInspection | Error = {

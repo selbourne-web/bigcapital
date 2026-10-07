@@ -41,6 +41,20 @@ export const CRYPTO_EXCHANGES = [
       'Enable "Enable Reading" only. Leave Spot & Margin Trading, Withdrawals, Futures and Internal Transfer off, and restrict the key to this server’s IP address if you can.',
     ],
   },
+  {
+    value: 'crypto_com',
+    label: 'Crypto.com Exchange',
+    help: [
+      "In Crypto.com Exchange, open Settings > API Keys and create a key with 'Can Read' only. Leave withdrawals and trading off. Crypto.com cannot confirm a key's permissions, so you will be asked to confirm the key is read-only.",
+    ],
+  },
+  {
+    value: 'crypto_com_app',
+    label: 'Crypto.com App',
+    help: [
+      "In the Crypto.com App's API key management, create a key with read-only scopes (balances and history). Keys expire (about 90 days), so Selbourne Financial shows the expiry and asks you to rotate before then.",
+    ],
+  },
 ] as const;
 
 export const exchangeLabel = (value: string) =>
@@ -163,6 +177,11 @@ function ConnectionForm({
   const [attested, setAttested] = useState(false);
   const [errors, setErrors] = useState<FormErrors>({});
   const [failure, setFailure] = useState<CryptoApiError | null>(null);
+  // Scopes and warnings the exchange reported with ATTESTATION_REQUIRED (no secrets).
+  const [attestDetails, setAttestDetails] = useState<{
+    permissions: string[];
+    warnings: string[];
+  } | null>(null);
 
   // Drop the mutation's retained variables when the form goes away.
   const { reset: resetCreate } = create;
@@ -234,6 +253,10 @@ function ConnectionForm({
       if (error.code === 'ATTESTATION_REQUIRED') {
         // Keep what was typed so the person only has to tick the box.
         setNeedsAttestation(true);
+        setAttestDetails({
+          permissions: error.permissions ?? [],
+          warnings: error.warnings ?? [],
+        });
       } else {
         clearSecrets();
         setAttested(false);
@@ -392,6 +415,23 @@ function ConnectionForm({
             onChange={setAccountChoice}
           />
         )}
+
+        {needsAttestation &&
+          attestDetails &&
+          (attestDetails.permissions.length > 0 ||
+            attestDetails.warnings.length > 0) && (
+            <Callout intent={Intent.WARNING} className={styles.help}>
+              {attestDetails.permissions.length > 0 && (
+                <p>
+                  Permissions reported for this key:{' '}
+                  {attestDetails.permissions.join(', ')}
+                </p>
+              )}
+              {attestDetails.warnings.map((warning) => (
+                <p key={warning}>{warning}</p>
+              ))}
+            </Callout>
+          )}
 
         {needsAttestation && (
           <FormGroup

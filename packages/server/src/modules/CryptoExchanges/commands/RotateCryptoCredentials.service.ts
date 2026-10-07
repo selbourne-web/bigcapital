@@ -46,11 +46,12 @@ export class RotateCryptoCredentialsService {
         404,
       );
     }
-    const credentials = await this.validators.verifyCredentials(
-      connection.exchange,
-      dto,
-      dto.attestReadOnly,
-    );
+    const { credentials, inspection } =
+      await this.validators.verifyCredentialsDetailed(
+        connection.exchange,
+        dto,
+        dto.attestReadOnly,
+      );
     const apiKey = this.vault.encrypt(credentials.apiKey);
     const apiSecret = this.vault.encrypt(credentials.apiSecret);
     const passphrase = credentials.passphrase
@@ -67,6 +68,7 @@ export class RotateCryptoCredentialsService {
           passphraseEncrypted: passphrase?.value ?? null,
           keyVersion: apiKey.keyVersion,
           keyHint,
+          keyExpiresAt: inspection.expiresAt ?? null,
           status: 'active',
           lastError: null,
         },

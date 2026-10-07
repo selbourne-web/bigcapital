@@ -37,6 +37,7 @@ const migrations = () => [
   require('../../../database/tenant/migrations/20261004000000_create_crypto_exchange_tables'),
   require('../../../database/tenant/migrations/20261004000100_add_sync_state_to_crypto_connections'),
   require('../../../database/tenant/migrations/20261004000200_add_deleted_at_to_crypto_connections'),
+  require('../../../database/tenant/migrations/20261007000000_add_key_expires_at_to_crypto_connections'),
 ];
 
 /** UnitOfWork does not await commit/rollback; give them a moment to land. */
@@ -144,6 +145,7 @@ suite('Crypto connection commands (integration, scratch DB)', () => {
   afterAll(async () => {
     if (db) {
       const m = migrations();
+      await m[3].down(db);
       await m[2].down(db);
       await m[1].down(db);
       await m[0].down(db);
@@ -372,6 +374,39 @@ suite('Crypto connection commands (integration, scratch DB)', () => {
           accountId,
         ),
       ).resolves.toBeUndefined();
+    });
+  });
+
+  describe('key_expires_at migration', () => {
+    it('adds a nullable column that Create persists', async () => {
+      const info = await db('crypto_connections').columnInfo('key_expires_at');
+      expect(info).toBeDefined();
+      expect(info.nullable).toBe(true);
+
+      adapter.inspection = {
+        readOnly: true,
+        permissions: [],
+        expiresAt: new Date('2027-01-05T00:00:00Z'),
+      };
+      const view = await create.execute(dto());
+      await settle();
+      expect(view.keyExpiresAt).toEqual(new Date('2027-01-05T00:00:00Z'));
+      const [row] = await db('crypto_connections').where({ id: view.id });
+      expect(new Date(row.key_expires_at).toISOString()).toBe(
+        '2027-01-05T00:00:00.000Z',
+      );
+    });
+
+    it('down drops the column and up restores it', async () => {
+      const m = migrations()[3];
+      await m.down(db);
+      expect(
+        await db.schema.hasColumn('crypto_connections', 'key_expires_at'),
+      ).toBe(false);
+      await m.up(db);
+      expect(
+        await db.schema.hasColumn('crypto_connections', 'key_expires_at'),
+      ).toBe(true);
     });
   });
 });

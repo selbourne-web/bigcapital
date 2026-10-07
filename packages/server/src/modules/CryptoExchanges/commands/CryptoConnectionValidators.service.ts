@@ -10,7 +10,7 @@ import { ACCOUNT_ROOT_TYPE } from '@/modules/Accounts/Accounts.constants';
 import { TenancyContext } from '@/modules/Tenancy/TenancyContext.service';
 import { TenantModelProxy } from '@/modules/System/models/TenantBaseModel';
 import { AdapterRegistry } from '../adapters/AdapterRegistry';
-import { Credentials } from '../adapters/ExchangeAdapter';
+import { Credentials, KeyInspection } from '../adapters/ExchangeAdapter';
 import { KeyHasExtraPermissionsError } from '../adapters/errors';
 import { RateLimiter } from '../sync/RateLimiter.service';
 import {
@@ -54,6 +54,20 @@ export class CryptoConnectionValidators {
     input: CredentialsInput,
     attestReadOnly?: boolean,
   ): Promise<Credentials> {
+    const { credentials } = await this.verifyCredentialsDetailed(
+      exchange,
+      input,
+      attestReadOnly,
+    );
+    return credentials;
+  }
+
+  /** Same checks as `verifyCredentials`, also returning the inspection (expiry, warnings). */
+  async verifyCredentialsDetailed(
+    exchange: CryptoExchangeId,
+    input: CredentialsInput,
+    attestReadOnly?: boolean,
+  ): Promise<{ credentials: Credentials; inspection: KeyInspection }> {
     const apiKey = input.apiKey?.trim();
     const apiSecret = input.apiSecret?.trim();
     const passphrase = input.passphrase?.trim() || undefined;
@@ -73,10 +87,15 @@ export class CryptoConnectionValidators {
       throw new KeyHasExtraPermissionsError(inspection.permissions);
     }
     if (inspection.readOnly === 'unverifiable' && attestReadOnly !== true) {
-      // The UI shows the "this key is read-only" checkbox on this code.
-      throw new UnprocessableEntityException({ code: 'ATTESTATION_REQUIRED' });
+      // The UI shows the "this key is read-only" checkbox on this code, with the
+      // scopes and warnings (no secrets) the adapter reported.
+      throw new UnprocessableEntityException({
+        code: 'ATTESTATION_REQUIRED',
+        permissions: inspection.permissions ?? [],
+        warnings: inspection.warnings ?? [],
+      });
     }
-    return credentials;
+    return { credentials, inspection };
   }
 
   /**

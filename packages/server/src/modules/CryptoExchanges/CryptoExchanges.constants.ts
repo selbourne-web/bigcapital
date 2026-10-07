@@ -2,6 +2,7 @@ export type CryptoExchangeId =
   | 'kraken'
   | 'binance'
   | 'crypto_com'
+  | 'crypto_com_app'
   | 'pionex'
   | 'nexo';
 
@@ -18,10 +19,12 @@ export type CryptoRecordType =
 
 export type CryptoSyncKind = 'initial' | 'incremental' | 'manual';
 
-/** Exchanges with an adapter in piece 1; validated at the DTO layer. */
+/** Exchanges with an adapter (piece 1 and 2a); validated at the DTO layer. */
 export const SUPPORTED_CRYPTO_EXCHANGES: readonly CryptoExchangeId[] = [
   'kraken',
   'binance',
+  'crypto_com',
+  'crypto_com_app',
 ];
 
 export const CRYPTO_CONNECTION_STATUSES: readonly CryptoConnectionStatus[] = [
@@ -68,12 +71,19 @@ export const CryptoExchangeAction = {
 export const CRYPTO_SYNC_QUEUES: Readonly<Record<string, string>> = {
   kraken: 'crypto-sync-kraken',
   binance: 'crypto-sync-binance',
+  crypto_com: 'crypto-sync-crypto_com',
+  crypto_com_app: 'crypto-sync-crypto_com_app',
 };
 export const CRYPTO_SYNC_KRAKEN_QUEUE = CRYPTO_SYNC_QUEUES.kraken;
 export const CRYPTO_SYNC_BINANCE_QUEUE = CRYPTO_SYNC_QUEUES.binance;
+export const CRYPTO_SYNC_CRYPTO_COM_QUEUE = CRYPTO_SYNC_QUEUES.crypto_com;
+export const CRYPTO_SYNC_CRYPTO_COM_APP_QUEUE =
+  CRYPTO_SYNC_QUEUES.crypto_com_app;
 export const CRYPTO_SYNC_QUEUE_NAMES = [
   CRYPTO_SYNC_KRAKEN_QUEUE,
   CRYPTO_SYNC_BINANCE_QUEUE,
+  CRYPTO_SYNC_CRYPTO_COM_QUEUE,
+  CRYPTO_SYNC_CRYPTO_COM_APP_QUEUE,
 ] as const;
 
 /** Name of the queue that syncs `exchange`; throws for exchanges without an adapter. */

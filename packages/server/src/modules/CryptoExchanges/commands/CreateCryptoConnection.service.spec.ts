@@ -108,6 +108,7 @@ describe('CreateCryptoConnectionService', () => {
         'createdAt',
         'exchange',
         'id',
+        'keyExpiresAt',
         'keyHint',
         'label',
         'lastError',
@@ -146,12 +147,34 @@ describe('CreateCryptoConnectionService', () => {
 
     expect(error).toBeInstanceOf(UnprocessableEntityException);
     expect(error.getStatus()).toBe(422);
-    expect(error.getResponse()).toEqual({ code: 'ATTESTATION_REQUIRED' });
+    expect(error.getResponse()).toEqual({
+      code: 'ATTESTATION_REQUIRED',
+      permissions: [],
+      warnings: [],
+    });
     expect(t.repo.rows.size).toBe(0);
 
     const view = await t.service.execute(dto({ attestReadOnly: true }));
     expect(view.id).toBeDefined();
     expect(t.repo.rows.size).toBe(1);
+  });
+
+  it('persists the key expiry reported by the adapter, null when absent', async () => {
+    const t = setup();
+    t.adapter.inspection = {
+      readOnly: true,
+      permissions: ['accounts:read'],
+      expiresAt: new Date('2027-01-05T00:00:00Z'),
+    };
+    const view = await t.service.execute(dto());
+    expect(t.repo.rows.get(view.id).keyExpiresAt).toEqual(
+      new Date('2027-01-05T00:00:00Z'),
+    );
+    expect(view.keyExpiresAt).toEqual(new Date('2027-01-05T00:00:00Z'));
+
+    t.adapter.inspection = { readOnly: true, permissions: [] };
+    const second = await t.service.execute(dto({ label: 'Second' }));
+    expect(t.repo.rows.get(second.id).keyExpiresAt).toBeNull();
   });
 
   it('does not store the key when the adapter rejects it', async () => {

@@ -55,6 +55,25 @@ const NEW = {
 };
 
 describe('RotateCryptoCredentialsService', () => {
+  it('persists the new key expiry, or clears it when the new key has none', async () => {
+    const t = setup();
+    const c = t.repo.seed({ keyExpiresAt: new Date('2026-12-01T00:00:00Z') });
+    t.adapter.inspection = {
+      readOnly: true,
+      permissions: [],
+      expiresAt: new Date('2027-01-05T00:00:00Z'),
+    };
+    const view = await t.service.execute(c.id, NEW);
+    expect(t.repo.rows.get(c.id).keyExpiresAt).toEqual(
+      new Date('2027-01-05T00:00:00Z'),
+    );
+    expect(view.keyExpiresAt).toEqual(new Date('2027-01-05T00:00:00Z'));
+
+    t.adapter.inspection = { readOnly: true, permissions: [] };
+    await t.service.execute(c.id, NEW);
+    expect(t.repo.rows.get(c.id).keyExpiresAt).toBeNull();
+  });
+
   it('re-inspects the new key, stores it encrypted, reactivates and clears the error', async () => {
     const t = setup();
     const c = t.repo.seed({ status: 'error', lastError: 'rejected' });
@@ -120,7 +139,11 @@ describe('RotateCryptoCredentialsService', () => {
 
     const error = await t.service.execute(c.id, NEW).catch((e) => e);
     expect(error).toBeInstanceOf(UnprocessableEntityException);
-    expect(error.getResponse()).toEqual({ code: 'ATTESTATION_REQUIRED' });
+    expect(error.getResponse()).toEqual({
+      code: 'ATTESTATION_REQUIRED',
+      permissions: [],
+      warnings: [],
+    });
 
     const view = await t.service.execute(c.id, {
       ...NEW,

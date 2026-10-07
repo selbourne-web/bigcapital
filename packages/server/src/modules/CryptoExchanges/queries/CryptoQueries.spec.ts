@@ -44,6 +44,10 @@ const fakeModel = (...results: unknown[]) => {
 const names = (calls: Call[]) => calls.map(([n]) => n);
 
 describe('GetCryptoConnectionsService', () => {
+  const registry = {
+    get: jest.fn(() => ({ historyCoverage: { level: 'partial', note: 'n' } })),
+  };
+
   it('lists non-archived connections as allow-listed views without any secret or ciphertext', async () => {
     const row = {
       id: 3,
@@ -55,6 +59,7 @@ describe('GetCryptoConnectionsService', () => {
       lastSyncAt: new Date('2026-10-05T10:00:00Z'),
       lastError: null,
       createdAt: new Date('2026-10-01T10:00:00Z'),
+      keyExpiresAt: new Date('2027-01-05T00:00:00Z'),
       apiKeyEncrypted: `CIPHER-${FAKE_KEY}`,
       apiSecretEncrypted: `CIPHER-${FAKE_SECRET}`,
       passphraseEncrypted: `CIPHER-${FAKE_PASSPHRASE}`,
@@ -63,7 +68,10 @@ describe('GetCryptoConnectionsService', () => {
     };
     const { model, calls } = fakeModel([row]);
 
-    const views = await new GetCryptoConnectionsService(model).execute();
+    const views = await new GetCryptoConnectionsService(
+      model,
+      registry as any,
+    ).execute();
 
     expect(views).toEqual([
       {
@@ -76,8 +84,11 @@ describe('GetCryptoConnectionsService', () => {
         lastSyncAt: row.lastSyncAt,
         lastError: null,
         createdAt: row.createdAt,
+        keyExpiresAt: new Date('2027-01-05T00:00:00Z'),
+        historyCoverage: { level: 'partial', note: 'n' },
       },
     ]);
+    expect(registry.get).toHaveBeenCalledWith('kraken');
     const json = JSON.stringify(views);
     for (const secret of [FAKE_KEY, FAKE_SECRET, FAKE_PASSPHRASE, 'CIPHER']) {
       expect(json).not.toContain(secret);

@@ -66,6 +66,15 @@ export interface CryptoConnection {
   lastSyncAt: string | null;
   lastError: string | null;
   createdAt: string;
+  /** ISO time the exchange says this key expires (e.g. Crypto.com App keys), or null. */
+  keyExpiresAt: string | null;
+  /** How much history the exchange API can return. */
+  historyCoverage: CryptoHistoryCoverage;
+}
+
+export interface CryptoHistoryCoverage {
+  level: 'full' | 'partial';
+  note?: string;
 }
 
 export interface CryptoBalanceItem {
@@ -145,6 +154,16 @@ export interface DeleteCryptoConnectionInput {
 
 type Raw = Record<string, any>;
 
+const mapHistoryCoverage = (
+  raw: Raw | null | undefined,
+): CryptoHistoryCoverage =>
+  raw && raw.level === 'partial'
+    ? {
+        level: 'partial',
+        ...(typeof raw.note === 'string' && raw.note ? { note: raw.note } : {}),
+      }
+    : { level: 'full' };
+
 export const mapCryptoConnection = (raw: Raw): CryptoConnection => ({
   id: Number(raw.id),
   exchange: String(raw.exchange ?? ''),
@@ -155,6 +174,8 @@ export const mapCryptoConnection = (raw: Raw): CryptoConnection => ({
   lastSyncAt: raw.last_sync_at ?? null,
   lastError: raw.last_error ?? null,
   createdAt: raw.created_at,
+  keyExpiresAt: raw.key_expires_at ?? null,
+  historyCoverage: mapHistoryCoverage(raw.history_coverage),
 });
 
 export const mapCryptoBalances = (raw: Raw): CryptoBalancesResponse => ({
@@ -198,6 +219,7 @@ export const mapCryptoSyncRun = (raw: Raw): CryptoSyncRun => ({
 /**
  * A failure from the crypto API. Carries only status, a stable code, a
  * message and a few typed extras; never request bodies or credentials.
+ * ATTESTATION_REQUIRED also carries `permissions` and `warnings` (no secrets).
  * Codes include ATTESTATION_REQUIRED, KEY_HAS_EXTRA_PERMISSIONS,
  * EXCHANGE_AUTH_FAILED, CRYPTO_SYNC_THROTTLED, CRYPTO_CONNECTION_PAUSED,
  * CRYPTO_CONNECTION_IN_ERROR, NETWORK_ERROR, REQUEST_FAILED ...
@@ -206,6 +228,7 @@ export class CryptoApiError extends Error {
   readonly status: number;
   readonly code: string;
   readonly permissions?: string[];
+  readonly warnings?: string[];
   readonly retryAfterSeconds?: number;
 
   constructor(init: {
@@ -213,6 +236,7 @@ export class CryptoApiError extends Error {
     code: string;
     message: string;
     permissions?: string[];
+    warnings?: string[];
     retryAfterSeconds?: number;
   }) {
     super(init.message);
@@ -220,6 +244,7 @@ export class CryptoApiError extends Error {
     this.status = init.status;
     this.code = init.code;
     this.permissions = init.permissions;
+    this.warnings = init.warnings;
     this.retryAfterSeconds = init.retryAfterSeconds;
   }
 }
@@ -257,6 +282,10 @@ export const parseCryptoError = (
     ? b.permissions.filter((p: unknown): p is string => typeof p === 'string')
     : undefined;
 
+  const warnings = Array.isArray(b.warnings)
+    ? b.warnings.filter((w: unknown): w is string => typeof w === 'string')
+    : undefined;
+
   let retryAfterSeconds: number | undefined;
   if (typeof b.retryAfterSeconds === 'number') {
     retryAfterSeconds = b.retryAfterSeconds;
@@ -269,6 +298,7 @@ export const parseCryptoError = (
     code,
     message,
     permissions,
+    warnings,
     retryAfterSeconds,
   });
 };

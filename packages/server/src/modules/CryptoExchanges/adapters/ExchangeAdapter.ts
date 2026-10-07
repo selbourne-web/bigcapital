@@ -12,7 +12,16 @@ export type Credentials = {
 export type KeyInspection = {
   readOnly: boolean | 'unverifiable';
   permissions: string[];
+  /** When the exchange reports an expiry (e.g. Crypto.com App keys), persisted on the connection. */
+  expiresAt?: Date;
+  /** Non-blocking notes shown next to the attestation checkbox. No secrets. */
+  warnings?: string[];
+  /** Non-read scopes that were detected (informational). */
+  writeScopes?: string[];
 };
+
+/** How much history the exchange API can return; shown on the connections page. */
+export type HistoryCoverage = { level: 'full' | 'partial'; note?: string };
 
 /** Decimal strings; asset already normalized. */
 export type RawBalance = { asset: string; free: string; locked: string };
@@ -26,6 +35,7 @@ export type RawRecordInput = {
 
 export interface ExchangeAdapter {
   readonly id: CryptoExchangeId;
+  readonly historyCoverage: HistoryCoverage;
   /**
    * Token bucket shared across tenants. `historyPageCost` is the token cost of one
    * `fetchHistory` call (default 1 when absent).

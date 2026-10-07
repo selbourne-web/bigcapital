@@ -122,7 +122,7 @@ export class CryptoExchangesController {
   @ApiResponse(
     res(
       422,
-      'The key can do more than read (KEY_HAS_EXTRA_PERMISSIONS, with the permission names; shown), or read-only status could not be verified ({ "code": "ATTESTATION_REQUIRED" }, resend with attestReadOnly: true).' +
+      'The key can do more than read (KEY_HAS_EXTRA_PERMISSIONS, with the permission names; shown), or read-only status could not be verified ({ "code": "ATTESTATION_REQUIRED", "permissions": [...], "warnings": [...] }, resend with attestReadOnly: true).' +
         ERROR_NOTE,
       EXAMPLES.keyHasExtraPermissions,
     ),

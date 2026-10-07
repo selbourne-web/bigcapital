@@ -33,6 +33,8 @@ export const sampleCryptoConnections = (): CryptoConnection[] => [
     lastSyncAt: NOW(),
     lastError: null,
     createdAt: NOW(),
+    keyExpiresAt: null,
+    historyCoverage: { level: 'full' },
   },
   {
     id: 2,
@@ -44,6 +46,8 @@ export const sampleCryptoConnections = (): CryptoConnection[] => [
     lastSyncAt: NOW(),
     lastError: 'The exchange rejected the API key.',
     createdAt: NOW(),
+    keyExpiresAt: null,
+    historyCoverage: { level: 'full' },
   },
   {
     id: 3,
@@ -55,6 +59,8 @@ export const sampleCryptoConnections = (): CryptoConnection[] => [
     lastSyncAt: NOW(),
     lastError: null,
     createdAt: NOW(),
+    keyExpiresAt: null,
+    historyCoverage: { level: 'full' },
   },
 ];
 

@@ -43,6 +43,7 @@ const connections = [
     lastSyncAt: new Date('2026-10-05T10:00:00Z'),
     lastError: null,
     createdAt: new Date('2026-10-01T09:00:00Z'),
+    keyExpiresAt: new Date('2027-01-05T00:00:00Z'),
     apiKeyEncrypted: 'CIPHER',
   },
   {
@@ -71,6 +72,7 @@ describe('crypto wire format (real SerializeInterceptor)', () => {
         last_sync_at: '2026-10-05T10:00:00.000Z',
         last_error: null,
         created_at: '2026-10-01T09:00:00.000Z',
+        key_expires_at: '2027-01-05T00:00:00.000Z',
       },
       {
         id: 2,
@@ -82,6 +84,7 @@ describe('crypto wire format (real SerializeInterceptor)', () => {
         last_sync_at: null,
         last_error: 'The exchange rejected this API key.',
         created_at: '2026-10-02T09:00:00.000Z',
+        key_expires_at: null,
       },
     ]);
   });
@@ -97,6 +100,7 @@ describe('crypto wire format (real SerializeInterceptor)', () => {
       last_sync_at: null,
       last_error: 'The exchange rejected this API key.',
       created_at: '2026-10-02T09:00:00.000Z',
+      key_expires_at: null,
     });
   });
 
@@ -224,6 +228,21 @@ describe('crypto wire format (real SerializeInterceptor)', () => {
       excl.intercept({} as any, { handle: () => of({ account_id: null }) }),
     );
     expect(nested).toEqual({ account_id: null });
+  });
+});
+
+describe('connections list wire format with history coverage', () => {
+  it('serializes history_coverage and key_expires_at in snake_case', async () => {
+    const out = await wire([
+      {
+        ...toConnectionView(connections[0]),
+        historyCoverage: { level: 'partial', note: 'API history is limited' },
+      },
+    ]);
+    expect(out[0]).toMatchObject({
+      key_expires_at: '2027-01-05T00:00:00.000Z',
+      history_coverage: { level: 'partial', note: 'API history is limited' },
+    });
   });
 });
 

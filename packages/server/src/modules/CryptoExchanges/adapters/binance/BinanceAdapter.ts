@@ -3,6 +3,7 @@ import { redactSecrets } from '../../utils/redact';
 import {
   Credentials,
   ExchangeAdapter,
+  HistoryCoverage,
   KeyInspection,
   RawBalance,
   RawRecordInput,
@@ -92,6 +93,7 @@ const isObject = (v: unknown): v is Json =>
 
 export class BinanceAdapter implements ExchangeAdapter {
   readonly id: CryptoExchangeId = 'binance';
+  readonly historyCoverage: HistoryCoverage = { level: 'full' };
   /**
    * Spot IP limit is request-weight based (per-IP, per minute; headers
    * X-MBX-USED-WEIGHT-1m). account and myTrades cost 20 each, deposit history 1.

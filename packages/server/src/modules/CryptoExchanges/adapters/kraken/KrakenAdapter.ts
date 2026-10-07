@@ -6,6 +6,7 @@ import { redactSecrets } from '../../utils/redact';
 import {
   Credentials,
   ExchangeAdapter,
+  HistoryCoverage,
   KeyInspection,
   RawBalance,
   RawRecordInput,
@@ -48,6 +49,7 @@ type Json = Record<string, any>;
 
 export class KrakenAdapter implements ExchangeAdapter {
   readonly id: CryptoExchangeId = 'kraken';
+  readonly historyCoverage: HistoryCoverage = { level: 'full' };
   /** Starter tier: counter max 15, decays 0.33/s. Ledger/trade history calls cost 2. */
   readonly rateLimit = {
     capacity: 15,

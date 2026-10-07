@@ -1,4 +1,4 @@
-import { Button, Intent, Tag } from '@blueprintjs/core';
+import { Button, Icon, Intent, Tag } from '@blueprintjs/core';
 import React from 'react';
 import { describeCryptoError, exchangeLabel } from './AddConnectionDialog';
 import styles from './CryptoConnections.module.scss';
@@ -29,6 +29,26 @@ const formatLastSync = (iso: string | null) => {
     : `Last synced ${date.toLocaleString()}`;
 };
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+const EXPIRY_WARNING_DAYS = 14;
+
+/** "Key expires <date>" text with a warning flag within 14 days of expiry or once past. */
+export const describeKeyExpiry = (
+  iso: string | null,
+  now: number = Date.now(),
+): { text: string; warn: boolean } | null => {
+  if (!iso) return null;
+  const date = new Date(iso);
+  const time = date.getTime();
+  if (Number.isNaN(time)) return null;
+  const warn = time - now <= EXPIRY_WARNING_DAYS * DAY_MS;
+  const when = date.toLocaleDateString();
+  return {
+    text: time < now ? `Key expired ${when}` : `Key expires ${when}`,
+    warn,
+  };
+};
+
 const STATUS_TAG: Record<string, { text: string; intent: Intent }> = {
   active: { text: 'Active', intent: Intent.SUCCESS },
   paused: { text: 'Paused', intent: Intent.NONE },
@@ -52,6 +72,7 @@ export function ConnectionRow({
     text: String(connection.status),
     intent: Intent.NONE,
   };
+  const expiry = describeKeyExpiry(connection.keyExpiresAt);
   const isError = connection.status === 'error';
   const isPaused = connection.status === 'paused';
 
@@ -102,6 +123,27 @@ export function ConnectionRow({
           {formatLastSync(connection.lastSyncAt)}
           {accountName ? ` · Posts to ${accountName}` : ''}
         </p>
+        {expiry && (
+          <p
+            className={expiry.warn ? styles.rowError : styles.rowMeta}
+            role={expiry.warn ? 'status' : undefined}
+          >
+            {expiry.warn && (
+              <Icon icon="warning-sign" size={12} aria-hidden="true" />
+            )}{' '}
+            {expiry.text}
+            {expiry.warn ? '. Rotate the key to keep syncing.' : ''}
+          </p>
+        )}
+        {connection.historyCoverage?.level === 'partial' && (
+          <p className={styles.rowMeta}>
+            History limited
+            {connection.historyCoverage.note
+              ? `: ${connection.historyCoverage.note}`
+              : ''}
+            . Import a CSV for older records.
+          </p>
+        )}
         {isError && connection.lastError && (
           <p className={styles.rowError} role="status">
             {connection.lastError}

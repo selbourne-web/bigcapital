@@ -56,11 +56,12 @@ export class CreateCryptoConnectionService {
     }
 
     // Network call to the exchange happens before any transaction is opened.
-    const credentials = await this.validators.verifyCredentials(
-      exchange,
-      dto,
-      dto.attestReadOnly,
-    );
+    const { credentials, inspection } =
+      await this.validators.verifyCredentialsDetailed(
+        exchange,
+        dto,
+        dto.attestReadOnly,
+      );
     const apiKey = this.vault.encrypt(credentials.apiKey);
     const apiSecret = this.vault.encrypt(credentials.apiSecret);
     const passphrase = credentials.passphrase
@@ -95,6 +96,7 @@ export class CreateCryptoConnectionService {
             keyHint,
             status: 'active',
             accountId,
+            keyExpiresAt: inspection.expiresAt ?? null,
           },
           trx,
         );

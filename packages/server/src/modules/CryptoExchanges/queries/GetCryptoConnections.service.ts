@@ -1,5 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { TenantModelProxy } from '@/modules/System/models/TenantBaseModel';
+import { AdapterRegistry } from '../adapters/AdapterRegistry';
 import { CryptoConnection } from '../models/CryptoConnection';
 import {
   CryptoConnectionView,
@@ -11,6 +12,7 @@ export class GetCryptoConnectionsService {
   constructor(
     @Inject(CryptoConnection.name)
     private readonly connectionModel: TenantModelProxy<typeof CryptoConnection>,
+    private readonly registry: AdapterRegistry,
   ) {}
 
   /**
@@ -22,6 +24,9 @@ export class GetCryptoConnectionsService {
       .query()
       .whereNull('deletedAt')
       .orderBy('id');
-    return rows.map(toConnectionView);
+    return rows.map((row) => ({
+      ...toConnectionView(row),
+      historyCoverage: this.registry.get(row.exchange).historyCoverage,
+    }));
   }
 }

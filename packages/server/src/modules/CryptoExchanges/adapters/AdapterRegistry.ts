@@ -4,15 +4,22 @@ import { ExchangeAdapter } from './ExchangeAdapter';
 import { KrakenAdapter } from './kraken/KrakenAdapter';
 import { BinanceAdapter } from './binance/BinanceAdapter';
 
-/** Maps an exchange id to its adapter. Piece 1 supports Kraken and Binance only. */
+/**
+ * Maps an exchange id to its adapter. Add a new adapter to `buildAdapters`
+ * (the Crypto.com Exchange and App adapters register here).
+ */
 @Injectable()
 export class AdapterRegistry {
   private readonly adapters = new Map<CryptoExchangeId, ExchangeAdapter>();
 
   constructor() {
-    for (const adapter of [new KrakenAdapter(), new BinanceAdapter()]) {
+    for (const adapter of AdapterRegistry.buildAdapters()) {
       this.adapters.set(adapter.id, adapter);
     }
+  }
+
+  private static buildAdapters(): ExchangeAdapter[] {
+    return [new KrakenAdapter(), new BinanceAdapter()];
   }
 
   get(exchange: CryptoExchangeId): ExchangeAdapter {
