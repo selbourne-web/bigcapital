@@ -10,8 +10,8 @@ Piece 1 delivered the connector framework, the credential vault, Kraken and Bina
 
 ### Decisions already taken (owner, 2026-10-06)
 
-1. Platforms: **Crypto.com Exchange** (not the Crypto.com App), **Nexo Pro** (not the Nexo earn/credit platform), **Pionex**. The Crypto.com App and the Nexo earn/credit platform have no API; they are reachable only through CSV (see 5).
-2. **Nexo Pro is built last, from the official API documentation**, which the owner supplies (the docs are behind a login and could not be retrieved). No Nexo Pro code is written from unofficial client details.
+1. Platforms: **Crypto.com Exchange** and **Crypto.com App** (two different APIs, two adapters), **Pionex**, and **Nexo**. Crypto.com provides no CSV exports, so its history comes from the APIs only.
+2. **Nexo has no API** (owner, 2026-10-06: Nexo Pro API access has only been surveyed, not released). Nexo is a **CSV-only** connection fed by its two CSV exports. A Nexo adapter is out of scope until Nexo releases an API and the owner supplies its official documentation.
 3. CSV is **a second data source on the same connection** (option A), not a separate entity. A connection is `api`, `api+csv` or `csv_only`.
 4. Delivery order: 2a Crypto.com, 2b Pionex, 2c CSV core with Crypto.com and Pionex parsers, 2d Nexo Pro API plus Nexo CSV.
 5. Dependencies may be added when needed (owner, 2026-10-06), subject to the usual review (maintenance, license, footprint).
@@ -35,13 +35,14 @@ interface ExchangeAdapter {
 }
 ```
 
-`CryptoExchangeId` gains `crypto_com`, `pionex`, `nexo_pro`. `AdapterRegistry` registers the new adapters. The sync engine, vault, rate limiter, queues, price feeds, REST controller and webapp hooks are reused. Per-exchange rate-limit buckets stay global per exchange (known limitation from piece 1; revisit when per-key limits are verified).
+`CryptoExchangeId` gains `crypto_com` (Exchange API), `crypto_com_app`, `pionex` and `nexo` (CSV-only, no adapter). `AdapterRegistry` registers the new adapters. The sync engine, vault, rate limiter, queues, price feeds, REST controller and webapp hooks are reused. Per-exchange rate-limit buckets stay global per exchange (known limitation from piece 1; revisit when per-key limits are verified).
 
 ### 3.1 Crypto.com Exchange adapter (2a)
 
 - Base `https://api.crypto.com/exchange/v1/{method}`, private calls are POST JSON. No UAT in production code; UAT base is configurable for tests only.
 - Signing: HMAC-SHA256 hex over `method + id + api_key + sortedParamString + nonce`; nonce is the epoch ms; the server accepts +/-60 s, so a clock-skew error is reported as a distinct, actionable error.
-- `inspectKey`: there is no permission-introspection endpoint. Returns `readOnly: 'unverifiable'`, which routes through the existing attestation flow (HTTP 422 `ATTESTATION_REQUIRED`). As an extra safety check, a probe of `private/get-deposit-address` rejects the key when it succeeds (documented as working only when withdrawal is enabled); the exact error code returned when withdrawal is off is an open item to confirm against a live read-only key before the probe is relied on.
+- `inspectKey`: there is no permission-introspection endpoint. Default result is `readOnly: 'unverifiable'`, which routes through the existing attestation flow (HTTP 422 `ATTESTATION_REQUIRED`). As a safety check, a probe of `private/get-deposit-address` marks the key `readOnly: false` (rejected, "withdrawal appears enabled") when it succeeds, because the vendor documents it as working only when withdrawal is enabled. **The owner's current Exchange key passed this probe, so it is treated as withdrawal-enabled and must be regenerated with "Can Read" only.** The error shape when withdrawal is off is still unobserved (open item 1).
+- Observed live: deposit and withdrawal list amounts and fees are JSON **numbers** (not strings): the adapter converts via the raw decimal text where possible and never uses float arithmetic; everything else is strings.
 - `fetchBalances`: account summary endpoint; asset symbols normalized by `assets.ts`.
 - `fetchHistory`: trades and order history page backwards by time window (100 records max, default 1 day); deposits and withdrawals by page number (200 max); staking rewards within 180 days of `end_time`. API retention is 6 months, so the first sync backfills 6 months and `historyCoverage` is `partial` ("API history is limited to 6 months; import a CSV for older records").
 - Rate limits: 1 request/s on trades and order history, 3 per 100 ms on most other private calls. The adapter declares the stricter bucket and a per-call cost.
@@ -55,9 +56,19 @@ interface ExchangeAdapter {
 - `fetchHistory`: fills and orders are per symbol and capped to the latest 100 fills, spot orders exclude bot orders, bots appear only as summaries, and there is no retail deposit/withdrawal endpoint. `historyCoverage` is `partial` ("Pionex's API cannot return full history; import its CSV exports"). Symbols are discovered from current balances, `knownAssets` and stored trades.
 - Rate limit 10/s per IP and per account, weighted (fills and orders cost 5). A 429 triggers a 60 s ban that grows with further requests, so the adapter treats 429 as `RateLimited` with an enforced cool-down and never retries inside the cool-down.
 
-### 3.3 Nexo Pro adapter (2d)
+### 3.3 Crypto.com App adapter (2a, live-probed 2026-10-06; see `2026-10-06-cryptocom-live-probe.md`)
 
-Specified after the owner supplies the official Nexo Pro API docs and the API Management permission page. Nothing in this section is final until then. Constraints already known: Nexo Pro balances are separate from the main Nexo platform; transfers between them are internal transfers (recorded raw, classified in piece 3). Everything in the same adapter contract applies, including read-only verification or attestation.
+- Host `https://wapi.crypto.com`; signed GETs. Headers `Cdc-Api-Key`, `Cdc-Api-Timestamp` (ms), `Cdc-Api-Signature` = base64 HMAC-SHA256(secret, `timestamp + METHOD + path-without-query + body`). Signing and endpoints were taken from the vendor's open-source client (source reviewed, not installed: it is a trade/withdraw agent skill) and confirmed by a live read-only probe with the owner's key.
+- `inspectKey`: **introspection exists**: `GET /v1/api-keys/current` returns `scopes: string[]` of the form `<resource>:<read|write>`, `status`, `expires_at`. Rule: **read-only means every scope ends in `:read` and status is active**; any `:write` scope (or an unknown scope shape) is refused with the permission list. `expires_at` is stored on the connection and surfaced in the UI (App keys expire; the probed key expires 90 days after creation), including a warning before expiry.
+- `fetchBalances`: `GET /v1/crypto-account` (`wallets[]`, filter non-zero; `available`/`locked`) and `GET /v1/fiat-account` (`balances[]`). `GET /v1/portfolio` is **not** used for balances because its products include an "Exchange" slice that overlaps the Exchange connector (double-count risk).
+- `fetchHistory`: `GET /v1/transactions`, cursor pagination (`count` max 50, newest first; follow `meta.pagination.next` params until absent; `meta.pagination.total` is unreliable and ignored). Retention is effectively full history (the probe reached 7.5 years), so `historyCoverage` is `full`. Records include deposits, staking and interest, airdrops, swaps (paired credited and debited rows) and App to Exchange transfers; enums beyond those observed (withdrawals, fiat, card, cashback, other statuses) are stored raw and tolerated, never rejected.
+- App to Exchange transfers (`crypto_to_exchange_transfer`, `exchange_to_crypto_transfer`) appear in both connectors; they are stored raw and flagged for piece 3 to treat as internal transfers.
+- Rate limit: HTTP 429 means wait 60 s; the adapter enforces the cool-down. Rate budget is declared conservatively until measured.
+- **The owner's current App key is not read-only** (it holds `fiat.deposit:write`) and the app will refuse it by design. The owner must create a key with read scopes only.
+
+### 3.4 Nexo (CSV-only, 2d)
+
+No adapter. The connection is `csv_only` and uses the Nexo CSV parsers in 5.3. The Nexo transactions export mixes interest, transfers, exchanges and credit-line activity in one file; the futures export is a separate file with a different layout.
 
 ## 4. History coverage in the UI
 
@@ -82,7 +93,20 @@ The connections page shows, per connection, a "History limited" notice when the 
 
 ### 5.3 Parsers
 
-One parser module per exchange and report type, each with: header signature, row schema (zod or class-validator, reusing what piece 1 uses), timestamp and timezone handling (explicit, documented per exchange), amount parsing as decimal strings (never floats), and a fixture set. Parsers are written from **real sample files supplied by the owner** (column names are not publicly documented for Crypto.com, Pionex or Nexo). Report types in scope: trades, deposits and withdrawals, staking/earn rewards and interest, fees where separate. Anything unrecognized in a recognized file is kept as a raw record of type `unparsed` and counted, never silently dropped.
+One parser module per exchange and report type, each with: header signature, row schema (zod or class-validator, reusing what piece 1 uses), timestamp and timezone handling (explicit, documented per exchange), amount parsing as decimal strings (never floats), and a fixture set. Parsers are written from the **real sample files the owner supplied** (columns observed 2026-10-06; sanitized copies become test fixtures only with the owner's approval). Files are matched by exact header signature after trimming whitespace and a UTF-8 BOM (the Nexo futures file has a leading space in its first header).
+
+| Exchange | Report type (header signature) | Notes |
+|---|---|---|
+| Pionex | `trading` (date, executed_qty, amount, price, side, symbol, fee, fee_coin, market_type, tax_id) | Spot and futures fills; `tax_id` groups fills. |
+| Pionex | `raw-trading-details` (adds order_type, state) | Overlaps `trading`; both stored, de-duplicated by natural key (timestamp, symbol, side, qty, price). Open question 7. |
+| Pionex | `staking` (Received/Sent Quantity and Currency, tag) | Hourly staking income; very high row count. |
+| Pionex | `others` (coin, amount, tag, comment) | Funding fees and other adjustments (tag values kept raw). |
+| Pionex | `convert`, `deposit-withdraw`, `dust-collector`, `structured-products`, `position_futures` | Header-only in the sample (no rows) except `position_futures`; signatures recognized, row semantics finalized when real rows exist. |
+| Pionex | `for-cointracker`, `for-cointracking` | **Derived third-party-format duplicates of the files above. Recognized and refused by default ("derived export; import the original reports") so activity is never double counted.** |
+| Nexo | transactions (Transaction, Type, Credit Line, Input/Output Currency and Amount, USD Equivalent, Fee, Fee Currency, Details, Date / Time (UTC)) | Has its own transaction id; mixed types (interest, transfers, exchanges, credit); `USD Equivalent` is stored raw, not trusted for valuation; Nexo-specific tokens (e.g. xUSD) are preserved verbatim. |
+| Nexo | futures transactions ( Id, Timestamp (epoch ms), Symbol, Type, Position, Price, Amount, Status, Asset, Side, DealId, InternalTransactionType, TradingFeeAmount/Asset, ExecutionPriceAsset, ExchangeRate, SourceAsset/Amount) | `null` literals mean missing; liquidations and realized PnL appear as rows. |
+
+Timestamps: Pionex dates are UTC (`date(UTC+0)`); Nexo transactions are UTC; Nexo futures are epoch milliseconds. Each parser documents and tests its timezone handling. Crypto.com has no CSV export and no parser. Anything unrecognized in a recognized file is kept as a raw record of type `unparsed` and counted, never silently dropped. Large files (Nexo ~13,000 rows, Pionex staking ~6,700) are processed in bounded batches.
 
 ### 5.4 UI
 
@@ -112,18 +136,20 @@ Reuse piece 1 error classes. New actionable errors: clock skew (Crypto.com nonce
 
 | Step | Scope | Needs from owner |
 |------|-------|------------------|
-| 2a | Crypto.com Exchange adapter, registry, UI exchange option, help text, history-coverage flag plumbing (server + webapp) | Read-only Crypto.com Exchange key in `.env` for the live pass |
-| 2b | Pionex adapter | Keys already in `.env` (`PIONEX_EXCHANGE_*`) |
-| 2c | CSV core (migration, upload/preview/commit/rollback API, UI) + Crypto.com and Pionex parsers | Sample CSV exports from Crypto.com Exchange and Pionex (all report types the owner uses) |
-| 2d | Nexo Pro adapter and Nexo CSV parsers | Nexo Pro API docs + permission page; a sample Nexo CSV; a read-only Nexo Pro key |
+| 2a | Crypto.com Exchange adapter and Crypto.com App adapter, registry, UI exchange options, help text, history-coverage flag plumbing and key-expiry surfacing (server + webapp) | **Replace both Crypto.com keys with read-only keys** (App: read scopes only; Exchange: "Can Read" only, withdrawal off). The current ones are refused by design. |
+| 2b | Pionex adapter | Keys already in `.env` (`PIONEX_EXCHANGE_*`); confirm they are read-only (Pionex cannot tell us, so attestation applies) |
+| 2c | CSV core (migration, upload/preview/commit/rollback API, UI) + Pionex parsers | Samples already supplied (Pionex) |
+| 2d | Nexo CSV parsers (transactions and futures) + CSV-only connection UI | Samples already supplied (Nexo) |
 
 Each step is its own plan and its own review cycle on branch `feat/crypto-connectors-piece2`.
 
 ## 10. Open items
 
-1. Crypto.com: error code of `get-deposit-address` when withdrawal is disabled (confirm live before the probe is trusted).
+1. Crypto.com Exchange: shape of the `get-deposit-address` error when withdrawal is disabled (needs a read-only Exchange key).
 2. Pionex: `balancesFull` entry schema; key-expiry policy (`APIKEY_EXPIRED` exists but rules are undocumented).
-3. Nexo Pro: everything (see 3.3).
-4. CSV column names for all three exchanges: owner samples required.
+3. Crypto.com Exchange `get-trades` / `get-order-history` / `get-transactions` field schemas: the probed key had no trades in range, so these rest on the docs until a live sample exists.
+4. Crypto.com App: enums for withdrawals, fiat, card and cashback transactions (none in the probed account) and status values other than `done`.
 5. Per-key versus per-IP rate limits for each exchange (currently one shared bucket per exchange).
 6. Retention of raw records and balance snapshots (piece 1 follow-up) before CSV adds volume.
+7. Pionex `trading.csv` vs `raw-trading-details.csv` overlap: confirm with the owner which is canonical, or keep both with de-duplication as proposed.
+8. Nexo API: a future piece, only when Nexo ships API access and documentation.
