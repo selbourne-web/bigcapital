@@ -274,6 +274,93 @@ describe('PionexAdapter', () => {
     });
   });
 
+  describe('missing Bot reading permission', () => {
+    const denied = () => ({
+      ...fullMap(),
+      '/api/v1/wallet/balancesFull': {
+        status: 200,
+        body: err('PERMISSION_DENIED'),
+      },
+    });
+
+    it('degrades to spot balances only and warns once per key', async () => {
+      const warn = jest
+        .spyOn(require('@nestjs/common').Logger.prototype, 'warn')
+        .mockImplementation(() => undefined);
+      try {
+        const { fn } = makeFetch(byPath(denied()));
+        const a = adapter(fn);
+        const expected = [
+          { asset: 'BTC', free: '0.5', locked: '0.1' },
+          { asset: 'USDT', free: '100.25', locked: '0' },
+          { asset: 'XDOGE', free: '1000', locked: '0' },
+        ];
+        expect(await a.fetchBalances(creds)).toEqual(expected);
+        expect(await a.fetchBalances(creds)).toEqual(expected);
+        expect(warn).toHaveBeenCalledTimes(1);
+        const msg = String(warn.mock.calls[0][0]);
+        expect(msg).toContain('Bot reading permission');
+        expect(msg).not.toMatch(/TEST_KEY|TEST_SECRET/);
+      } finally {
+        warn.mockRestore();
+      }
+    });
+
+    it.each([
+      ['INVALID_APIKEY', 200],
+      ['IP_NOT_WHITELISTED', 200],
+      ['TRADE_PARAMETER_ERROR', 200],
+      ['x', 429],
+      ['x', 503],
+    ])(
+      'still propagates %s / HTTP %s from balancesFull',
+      async (code, status) => {
+        const map = {
+          ...fullMap(),
+          '/api/v1/wallet/balancesFull': { status, body: err(code) },
+        };
+        const { fn } = makeFetch(byPath(map));
+        await expect(adapter(fn).fetchBalances(creds)).rejects.toBeInstanceOf(
+          status === 429
+            ? ExchangeRateLimitError
+            : status === 503 || code === 'TRADE_PARAMETER_ERROR'
+              ? ExchangeNetworkError
+              : ExchangeAuthError,
+        );
+      },
+    );
+
+    it('inspectKey warns when the bot probe is PERMISSION_DENIED, not otherwise', async () => {
+      const probe = (p: any) =>
+        makeFetch(
+          byPath({
+            '/api/v1/account/balances': {
+              body: fixture('account-balances.json'),
+            },
+            '/api/v1/bot/orders': p,
+          }),
+        ).fn;
+      const warned = await adapter(
+        probe({ body: err('PERMISSION_DENIED') }),
+      ).inspectKey(creds);
+      expect(warned.permissions).toEqual(['read']);
+      expect(warned.warnings).toEqual([
+        'Bot and lending balances need the Bot reading permission; without it only spot balances are imported.',
+      ]);
+      for (const p of [
+        { body: '{"result":true,"data":{"results":[]}}' },
+        { status: 503, body: 'x' },
+        { status: 429, body: '' },
+        { throw: new Error('down') },
+        { body: err('INVALID_APIKEY') },
+      ]) {
+        expect((await adapter(probe(p)).inspectKey(creds)).warnings).toEqual(
+          [],
+        );
+      }
+    });
+  });
+
   describe('inspectKey', () => {
     it('returns unverifiable/read and adds bot-read when the bot probe succeeds', async () => {
       const { fn, calls } = makeFetch(
@@ -299,7 +386,7 @@ describe('PionexAdapter', () => {
     });
 
     it.each([
-      ['auth error', { status: 200, body: err('PERMISSION_DENIED') }],
+      ['auth error', { status: 200, body: err('IP_NOT_WHITELISTED') }],
       ['401', { status: 401, body: err('INVALID_APIKEY') }],
       ['rate limit', { status: 429, body: '' }],
       ['5xx', { status: 503, body: 'x' }],
@@ -572,7 +659,10 @@ describe('PionexAdapter', () => {
             symbol: 'BTC_USDT&side=SELL',
           },
         ),
-      ).rejects.toThrow(/unsafe/);
+      ).rejects.toMatchObject({
+        retryable: false,
+        message: expect.stringMatching(/unsafe/),
+      });
       expect(calls).toHaveLength(0);
     });
   });

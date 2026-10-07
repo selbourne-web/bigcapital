@@ -153,8 +153,8 @@ describe('Crypto.com connections over the wire', () => {
   });
 });
 
-describe('exchanges without an adapter (nexo, pionex) are rejected cleanly', () => {
-  it.each(['nexo', 'pionex'])(
+describe('exchanges without an adapter (nexo) are rejected cleanly', () => {
+  it.each(['nexo'])(
     '%s: the DTO rejects it (400) and the service guard raises the unsupported ServiceError, never a 500',
     async (exchange) => {
       const errors = await validate(
@@ -182,7 +182,7 @@ describe('exchanges without an adapter (nexo, pionex) are rejected cleanly', () 
     },
   );
 
-  it.each(['crypto_com', 'crypto_com_app'])(
+  it.each(['crypto_com', 'crypto_com_app', 'pionex'])(
     '%s passes the DTO exchange check',
     async (exchange) => {
       const errors = await validate(

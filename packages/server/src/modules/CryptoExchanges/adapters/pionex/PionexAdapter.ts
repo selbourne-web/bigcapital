@@ -1,4 +1,5 @@
 import { createHash } from 'crypto';
+import { Logger } from '@nestjs/common';
 import { CryptoExchangeId } from '../../CryptoExchanges.constants';
 import { redactSecrets } from '../../utils/redact';
 import {
@@ -55,6 +56,9 @@ const METHOD_GAP_MS: Record<string, number> = {
 /** Segments of `wallet/balancesFull` botAccount that hold funds NOT in account/balances. */
 const BOT_FUND_SEGMENTS = new Set(['trading_bot', 'lending']);
 
+const BOT_PERMISSION_WARNING =
+  'Bot and lending balances need the Bot reading permission; without it only spot balances are imported.';
+
 const defaultSleep = (ms: number) =>
   new Promise<void>((resolve) => setTimeout(resolve, ms));
 
@@ -84,6 +88,9 @@ export class PionexAdapter implements ExchangeAdapter {
   /** 10 req/s per account and IP; fills/allOrders weigh 5. A history page costs 10 tokens (capacity must be >= cost). */
   readonly rateLimit = { capacity: 10, refillPerSec: 10, historyPageCost: 10 };
 
+  private readonly logger = new Logger('PionexAdapter');
+  /** api-key hashes already warned about skipped bot/lending balances (bounded). */
+  private readonly botSkipWarned = new Set<string>();
   /** Last send time per "<key hash>:<path>" (bounded; see markSent). */
   private readonly sentAt = new Map<string, number>();
   /** Per api-key hash: epoch ms until which no request may be sent (HTTP 429 ban). */
@@ -106,15 +113,17 @@ export class PionexAdapter implements ExchangeAdapter {
     // The first authenticated call: auth/clock/IP errors propagate with clear messages.
     await this.call(creds, '/api/v1/account/balances', {});
     const permissions = ['read'];
+    const warnings: string[] = [];
     try {
       // Pionex has no permission introspection; a working bot listing means the key
       // also has Bot reading. No probe error propagates (auth, 429, 5xx, network).
       await this.call(creds, '/api/v1/bot/orders', { status: 'running' });
       permissions.push('bot-read');
-    } catch {
-      // cannot tell: leave as plain 'read'
+    } catch (e) {
+      // cannot tell: leave as plain 'read'; a permission error is worth a warning
+      if (this.isPermissionDenied(e)) warnings.push(BOT_PERMISSION_WARNING);
     }
-    return { readOnly: 'unverifiable', permissions, warnings: [] };
+    return { readOnly: 'unverifiable', permissions, warnings };
   }
 
   /**
@@ -161,7 +170,15 @@ export class PionexAdapter implements ExchangeAdapter {
       add(row.coin, addDecimal(row.free, '0'), addDecimal(row.frozen, '0'));
     }
 
-    const full = await this.call(creds, '/api/v1/wallet/balancesFull', {});
+    let full: Json;
+    try {
+      full = await this.call(creds, '/api/v1/wallet/balancesFull', {});
+    } catch (e) {
+      // Only a missing Bot reading permission degrades to spot-only balances.
+      if (!this.isPermissionDenied(e)) throw e;
+      this.warnBotSkipped(creds);
+      return this.toBalances(out);
+    }
     const data = full.data;
     if (!isObject(data)) {
       throw this.schemaError('wallet/balancesFull data is not an object', full);
@@ -189,7 +206,29 @@ export class PionexAdapter implements ExchangeAdapter {
         }
       }
     }
+    return this.toBalances(out);
+  }
+
+  private toBalances(
+    out: Map<string, { free: string; locked: string }>,
+  ): RawBalance[] {
     return [...out.entries()].map(([asset, v]) => ({ asset, ...v }));
+  }
+
+  private isPermissionDenied(e: unknown): boolean {
+    return (
+      e instanceof ExchangeAuthError && e.message.includes('PERMISSION_DENIED')
+    );
+  }
+
+  private warnBotSkipped(creds: Credentials) {
+    const key = createHash('sha256').update(creds.apiKey).digest('hex');
+    if (this.botSkipWarned.has(key)) return;
+    if (this.botSkipWarned.size >= 256) this.botSkipWarned.clear();
+    this.botSkipWarned.add(key);
+    this.logger.warn(
+      'Pionex bot/lending balances skipped: key lacks Bot reading permission',
+    );
   }
 
   /** `investmentAmount + profit` (profit may be negative); undefined for unusable entries. */
@@ -306,7 +345,11 @@ export class PionexAdapter implements ExchangeAdapter {
     };
     for (const [k, v] of Object.entries(full)) {
       if (!/^[A-Za-z0-9_]+$/.test(k) || !/^[A-Za-z0-9_.\-]+$/.test(String(v))) {
-        throw new Error(`Refusing unsafe Pionex query parameter ${k}`);
+        throw new ExchangeNetworkError(
+          `Refusing unsafe Pionex query parameter ${k}`,
+          'The request contained an unsupported character.',
+          false,
+        );
       }
     }
     const signature = pionexSign({

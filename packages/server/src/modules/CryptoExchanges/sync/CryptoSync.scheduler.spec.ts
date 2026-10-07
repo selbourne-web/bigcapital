@@ -92,7 +92,7 @@ describe('queue names', () => {
     expect(queueNameFor('crypto_com')).toBe('crypto-sync-crypto_com');
     expect(queueNameFor('crypto_com_app')).toBe('crypto-sync-crypto_com_app');
     expect(() => queueNameFor('nexo')).toThrow(/nexo/);
-    expect(() => queueNameFor('pionex')).toThrow(/pionex/);
+    expect(queueNameFor('pionex')).toBe('crypto-sync-pionex');
   });
 });
 
