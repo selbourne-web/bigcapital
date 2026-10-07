@@ -2,6 +2,7 @@ import { AdapterRegistry } from './AdapterRegistry';
 import { KrakenAdapter } from './kraken/KrakenAdapter';
 import { BinanceAdapter } from './binance/BinanceAdapter';
 import { CryptoComAdapter } from './cryptocom/CryptoComAdapter';
+import { CryptoComAppAdapter } from './cryptocomapp/CryptoComAppAdapter';
 
 describe('AdapterRegistry', () => {
   const registry = new AdapterRegistry();
@@ -18,9 +19,14 @@ describe('AdapterRegistry', () => {
     expect(registry.get('crypto_com').id).toBe('crypto_com');
   });
 
+  it('returns the Crypto.com App adapter', () => {
+    expect(registry.get('crypto_com_app')).toBeInstanceOf(CryptoComAppAdapter);
+    expect(registry.get('crypto_com_app').id).toBe('crypto_com_app');
+  });
+
   // The sync service acquires `historyPageCost` tokens per history page and the rate
   // limiter throws when a cost can never be satisfied (cost > capacity).
-  it.each(['kraken', 'binance', 'crypto_com'] as const)(
+  it.each(['kraken', 'binance', 'crypto_com', 'crypto_com_app'] as const)(
     '%s: every token cost fits its bucket capacity',
     (id) => {
       const { capacity, refillPerSec, historyPageCost } =

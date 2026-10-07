@@ -1,0 +1,56 @@
+{
+  "ok": true,
+  "account": {
+    "id": 1,
+    "native_currency": "USD",
+    "balance": { "currency": "USD", "amount": "999.99" },
+    "wallets": [
+      {
+        "currency": "BTC",
+        "balance": { "currency": "BTC", "amount": "1.5" },
+        "native_balance": { "currency": "USD", "amount": "90000.00" },
+        "available": { "currency": "BTC", "amount": "1.25" },
+        "locked": { "currency": "BTC", "amount": "0.25" },
+        "locked_until": null,
+        "major_wallet": true,
+        "networks": []
+      },
+      {
+        "currency": "ZERO1",
+        "balance": { "currency": "ZERO1", "amount": "0" },
+        "native_balance": { "currency": "USD", "amount": "0" },
+        "available": { "currency": "ZERO1", "amount": "0" },
+        "locked": { "currency": "ZERO1", "amount": "0" },
+        "locked_until": null,
+        "major_wallet": false,
+        "networks": []
+      },
+      {
+        "currency": "cro",
+        "balance": { "currency": "CRO", "amount": "250.123456789012345678" },
+        "native_balance": { "currency": "USD", "amount": "20.00" },
+        "available": { "currency": "CRO", "amount": "250.123456789012345678" },
+        "locked": { "currency": "CRO", "amount": "0" },
+        "locked_until": null,
+        "major_wallet": true,
+        "networks": []
+      },
+      {
+        "currency": "ZERO2",
+        "balance": { "currency": "ZERO2", "amount": "0.000" },
+        "available": { "currency": "ZERO2", "amount": "0.000" },
+        "locked": { "currency": "ZERO2", "amount": "0.000" }
+      },
+      {
+        "currency": "USDT",
+        "balance": { "currency": "USDT", "amount": "10" },
+        "native_balance": { "currency": "USD", "amount": "10.00" },
+        "available": { "currency": "USDT", "amount": "0" },
+        "locked": { "currency": "USDT", "amount": "10" },
+        "locked_until": null,
+        "major_wallet": true,
+        "networks": []
+      }
+    ]
+  }
+}

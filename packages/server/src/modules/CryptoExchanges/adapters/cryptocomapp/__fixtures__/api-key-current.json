@@ -1,0 +1,26 @@
+{
+  "ok": true,
+  "api_key": {
+    "id": "00000000-0000-0000-0000-000000000001",
+    "name": null,
+    "description": null,
+    "api_key": "TEST_KEY",
+    "token_type": "hmac",
+    "scopes": [
+      "balance:read",
+      "fiat.bank_account:read",
+      "fiat.deposit:read",
+      "fiat.deposit:write",
+      "fiat.limits:read",
+      "fiat.withdrawal:read",
+      "market:read"
+    ],
+    "weekly_trading_limit_in_usd": "1000.00",
+    "remaining_weekly_trading_limit_in_usd": "1000.00",
+    "expires_at": "2099-01-01T00:00:00.000Z",
+    "created_at": "2026-01-01T00:00:00.000Z",
+    "updated_at": "2026-01-01T00:00:00.000Z",
+    "revoked_at": null,
+    "status": "active"
+  }
+}

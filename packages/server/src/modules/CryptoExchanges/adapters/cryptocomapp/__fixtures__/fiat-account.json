@@ -1,0 +1,23 @@
+{
+  "ok": true,
+  "account": {
+    "balance": { "currency": "USD", "amount": "1.10" },
+    "native_balance": { "currency": "USD", "amount": "1.10" },
+    "balances": [
+      {
+        "currency": "USD",
+        "amount": "100.50",
+        "native_amount": "100.50",
+        "total_amount": "100.50",
+        "unsettled_amount": "0",
+        "settled_amount": "100.50"
+      },
+      {
+        "currency": "usdt",
+        "amount": "5.5",
+        "native_amount": "5.5"
+      }
+    ],
+    "cash_wallets": []
+  }
+}
