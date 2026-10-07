@@ -71,12 +71,16 @@ const config = (syncIntervalMs?: number) =>
 const makeScheduler = (interval?: number) => {
   const kraken = new FakeQueue();
   const binance = new FakeQueue();
+  const cryptoCom = new FakeQueue();
+  const cryptoComApp = new FakeQueue();
   const scheduler = new CryptoSyncScheduler(
     kraken as any,
     binance as any,
+    cryptoCom as any,
+    cryptoComApp as any,
     config(interval),
   );
-  return { scheduler, kraken, binance };
+  return { scheduler, kraken, binance, cryptoCom, cryptoComApp };
 };
 
 describe('queue names', () => {
@@ -85,7 +89,10 @@ describe('queue names', () => {
     expect(CRYPTO_SYNC_BINANCE_QUEUE).toBe('crypto-sync-binance');
     expect(queueNameFor('kraken')).toBe('crypto-sync-kraken');
     expect(queueNameFor('binance')).toBe('crypto-sync-binance');
+    expect(queueNameFor('crypto_com')).toBe('crypto-sync-crypto_com');
+    expect(queueNameFor('crypto_com_app')).toBe('crypto-sync-crypto_com_app');
     expect(() => queueNameFor('nexo')).toThrow(/nexo/);
+    expect(() => queueNameFor('pionex')).toThrow(/pionex/);
   });
 });
 
@@ -106,6 +113,44 @@ describe('CryptoSyncScheduler', () => {
     expect(tpl.opts.attempts).toBe(5);
     expect(tpl.opts.backoff).toEqual({ type: 'exponential', delay: 30000 });
   });
+
+  it.each([
+    ['kraken', 'crypto-sync-kraken'],
+    ['binance', 'crypto-sync-binance'],
+    ['crypto_com', 'crypto-sync-crypto_com'],
+    ['crypto_com_app', 'crypto-sync-crypto_com_app'],
+  ])(
+    'registers the %s job on exactly its own queue (%s)',
+    async (exchange, queueName) => {
+      const t = makeScheduler();
+      const byName: Record<string, FakeQueue> = {
+        'crypto-sync-kraken': t.kraken,
+        'crypto-sync-binance': t.binance,
+        'crypto-sync-crypto_com': t.cryptoCom,
+        'crypto-sync-crypto_com_app': t.cryptoComApp,
+      };
+      expect(queueNameFor(exchange)).toBe(queueName);
+      await t.scheduler.schedule({ id: 9, exchange } as any, '42');
+      await t.scheduler.enqueue(
+        { id: 9, exchange } as any,
+        '42',
+        'initial',
+        cryptoStartJobId('42', 9, 'initial'),
+      );
+      for (const [name, queue] of Object.entries(byName)) {
+        expect(queue.upsertJobScheduler).toHaveBeenCalledTimes(
+          name === queueName ? 1 : 0,
+        );
+        expect(queue.jobs).toHaveLength(name === queueName ? 1 : 0);
+      }
+      await t.scheduler.unschedule('42', 9);
+      for (const queue of Object.values(byName)) {
+        expect(queue.removeJobScheduler).toHaveBeenCalledWith(
+          'crypto-sync:42:9',
+        );
+      }
+    },
+  );
 
   it('defaults to 300000 ms when no interval is configured', async () => {
     const { scheduler, binance } = makeScheduler(undefined);
@@ -133,15 +178,19 @@ describe('CryptoSyncScheduler', () => {
   });
 
   it('re-upserts when the configured interval changed', async () => {
-    const { kraken, binance } = makeScheduler();
+    const { kraken, binance, cryptoCom, cryptoComApp } = makeScheduler();
     const first = new CryptoSyncScheduler(
       kraken as any,
       binance as any,
+      cryptoCom as any,
+      cryptoComApp as any,
       config(60000),
     );
     const second = new CryptoSyncScheduler(
       kraken as any,
       binance as any,
+      cryptoCom as any,
+      cryptoComApp as any,
       config(120000),
     );
     const conn = { id: 7, exchange: 'kraken' } as any;

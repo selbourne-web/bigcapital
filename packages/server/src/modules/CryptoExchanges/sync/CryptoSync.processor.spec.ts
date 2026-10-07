@@ -333,6 +333,19 @@ describe('CryptoSyncProcessor', () => {
       ]);
     });
 
+    it('publishes the underlying of Crypto.com X.STAKED balances next to the raw symbol', async () => {
+      const t = setup();
+      t.syncService.heldAssets.mockResolvedValue(['SOL.STAKED', 'CDCETH']);
+      await t.processor.process(job());
+      expect(t.redisCalls[0]).toEqual([
+        'sadd',
+        'crypto:held-assets',
+        'CDCETH',
+        'SOL',
+        'SOL.STAKED',
+      ]);
+    });
+
     it('does not touch Redis when nothing is held', async () => {
       const t = setup();
       t.syncService.heldAssets.mockResolvedValue([]);

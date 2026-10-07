@@ -481,7 +481,7 @@ function CryptoHoldings({
                             className="dash-crypto__badge"
                             title={
                               row.viaUnderlying
-                                ? `Simple Earn token priced via ${row.viaUnderlying}, so approximately USD`
+                                ? `Earn/staked token priced via ${row.viaUnderlying}, so approximately USD`
                                 : 'Priced from a USDT pair, so approximately USD'
                             }
                           >

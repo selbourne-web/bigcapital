@@ -40,6 +40,9 @@ export function normalizeAsset(
 }
 
 /**
+ * Wrapper tokens that PRICING looks through: Binance Simple Earn `LD<X>` and
+ * Crypto.com Exchange `<X>.STAKED`.
+ *
  * Binance Simple Earn wrapper tokens are reported as `LD<X>` (LDADA, LDUSDS ...). Balances
  * and the ledger keep the raw symbol; only PRICING looks through to the underlying `X`.
  *
@@ -52,8 +55,16 @@ export function normalizeAsset(
  */
 const EARN_WRAPPER = /^LD([A-Z0-9]{3,17})$/;
 
+/**
+ * Crypto.com Exchange staked balances are reported as `<X>.STAKED` (SOL.STAKED).
+ * Same contract as `LD<X>`: pricing only, balances keep the raw symbol, and a raw
+ * symbol's own quote wins. The dotted symbol itself is never subscribed to a price feed
+ * (the feed symbol regexes are unchanged); only the underlying `X` is.
+ */
+const STAKED_WRAPPER = /^([A-Z0-9]{2,20})\.STAKED$/;
+
 export function earnUnderlying(asset: string): string | undefined {
-  return EARN_WRAPPER.exec(asset)?.[1];
+  return EARN_WRAPPER.exec(asset)?.[1] ?? STAKED_WRAPPER.exec(asset)?.[1];
 }
 
 /** The assets the price feed should subscribe to: the held set plus earn underlyings. */

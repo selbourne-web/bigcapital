@@ -22,6 +22,8 @@ describeRedis('CryptoSyncScheduler against real BullMQ', () => {
   const INTERVAL = 600_000;
   let kraken: Queue;
   let binance: Queue;
+  let cryptoCom: Queue;
+  let cryptoComApp: Queue;
   let scheduler: CryptoSyncScheduler;
   const conn = { id: 7, exchange: 'kraken' } as any;
   const schedulerId = cryptoScheduleId('42', 7);
@@ -38,17 +40,32 @@ describeRedis('CryptoSyncScheduler against real BullMQ', () => {
   beforeAll(() => {
     kraken = new Queue('crypto-sync-kraken', { connection, prefix });
     binance = new Queue('crypto-sync-binance', { connection, prefix });
-    scheduler = new CryptoSyncScheduler(kraken, binance, {
-      get: (key: string) =>
-        key === 'crypto' ? { syncIntervalMs: INTERVAL } : undefined,
-    } as any);
+    cryptoCom = new Queue('crypto-sync-crypto_com', { connection, prefix });
+    cryptoComApp = new Queue('crypto-sync-crypto_com_app', {
+      connection,
+      prefix,
+    });
+    scheduler = new CryptoSyncScheduler(
+      kraken,
+      binance,
+      cryptoCom,
+      cryptoComApp,
+      {
+        get: (key: string) =>
+          key === 'crypto' ? { syncIntervalMs: INTERVAL } : undefined,
+      } as any,
+    );
   });
 
   afterAll(async () => {
     await kraken.obliterate({ force: true });
     await binance.obliterate({ force: true });
+    await cryptoCom.obliterate({ force: true });
+    await cryptoComApp.obliterate({ force: true });
     await kraken.close();
     await binance.close();
+    await cryptoCom.close();
+    await cryptoComApp.close();
   });
 
   it('creates the scheduler once, and repeated schedule() calls add no job and do not move the next run', async () => {

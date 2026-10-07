@@ -139,7 +139,7 @@ export function ConnectionRow({
           <p className={styles.rowMeta}>
             History limited
             {connection.historyCoverage.note
-              ? `: ${connection.historyCoverage.note}`
+              ? `: ${connection.historyCoverage.note.replace(/\.+$/, '')}`
               : ''}
             . Import a CSV for older records.
           </p>

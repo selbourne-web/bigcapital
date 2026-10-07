@@ -238,6 +238,7 @@ function ConnectionForm({
 
     const onSuccess = () => {
       clearSecrets();
+      setAttestDetails(null);
       mutation.reset();
       AppToaster.show({
         message: rotate
@@ -260,6 +261,7 @@ function ConnectionForm({
       } else {
         clearSecrets();
         setAttested(false);
+        setAttestDetails(null);
       }
       setFailure(error);
     };
@@ -427,8 +429,10 @@ function ConnectionForm({
                   {attestDetails.permissions.join(', ')}
                 </p>
               )}
-              {attestDetails.warnings.map((warning) => (
-                <p key={warning}>{warning}</p>
+              {attestDetails.warnings.map((warning, index) => (
+                // Index key: warning texts are not guaranteed unique.
+                // eslint-disable-next-line react/no-array-index-key
+                <p key={index}>{warning}</p>
               ))}
             </Callout>
           )}

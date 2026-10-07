@@ -9,6 +9,8 @@ import {
   CRYPTO_HELD_ASSETS_KEY,
   CRYPTO_HELD_ASSETS_TTL_SECONDS,
   CRYPTO_SYNC_BINANCE_QUEUE,
+  CRYPTO_SYNC_CRYPTO_COM_APP_QUEUE,
+  CRYPTO_SYNC_CRYPTO_COM_QUEUE,
   CRYPTO_SYNC_KRAKEN_QUEUE,
   CryptoSyncKind,
   cryptoContinuationJobId,
@@ -31,7 +33,7 @@ export type CryptoSyncJobOutcome =
 /**
  * Runs one crypto sync job: sets the tenant context, re-loads the connection
  * (jobs may outlive it), runs one bounded slice, then publishes the outcome.
- * Both exchange queues are served by thin `@Processor` workers below that
+ * All exchange queues are served by thin `@Processor` workers below that
  * delegate here.
  */
 @Injectable()
@@ -219,6 +221,30 @@ export class KrakenSyncWorker extends WorkerHost {
 
 @Processor({ name: CRYPTO_SYNC_BINANCE_QUEUE, scope: Scope.REQUEST })
 export class BinanceSyncWorker extends WorkerHost {
+  constructor(private readonly processor: CryptoSyncProcessor) {
+    super();
+  }
+
+  @UseCls()
+  async process(job: Job<CryptoSyncJobData>) {
+    return this.processor.process(job);
+  }
+}
+
+@Processor({ name: CRYPTO_SYNC_CRYPTO_COM_QUEUE, scope: Scope.REQUEST })
+export class CryptoComSyncWorker extends WorkerHost {
+  constructor(private readonly processor: CryptoSyncProcessor) {
+    super();
+  }
+
+  @UseCls()
+  async process(job: Job<CryptoSyncJobData>) {
+    return this.processor.process(job);
+  }
+}
+
+@Processor({ name: CRYPTO_SYNC_CRYPTO_COM_APP_QUEUE, scope: Scope.REQUEST })
+export class CryptoComAppSyncWorker extends WorkerHost {
   constructor(private readonly processor: CryptoSyncProcessor) {
     super();
   }

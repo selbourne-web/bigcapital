@@ -4,6 +4,8 @@ import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import {
   CRYPTO_SYNC_BINANCE_QUEUE,
+  CRYPTO_SYNC_CRYPTO_COM_APP_QUEUE,
+  CRYPTO_SYNC_CRYPTO_COM_QUEUE,
   CRYPTO_SYNC_JOB,
   CRYPTO_SYNC_JOB_OPTIONS,
   CRYPTO_SYNC_KRAKEN_QUEUE,
@@ -32,11 +34,15 @@ export class CryptoSyncScheduler {
   constructor(
     @InjectQueue(CRYPTO_SYNC_KRAKEN_QUEUE) krakenQueue: Queue,
     @InjectQueue(CRYPTO_SYNC_BINANCE_QUEUE) binanceQueue: Queue,
+    @InjectQueue(CRYPTO_SYNC_CRYPTO_COM_QUEUE) cryptoComQueue: Queue,
+    @InjectQueue(CRYPTO_SYNC_CRYPTO_COM_APP_QUEUE) cryptoComAppQueue: Queue,
     private readonly configService: ConfigService,
   ) {
     this.queues = {
       [CRYPTO_SYNC_KRAKEN_QUEUE]: krakenQueue,
       [CRYPTO_SYNC_BINANCE_QUEUE]: binanceQueue,
+      [CRYPTO_SYNC_CRYPTO_COM_QUEUE]: cryptoComQueue,
+      [CRYPTO_SYNC_CRYPTO_COM_APP_QUEUE]: cryptoComAppQueue,
     };
   }
 

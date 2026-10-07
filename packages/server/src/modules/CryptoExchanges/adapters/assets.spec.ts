@@ -37,6 +37,37 @@ describe('earnUnderlying / pricingAssets', () => {
     expect(earnUnderlying(asset)).toBe(underlying);
   });
 
+  it.each([
+    ['SOL.STAKED', 'SOL'],
+    ['ETH.STAKED', 'ETH'],
+    ['DOT.STAKED', 'DOT'],
+    ['1INCH.STAKED', '1INCH'],
+  ])('%s is a staked balance of %s (pricing only)', (asset, underlying) => {
+    expect(earnUnderlying(asset)).toBe(underlying);
+  });
+
+  it.each([
+    '.STAKED',
+    'X.STAKED',
+    'SOL.STAKED.STAKED',
+    'sol.staked',
+    'SOL.STAKE',
+    'SOL.STAKED2',
+    'SOL-STAKED',
+    'A'.repeat(21) + '.STAKED',
+  ])('%s is not a staked wrapper', (asset) => {
+    expect(earnUnderlying(asset)).toBeUndefined();
+  });
+
+  it('pricingAssets adds the staked underlying next to the raw symbol', () => {
+    expect(pricingAssets(['SOL.STAKED', 'CDCETH', 'SOL'])).toEqual([
+      'CDCETH',
+      'SOL',
+      'SOL.STAKED',
+    ]);
+    expect(pricingAssets(['ETH.STAKED'])).toEqual(['ETH', 'ETH.STAKED']);
+  });
+
   it.each(['LDO', 'LD', 'BTC', 'ADA', 'ldada', 'LDA.B', 'LD_ADA', 'CRCLX.T'])(
     '%s is not treated as an earn wrapper (LDO is the real Lido DAO token)',
     (asset) => {

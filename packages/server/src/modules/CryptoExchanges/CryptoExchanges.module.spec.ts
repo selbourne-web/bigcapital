@@ -30,8 +30,11 @@ import {
 } from './CryptoExchanges.module';
 import {
   CRYPTO_SYNC_BINANCE_QUEUE,
+  CRYPTO_SYNC_CRYPTO_COM_APP_QUEUE,
+  CRYPTO_SYNC_CRYPTO_COM_QUEUE,
   CRYPTO_SYNC_JOB_OPTIONS,
   CRYPTO_SYNC_KRAKEN_QUEUE,
+  CRYPTO_SYNC_QUEUE_NAMES,
 } from './CryptoExchanges.constants';
 import { CRYPTO_LIVE_EMITTER } from './CryptoExchanges.types';
 import { AdapterRegistry } from './adapters/AdapterRegistry';
@@ -88,6 +91,8 @@ const stubs = (key: string | null): Provider[] => [
   })),
   { provide: getQueueToken(CRYPTO_SYNC_KRAKEN_QUEUE), useValue: {} },
   { provide: getQueueToken(CRYPTO_SYNC_BINANCE_QUEUE), useValue: {} },
+  { provide: getQueueToken(CRYPTO_SYNC_CRYPTO_COM_QUEUE), useValue: {} },
+  { provide: getQueueToken(CRYPTO_SYNC_CRYPTO_COM_APP_QUEUE), useValue: {} },
 ];
 
 const compile = (key: string | null = validKey) =>
@@ -176,7 +181,20 @@ describe('CryptoExchangesModule wiring', () => {
     expect(source).toContain('    CryptoExchangesModule,');
   });
 
-  it('uses the shared default job options on both queues', () => {
+  it('has a @Processor worker provider for every sync queue', () => {
+    const served = cryptoExchangesProviders
+      .map(token)
+      .map((t) =>
+        typeof t === 'function'
+          ? Reflect.getMetadata('bullmq:processor_metadata', t)?.name
+          : undefined,
+      )
+      .filter(Boolean)
+      .sort();
+    expect(served).toEqual([...CRYPTO_SYNC_QUEUE_NAMES].sort());
+  });
+
+  it('uses the shared default job options on all queues', () => {
     // BullModule.registerQueue options are not introspectable without Redis;
     // pin the constants the module passes so a rename cannot go unnoticed.
     expect(CRYPTO_SYNC_JOB_OPTIONS.attempts).toBe(5);
