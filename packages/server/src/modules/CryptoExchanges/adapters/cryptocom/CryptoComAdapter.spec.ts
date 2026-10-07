@@ -302,9 +302,4 @@ describe('CryptoComAdapter', () => {
       ExchangeRateLimitError,
     );
   });
-
-  it('fetchHistory is a Task 3 stub returning no records', async () => {
-    const a = adapter(makeFetch(() => ({ body: '{}' })).fn);
-    expect(await a.fetchHistory(creds, {})).toEqual({ records: [] });
-  });
 });

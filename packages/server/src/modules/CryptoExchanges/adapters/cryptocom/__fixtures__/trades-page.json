@@ -1,0 +1,45 @@
+{
+  "_note": "DOCS-DERIVED fixture (the probed key had no trades). Shape from https://exchange-developer.crypto.com/exchange/v1/docs/api/rest/private-get-trades.md",
+  "id": 1,
+  "method": "private/get-trades",
+  "code": 0,
+  "result": {
+    "data": [
+      {
+        "account_id": "52e7c00f-1324-5a6z-bfgt-de445bde21a5",
+        "event_date": "2026-09-01",
+        "journal_type": "TRADING",
+        "side": "BUY",
+        "instrument_name": "BTC_USDT",
+        "fee_instrument_name": "USDT",
+        "traded_price": "50000.5",
+        "traded_quantity": "0.00050000",
+        "fees": "-0.025",
+        "fee_credits": "0",
+        "order_id": "19848525",
+        "trade_id": "1210447366",
+        "trade_match_id": "5375485",
+        "create_time": 1693000100000,
+        "create_time_ns": "1693000100000123456",
+        "transact_time_ns": "1693000100000123456",
+        "taker_side": "TAKER"
+      },
+      {
+        "account_id": "52e7c00f-1324-5a6z-bfgt-de445bde21a5",
+        "side": "SELL",
+        "instrument_name": "CRO_USDT",
+        "fee_instrument_name": "CRO",
+        "traded_price": "0.1",
+        "traded_quantity": "1000",
+        "fees": "-1.5",
+        "fee_credits": "0",
+        "order_id": "19848526",
+        "trade_id": "1210447367",
+        "trade_match_id": "5375486",
+        "create_time": 1693000000000,
+        "create_time_ns": "1693000000000000000",
+        "taker_side": "MAKER"
+      }
+    ]
+  }
+}

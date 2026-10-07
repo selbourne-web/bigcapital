@@ -1,0 +1,49 @@
+{
+  "_note": "Shape from the 2026-10-06 live read-only probe (docs/superpowers/research/2026-10-06-cryptocom-live-probe.md): amount and fee are JSON NUMBERS, written here with trailing zeros to prove exactness. Docs: https://exchange-developer.crypto.com/exchange/v1/docs/api/rest/private-get-deposit-history.md",
+  "id": 1,
+  "method": "private/get-deposit-history",
+  "code": 0,
+  "result": {
+    "deposit_list": [
+      {
+        "currency": "BTC",
+        "fee": 0.00000000,
+        "create_time": 1693000200000,
+        "id": "2220",
+        "update_time": 1693000300000,
+        "amount": 0.00050000,
+        "address": "TEST_ADDRESS_1",
+        "status": 1,
+        "txid": "TEST_TXID_1",
+        "source_address": "TEST_SRC_1",
+        "network_id": null
+      },
+      {
+        "currency": "XRP",
+        "fee": 1.0,
+        "create_time": 1693000100000,
+        "id": "2219",
+        "update_time": 1693000150000,
+        "amount": 100,
+        "address": "INTERNAL_DEPOSIT",
+        "status": 1,
+        "txid": "",
+        "source_address": "",
+        "network_id": null
+      },
+      {
+        "currency": "ETH",
+        "fee": 0,
+        "create_time": 1693000000000,
+        "id": "2218",
+        "update_time": 1693000050000,
+        "amount": 12345678901.12345678,
+        "address": "TEST_ADDRESS_3",
+        "status": 1,
+        "txid": "TEST_TXID_3",
+        "source_address": "TEST_SRC_3",
+        "network_id": "ETH"
+      }
+    ]
+  }
+}

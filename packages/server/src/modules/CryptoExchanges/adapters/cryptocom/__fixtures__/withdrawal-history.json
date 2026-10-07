@@ -1,0 +1,23 @@
+{
+  "_note": "Shape from the 2026-10-06 live read-only probe: amount and fee are JSON NUMBERS. Docs: https://exchange-developer.crypto.com/exchange/v1/docs/api/rest/private-get-withdrawal-history.md",
+  "id": 1,
+  "method": "private/get-withdrawal-history",
+  "code": 0,
+  "result": {
+    "withdrawal_list": [
+      {
+        "currency": "CRO",
+        "client_wid": "TEST_WID_1",
+        "fee": 0.02000000,
+        "create_time": 1693000400000,
+        "id": "3301",
+        "update_time": 1693000500000,
+        "amount": 250.00000000,
+        "address": "TEST_ADDRESS_W1",
+        "status": 5,
+        "txid": "TEST_TXID_W1",
+        "network_id": "CRONOS"
+      }
+    ]
+  }
+}

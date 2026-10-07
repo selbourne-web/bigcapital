@@ -1,0 +1,49 @@
+{
+  "_note": "DOCS-DERIVED fixture (the probed key had no orders). Shape from https://exchange-developer.crypto.com/exchange/v1/docs/api/rest/private-get-order-history.md",
+  "id": 1,
+  "method": "private/get-order-history",
+  "code": 0,
+  "result": {
+    "data": [
+      {
+        "account_id": "52e7c00f-1324-5a6z-bfgt-de445bde21a5",
+        "order_id": "19848525",
+        "client_oid": "1613571154900",
+        "order_type": "LIMIT",
+        "time_in_force": "GOOD_TILL_CANCEL",
+        "side": "BUY",
+        "exec_inst": [],
+        "quantity": "0.0100",
+        "limit_price": "50000.0",
+        "order_value": "500",
+        "avg_price": "50000.5",
+        "cumulative_quantity": "0.0100",
+        "cumulative_value": "500.005",
+        "cumulative_fee": "0.025",
+        "status": "FILLED",
+        "update_user_id": "fd797356-55db-48c2-a44d-157aabf702e8",
+        "order_date": "2026-09-01",
+        "instrument_name": "BTC_USDT",
+        "fee_instrument_name": "USDT",
+        "create_time": 1693000100000,
+        "create_time_ns": "1693000100000000000",
+        "update_time": 1693000200000
+      },
+      {
+        "order_id": "19848527",
+        "order_type": "LIMIT",
+        "side": "SELL",
+        "quantity": "5",
+        "limit_price": "70000",
+        "avg_price": "0",
+        "cumulative_quantity": "0",
+        "cumulative_fee": "0",
+        "status": "CANCELED",
+        "instrument_name": "BTC_USDT",
+        "fee_instrument_name": "USDT",
+        "create_time": 1693000050000,
+        "update_time": 1693000060000
+      }
+    ]
+  }
+}

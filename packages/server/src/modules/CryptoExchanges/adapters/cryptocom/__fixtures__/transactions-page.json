@@ -1,0 +1,46 @@
+{
+  "_note": "DOCS-DERIVED fixture (the probed key had no transactions). Shape from https://exchange-developer.crypto.com/exchange/v1/docs/api/rest/private-get-transactions.md",
+  "id": 1,
+  "method": "private/get-transactions",
+  "code": 0,
+  "result": {
+    "data": [
+      {
+        "account_id": "52e7c00f-1324-5a6z-bfgt-de445bde21a5",
+        "event_date": "2026-09-01",
+        "journal_type": "TRADE_FEE",
+        "journal_id": "187439",
+        "transaction_qty": "-0.025",
+        "transaction_cost": "-0.025",
+        "realized_pnl": "0",
+        "order_id": "19848525",
+        "trade_id": "1210447366",
+        "trade_match_id": "5375485",
+        "event_timestamp_ms": 1693000100000,
+        "event_timestamp_ns": "1693000100000123456",
+        "client_oid": "1613571154900",
+        "taker_side": "TAKER",
+        "side": "BUY",
+        "instrument_name": "USDT"
+      },
+      {
+        "journal_type": "TRADING",
+        "journal_id": "187438",
+        "transaction_qty": "0.0100",
+        "transaction_cost": "-500.005",
+        "realized_pnl": "0",
+        "event_timestamp_ms": 1693000100000,
+        "instrument_name": "BTC_USDT"
+      },
+      {
+        "journal_type": "MANUAL_CONVERSION",
+        "journal_id": "187437",
+        "transaction_qty": "10",
+        "transaction_cost": "10",
+        "realized_pnl": "0",
+        "event_timestamp_ms": 1693000090000,
+        "instrument_name": "CRO"
+      }
+    ]
+  }
+}
