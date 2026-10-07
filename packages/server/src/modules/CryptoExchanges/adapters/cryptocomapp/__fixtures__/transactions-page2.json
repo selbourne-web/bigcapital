@@ -1,0 +1,165 @@
+{
+  "ok": true,
+  "transactions": [
+    {
+      "id": "00000000000000050",
+      "account_id": "0000000000000001",
+      "account_type": "main",
+      "context": "crypto",
+      "nature": "deposit",
+      "kind": "crypto_deposit",
+      "description": "fixture",
+      "user_uuid": "00000000-0000-0000-0000-000000000000",
+      "rate": "1.0",
+      "rate_desc": null,
+      "amount": {
+        "currency": "ETH",
+        "amount": "2"
+      },
+      "native_amount": {
+        "currency": "USD",
+        "amount": "2"
+      },
+      "native_currency": "USD",
+      "note": null,
+      "address": null,
+      "meta": {},
+      "status": "done",
+      "created_at": "2026-09-29T10:00:00.000Z",
+      "updated_at": "2026-09-29T10:00:00.000Z",
+      "fee": {
+        "amount": "0",
+        "currency": "ETH"
+      },
+      "execute_rate": [],
+      "source_id": "0",
+      "source_type": "crypto_deposit",
+      "encoded_id": "fixture",
+      "icons": [],
+      "native_amount_32dp": "2"
+    },
+    {
+      "id": "00000000000000049",
+      "account_id": "0000000000000001",
+      "account_type": "main",
+      "context": "crypto",
+      "nature": "dpos",
+      "kind": "finance.dpos.staking.crypto_wallet",
+      "description": "fixture",
+      "user_uuid": "00000000-0000-0000-0000-000000000000",
+      "rate": "1.0",
+      "rate_desc": null,
+      "amount": {
+        "currency": "ETH",
+        "amount": "2"
+      },
+      "native_amount": {
+        "currency": "USD",
+        "amount": "2"
+      },
+      "native_currency": "USD",
+      "note": null,
+      "address": null,
+      "meta": {},
+      "status": "done",
+      "created_at": "2026-09-29T09:00:00.000Z",
+      "updated_at": "2026-09-29T09:00:00.000Z",
+      "fee": {
+        "amount": "0",
+        "currency": "ETH"
+      },
+      "execute_rate": [],
+      "source_id": "0",
+      "source_type": "dpos_staking",
+      "encoded_id": "fixture",
+      "icons": [],
+      "native_amount_32dp": "2"
+    },
+    {
+      "id": "00000000000000048",
+      "account_id": "0000000000000001",
+      "account_type": "main",
+      "context": "crypto",
+      "nature": "crypto_wallet_swap",
+      "kind": "crypto_wallet_swap_debited",
+      "description": "fixture",
+      "user_uuid": "00000000-0000-0000-0000-000000000000",
+      "rate": "1.0",
+      "rate_desc": null,
+      "amount": {
+        "currency": "ETH",
+        "amount": "2"
+      },
+      "native_amount": {
+        "currency": "USD",
+        "amount": "2"
+      },
+      "native_currency": "USD",
+      "note": null,
+      "address": null,
+      "meta": {},
+      "status": "done",
+      "created_at": "2026-09-29T08:00:00.000Z",
+      "updated_at": "2026-09-29T08:00:00.000Z",
+      "fee": {
+        "amount": "0",
+        "currency": "ETH"
+      },
+      "execute_rate": [],
+      "source_id": "0",
+      "source_type": "crypto_wallet_conversion",
+      "encoded_id": "fixture",
+      "icons": [],
+      "native_amount_32dp": "2"
+    },
+    {
+      "id": "00000000000000047",
+      "account_id": "0000000000000001",
+      "account_type": "main",
+      "context": "crypto",
+      "nature": "crypto_wallet_swap",
+      "kind": "crypto_wallet_swap_credited",
+      "description": "fixture",
+      "user_uuid": "00000000-0000-0000-0000-000000000000",
+      "rate": "1.0",
+      "rate_desc": null,
+      "amount": {
+        "currency": "ETH",
+        "amount": "2"
+      },
+      "native_amount": {
+        "currency": "USD",
+        "amount": "2"
+      },
+      "native_currency": "USD",
+      "note": null,
+      "address": null,
+      "meta": {},
+      "status": "done",
+      "created_at": "2026-09-29T07:00:00.000Z",
+      "updated_at": "2026-09-29T07:00:00.000Z",
+      "fee": {
+        "amount": "0",
+        "currency": "ETH"
+      },
+      "execute_rate": [],
+      "source_id": "0",
+      "source_type": "crypto_wallet_conversion",
+      "encoded_id": "fixture",
+      "icons": [],
+      "native_amount_32dp": "2"
+    }
+  ],
+  "meta": {
+    "pagination": {
+      "total": 7,
+      "next": {
+        "last_id": "00000000000000047",
+        "count": 50,
+        "pagination_key": "PAGEKEY2",
+        "sort_by": "id",
+        "order": "desc"
+      }
+    }
+  }
+}

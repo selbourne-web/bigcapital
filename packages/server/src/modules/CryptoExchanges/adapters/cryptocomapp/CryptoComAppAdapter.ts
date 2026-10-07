@@ -1,5 +1,8 @@
 import { createHash } from 'crypto';
-import { CryptoExchangeId } from '../../CryptoExchanges.constants';
+import {
+  CryptoExchangeId,
+  CryptoRecordType,
+} from '../../CryptoExchanges.constants';
 import { redactSecrets } from '../../utils/redact';
 import {
   Credentials,
@@ -33,6 +36,7 @@ const READ_PATHS = new Set([
   '/v1/api-keys/current',
   '/v1/crypto-account',
   '/v1/fiat-account',
+  '/v1/transactions',
 ]);
 
 /**
@@ -84,6 +88,15 @@ export function classifyScopes(scopes: string[]): {
 }
 
 type Json = Record<string, any>;
+
+const PAGE_SIZE = 50;
+type HistoryCursor = {
+  last_id: string;
+  count: number;
+  pagination_key: string;
+  sort_by: string;
+  order: 'desc';
+};
 
 export class CryptoComAppAdapter implements ExchangeAdapter {
   readonly id: CryptoExchangeId = 'crypto_com_app';
@@ -214,12 +227,171 @@ export class CryptoComAppAdapter implements ExchangeAdapter {
     return [...out.entries()].map(([asset, v]) => ({ asset, ...v }));
   }
 
+  /**
+   * `GET /v1/transactions`, one HTTP page (`count=50`, newest first) per call. Cursor
+   * is the opaque JSON of the `meta.pagination.next` params (absent on the first call);
+   * `total` is unreliable and ignored. The stream ends when `next` is absent or an
+   * item is older than `since` (items are newest first). Items are never dropped or
+   * thrown on: anything not matching the mapping or missing required fields is stored
+   * as `unparsed`. A response that is not the documented envelope, or a malformed
+   * cursor, is an ExchangeSchemaError.
+   */
   async fetchHistory(
-    _c: Credentials,
-    _q: { since?: Date; cursor?: string; knownAssets?: string[] },
+    c: Credentials,
+    q: { since?: Date; cursor?: string; knownAssets?: string[] },
   ): Promise<{ records: RawRecordInput[]; nextCursor?: string }> {
-    // TODO(Task 5): App transactions history. Stub so the registry works.
-    return { records: [] };
+    const creds = this.trim(c);
+    const cur = q.cursor !== undefined ? this.parseCursor(q.cursor) : undefined;
+    const body = await this.get(
+      creds,
+      '/v1/transactions',
+      cur ?? { count: PAGE_SIZE },
+    );
+    if (body.ok !== true || !Array.isArray(body.transactions)) {
+      throw this.schemaError('transactions response is not the envelope', body);
+    }
+    const sinceMs = q.since ? q.since.getTime() : undefined;
+    const records: RawRecordInput[] = [];
+    let reachedSince = false;
+    for (const item of body.transactions) {
+      const at = this.itemDate(item);
+      if (sinceMs !== undefined && at !== undefined && at.getTime() < sinceMs) {
+        reachedSince = true;
+        break;
+      }
+      records.push(this.mapItem(item, at));
+    }
+    if (reachedSince) return { records };
+    const next = body.meta?.pagination?.next;
+    if (next === undefined || next === null) return { records };
+    const nextCur = this.validateCursor(next);
+    if (!nextCur) {
+      throw this.schemaError(
+        'transactions pagination.next has bad shape',
+        body.meta,
+      );
+    }
+    if (cur && cur.last_id === nextCur.last_id) {
+      throw this.schemaError('transactions pagination made no progress', next);
+    }
+    return { records, nextCursor: JSON.stringify(nextCur) };
+  }
+
+  private parseCursor(raw: string): HistoryCursor {
+    let v: unknown;
+    try {
+      v =
+        typeof raw === 'string' && raw.length <= 1024 ? JSON.parse(raw) : null;
+    } catch {
+      v = null;
+    }
+    const cur = this.validateCursor(v);
+    if (!cur) {
+      throw new ExchangeSchemaError(
+        'Invalid Crypto.com App history cursor',
+        typeof raw === 'string' ? raw.slice(0, 200) : String(raw),
+      );
+    }
+    return cur;
+  }
+
+  /** Whitelist exactly the five next-page params, bounded; undefined if malformed. */
+  private validateCursor(v: any): HistoryCursor | undefined {
+    if (!v || typeof v !== 'object' || Array.isArray(v)) return undefined;
+    if (typeof v.last_id !== 'string' || !/^\d{1,32}$/.test(v.last_id))
+      return undefined;
+    if (!Number.isInteger(v.count) || v.count < 1 || v.count > PAGE_SIZE)
+      return undefined;
+    if (
+      typeof v.pagination_key !== 'string' ||
+      v.pagination_key.length > 256 ||
+      !/^[ -~]*$/.test(v.pagination_key)
+    )
+      return undefined;
+    if (typeof v.sort_by !== 'string' || !/^[a-z_]{1,32}$/.test(v.sort_by))
+      return undefined;
+    if (v.order !== 'desc') return undefined; // newest first is what `since` relies on
+    return {
+      last_id: v.last_id,
+      count: v.count,
+      pagination_key: v.pagination_key,
+      sort_by: v.sort_by,
+      order: v.order,
+    };
+  }
+
+  private itemDate(item: any): Date | undefined {
+    const v = item?.created_at;
+    if (typeof v !== 'string') return undefined;
+    const d = new Date(v);
+    return isNaN(d.getTime()) ? undefined : d;
+  }
+
+  private mapItem(item: any, at: Date | undefined): RawRecordInput {
+    const unparsed = (): RawRecordInput => {
+      const hash = createHash('sha256')
+        .update(JSON.stringify(item) ?? 'undefined')
+        .digest('hex')
+        .slice(0, 32);
+      return {
+        type: 'unparsed',
+        exchangeRecordId: `unparsed:app:${hash}`,
+        occurredAt: at ?? new Date(this.now()),
+        payload: { item: redactSecrets(item), internalTransfer: false },
+      };
+    };
+    if (!item || typeof item !== 'object' || Array.isArray(item)) {
+      return unparsed();
+    }
+    const amount = item.amount;
+    if (
+      typeof item.id !== 'string' ||
+      !/^[A-Za-z0-9_-]{1,64}$/.test(item.id) ||
+      typeof item.status !== 'string' ||
+      !/^[A-Za-z0-9_.-]{1,32}$/.test(item.status) ||
+      !at ||
+      !amount ||
+      typeof amount !== 'object' ||
+      typeof amount.currency !== 'string' ||
+      amount.currency.trim() === '' ||
+      !isDecimal(amount.amount)
+    ) {
+      return unparsed();
+    }
+    const m = this.classify(item.kind) ?? this.classify(item.nature);
+    if (!m) return unparsed();
+    return {
+      type: m.type,
+      // The status is part of the id: a later status change of the same transaction
+      // becomes a new immutable raw row.
+      exchangeRecordId: `app:${item.id}:s${item.status}`,
+      occurredAt: at,
+      payload: { item, internalTransfer: m.internalTransfer },
+    };
+  }
+
+  /** First match wins; applied to `kind`, then to `nature`. */
+  private classify(
+    v: unknown,
+  ): { type: CryptoRecordType; internalTransfer: boolean } | undefined {
+    if (typeof v !== 'string') return undefined;
+    const s = v.trim().toLowerCase();
+    if (s === 'crypto_to_exchange_transfer')
+      return { type: 'withdrawal', internalTransfer: true };
+    if (s === 'exchange_to_crypto_transfer')
+      return { type: 'deposit', internalTransfer: true };
+    if (s.includes('deposit'))
+      return { type: 'deposit', internalTransfer: false };
+    if (s.includes('withdraw'))
+      return { type: 'withdrawal', internalTransfer: false };
+    if (['dpos', 'rewards', 'airdrop', 'income'].some((k) => s.includes(k)))
+      return { type: 'reward', internalTransfer: false };
+    if (
+      s === 'crypto_wallet_swap_credited' ||
+      s === 'crypto_wallet_swap_debited'
+    )
+      return { type: 'trade', internalTransfer: false };
+    return undefined;
   }
 
   private trim(c: Credentials): Credentials {

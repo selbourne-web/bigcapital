@@ -1,0 +1,1867 @@
+{
+  "ok": true,
+  "transactions": [
+    {
+      "id": "00000000000000100",
+      "account_id": "0000000000000001",
+      "account_type": "main",
+      "context": "crypto",
+      "nature": "deposit",
+      "kind": "crypto_deposit",
+      "description": "fixture",
+      "user_uuid": "00000000-0000-0000-0000-000000000000",
+      "rate": "1.0",
+      "rate_desc": null,
+      "amount": {
+        "currency": "BTC",
+        "amount": "1.5"
+      },
+      "native_amount": {
+        "currency": "USD",
+        "amount": "1.5"
+      },
+      "native_currency": "USD",
+      "note": null,
+      "address": null,
+      "meta": {},
+      "status": "done",
+      "created_at": "2026-10-01T12:00:00.000Z",
+      "updated_at": "2026-10-01T12:00:00.000Z",
+      "fee": {
+        "amount": "0",
+        "currency": "BTC"
+      },
+      "execute_rate": [],
+      "source_id": "0",
+      "source_type": "crypto_deposit",
+      "encoded_id": "fixture",
+      "icons": [],
+      "native_amount_32dp": "1.5"
+    },
+    {
+      "id": "00000000000000099",
+      "account_id": "0000000000000001",
+      "account_type": "main",
+      "context": "crypto",
+      "nature": "dpos",
+      "kind": "finance.dpos.staking.crypto_wallet",
+      "description": "fixture",
+      "user_uuid": "00000000-0000-0000-0000-000000000000",
+      "rate": "1.0",
+      "rate_desc": null,
+      "amount": {
+        "currency": "BTC",
+        "amount": "1.5"
+      },
+      "native_amount": {
+        "currency": "USD",
+        "amount": "1.5"
+      },
+      "native_currency": "USD",
+      "note": null,
+      "address": null,
+      "meta": {},
+      "status": "done",
+      "created_at": "2026-10-01T11:00:00.000Z",
+      "updated_at": "2026-10-01T11:00:00.000Z",
+      "fee": {
+        "amount": "0",
+        "currency": "BTC"
+      },
+      "execute_rate": [],
+      "source_id": "0",
+      "source_type": "dpos_staking",
+      "encoded_id": "fixture",
+      "icons": [],
+      "native_amount_32dp": "1.5"
+    },
+    {
+      "id": "00000000000000098",
+      "account_id": "0000000000000001",
+      "account_type": "main",
+      "context": "crypto",
+      "nature": "crypto_wallet_swap",
+      "kind": "crypto_wallet_swap_debited",
+      "description": "fixture",
+      "user_uuid": "00000000-0000-0000-0000-000000000000",
+      "rate": "1.0",
+      "rate_desc": null,
+      "amount": {
+        "currency": "BTC",
+        "amount": "1.5"
+      },
+      "native_amount": {
+        "currency": "USD",
+        "amount": "1.5"
+      },
+      "native_currency": "USD",
+      "note": null,
+      "address": null,
+      "meta": {},
+      "status": "done",
+      "created_at": "2026-10-01T10:00:00.000Z",
+      "updated_at": "2026-10-01T10:00:00.000Z",
+      "fee": {
+        "amount": "0",
+        "currency": "BTC"
+      },
+      "execute_rate": [],
+      "source_id": "0",
+      "source_type": "crypto_wallet_conversion",
+      "encoded_id": "fixture",
+      "icons": [],
+      "native_amount_32dp": "1.5"
+    },
+    {
+      "id": "00000000000000097",
+      "account_id": "0000000000000001",
+      "account_type": "main",
+      "context": "crypto",
+      "nature": "crypto_wallet_swap",
+      "kind": "crypto_wallet_swap_credited",
+      "description": "fixture",
+      "user_uuid": "00000000-0000-0000-0000-000000000000",
+      "rate": "1.0",
+      "rate_desc": null,
+      "amount": {
+        "currency": "BTC",
+        "amount": "1.5"
+      },
+      "native_amount": {
+        "currency": "USD",
+        "amount": "1.5"
+      },
+      "native_currency": "USD",
+      "note": null,
+      "address": null,
+      "meta": {},
+      "status": "done",
+      "created_at": "2026-10-01T09:00:00.000Z",
+      "updated_at": "2026-10-01T09:00:00.000Z",
+      "fee": {
+        "amount": "0",
+        "currency": "BTC"
+      },
+      "execute_rate": [],
+      "source_id": "0",
+      "source_type": "crypto_wallet_conversion",
+      "encoded_id": "fixture",
+      "icons": [],
+      "native_amount_32dp": "1.5"
+    },
+    {
+      "id": "00000000000000096",
+      "account_id": "0000000000000001",
+      "account_type": "main",
+      "context": "crypto",
+      "nature": "deposit",
+      "kind": "crypto_to_exchange_transfer",
+      "description": "fixture",
+      "user_uuid": "00000000-0000-0000-0000-000000000000",
+      "rate": "1.0",
+      "rate_desc": null,
+      "amount": {
+        "currency": "BTC",
+        "amount": "1.5"
+      },
+      "native_amount": {
+        "currency": "USD",
+        "amount": "1.5"
+      },
+      "native_currency": "USD",
+      "note": null,
+      "address": null,
+      "meta": {},
+      "status": "done",
+      "created_at": "2026-10-01T08:00:00.000Z",
+      "updated_at": "2026-10-01T08:00:00.000Z",
+      "fee": {
+        "amount": "0",
+        "currency": "BTC"
+      },
+      "execute_rate": [],
+      "source_id": "0",
+      "source_type": "crypto_wallet_internal_credit",
+      "encoded_id": "fixture",
+      "icons": [],
+      "native_amount_32dp": "1.5"
+    },
+    {
+      "id": "00000000000000095",
+      "account_id": "0000000000000001",
+      "account_type": "main",
+      "context": "crypto",
+      "nature": "deposit",
+      "kind": "exchange_to_crypto_transfer",
+      "description": "fixture",
+      "user_uuid": "00000000-0000-0000-0000-000000000000",
+      "rate": "1.0",
+      "rate_desc": null,
+      "amount": {
+        "currency": "BTC",
+        "amount": "1.5"
+      },
+      "native_amount": {
+        "currency": "USD",
+        "amount": "1.5"
+      },
+      "native_currency": "USD",
+      "note": null,
+      "address": null,
+      "meta": {},
+      "status": "done",
+      "created_at": "2026-10-01T07:00:00.000Z",
+      "updated_at": "2026-10-01T07:00:00.000Z",
+      "fee": {
+        "amount": "0",
+        "currency": "BTC"
+      },
+      "execute_rate": [],
+      "source_id": "0",
+      "source_type": "crypto_wallet_internal_credit",
+      "encoded_id": "fixture",
+      "icons": [],
+      "native_amount_32dp": "1.5"
+    },
+    {
+      "id": "00000000000000094",
+      "account_id": "0000000000000001",
+      "account_type": "main",
+      "context": "crypto",
+      "nature": "deposit",
+      "kind": "crypto_deposit",
+      "description": "fixture",
+      "user_uuid": "00000000-0000-0000-0000-000000000000",
+      "rate": "1.0",
+      "rate_desc": null,
+      "amount": {
+        "currency": "BTC",
+        "amount": "1.5"
+      },
+      "native_amount": {
+        "currency": "USD",
+        "amount": "1.5"
+      },
+      "native_currency": "USD",
+      "note": null,
+      "address": null,
+      "meta": {},
+      "status": "done",
+      "created_at": "2026-10-01T06:00:00.000Z",
+      "updated_at": "2026-10-01T06:00:00.000Z",
+      "fee": {
+        "amount": "0",
+        "currency": "BTC"
+      },
+      "execute_rate": [],
+      "source_id": "0",
+      "source_type": "crypto_deposit",
+      "encoded_id": "fixture",
+      "icons": [],
+      "native_amount_32dp": "1.5"
+    },
+    {
+      "id": "00000000000000093",
+      "account_id": "0000000000000001",
+      "account_type": "main",
+      "context": "crypto",
+      "nature": "dpos",
+      "kind": "finance.dpos.staking.crypto_wallet",
+      "description": "fixture",
+      "user_uuid": "00000000-0000-0000-0000-000000000000",
+      "rate": "1.0",
+      "rate_desc": null,
+      "amount": {
+        "currency": "BTC",
+        "amount": "1.5"
+      },
+      "native_amount": {
+        "currency": "USD",
+        "amount": "1.5"
+      },
+      "native_currency": "USD",
+      "note": null,
+      "address": null,
+      "meta": {},
+      "status": "done",
+      "created_at": "2026-10-01T05:00:00.000Z",
+      "updated_at": "2026-10-01T05:00:00.000Z",
+      "fee": {
+        "amount": "0",
+        "currency": "BTC"
+      },
+      "execute_rate": [],
+      "source_id": "0",
+      "source_type": "dpos_staking",
+      "encoded_id": "fixture",
+      "icons": [],
+      "native_amount_32dp": "1.5"
+    },
+    {
+      "id": "00000000000000092",
+      "account_id": "0000000000000001",
+      "account_type": "main",
+      "context": "crypto",
+      "nature": "crypto_wallet_swap",
+      "kind": "crypto_wallet_swap_debited",
+      "description": "fixture",
+      "user_uuid": "00000000-0000-0000-0000-000000000000",
+      "rate": "1.0",
+      "rate_desc": null,
+      "amount": {
+        "currency": "BTC",
+        "amount": "1.5"
+      },
+      "native_amount": {
+        "currency": "USD",
+        "amount": "1.5"
+      },
+      "native_currency": "USD",
+      "note": null,
+      "address": null,
+      "meta": {},
+      "status": "done",
+      "created_at": "2026-10-01T04:00:00.000Z",
+      "updated_at": "2026-10-01T04:00:00.000Z",
+      "fee": {
+        "amount": "0",
+        "currency": "BTC"
+      },
+      "execute_rate": [],
+      "source_id": "0",
+      "source_type": "crypto_wallet_conversion",
+      "encoded_id": "fixture",
+      "icons": [],
+      "native_amount_32dp": "1.5"
+    },
+    {
+      "id": "00000000000000091",
+      "account_id": "0000000000000001",
+      "account_type": "main",
+      "context": "crypto",
+      "nature": "crypto_wallet_swap",
+      "kind": "crypto_wallet_swap_credited",
+      "description": "fixture",
+      "user_uuid": "00000000-0000-0000-0000-000000000000",
+      "rate": "1.0",
+      "rate_desc": null,
+      "amount": {
+        "currency": "BTC",
+        "amount": "1.5"
+      },
+      "native_amount": {
+        "currency": "USD",
+        "amount": "1.5"
+      },
+      "native_currency": "USD",
+      "note": null,
+      "address": null,
+      "meta": {},
+      "status": "done",
+      "created_at": "2026-10-01T03:00:00.000Z",
+      "updated_at": "2026-10-01T03:00:00.000Z",
+      "fee": {
+        "amount": "0",
+        "currency": "BTC"
+      },
+      "execute_rate": [],
+      "source_id": "0",
+      "source_type": "crypto_wallet_conversion",
+      "encoded_id": "fixture",
+      "icons": [],
+      "native_amount_32dp": "1.5"
+    },
+    {
+      "id": "00000000000000090",
+      "account_id": "0000000000000001",
+      "account_type": "main",
+      "context": "crypto",
+      "nature": "deposit",
+      "kind": "crypto_to_exchange_transfer",
+      "description": "fixture",
+      "user_uuid": "00000000-0000-0000-0000-000000000000",
+      "rate": "1.0",
+      "rate_desc": null,
+      "amount": {
+        "currency": "BTC",
+        "amount": "1.5"
+      },
+      "native_amount": {
+        "currency": "USD",
+        "amount": "1.5"
+      },
+      "native_currency": "USD",
+      "note": null,
+      "address": null,
+      "meta": {},
+      "status": "done",
+      "created_at": "2026-10-01T02:00:00.000Z",
+      "updated_at": "2026-10-01T02:00:00.000Z",
+      "fee": {
+        "amount": "0",
+        "currency": "BTC"
+      },
+      "execute_rate": [],
+      "source_id": "0",
+      "source_type": "crypto_wallet_internal_credit",
+      "encoded_id": "fixture",
+      "icons": [],
+      "native_amount_32dp": "1.5"
+    },
+    {
+      "id": "00000000000000089",
+      "account_id": "0000000000000001",
+      "account_type": "main",
+      "context": "crypto",
+      "nature": "deposit",
+      "kind": "exchange_to_crypto_transfer",
+      "description": "fixture",
+      "user_uuid": "00000000-0000-0000-0000-000000000000",
+      "rate": "1.0",
+      "rate_desc": null,
+      "amount": {
+        "currency": "BTC",
+        "amount": "1.5"
+      },
+      "native_amount": {
+        "currency": "USD",
+        "amount": "1.5"
+      },
+      "native_currency": "USD",
+      "note": null,
+      "address": null,
+      "meta": {},
+      "status": "done",
+      "created_at": "2026-10-01T01:00:00.000Z",
+      "updated_at": "2026-10-01T01:00:00.000Z",
+      "fee": {
+        "amount": "0",
+        "currency": "BTC"
+      },
+      "execute_rate": [],
+      "source_id": "0",
+      "source_type": "crypto_wallet_internal_credit",
+      "encoded_id": "fixture",
+      "icons": [],
+      "native_amount_32dp": "1.5"
+    },
+    {
+      "id": "00000000000000088",
+      "account_id": "0000000000000001",
+      "account_type": "main",
+      "context": "crypto",
+      "nature": "deposit",
+      "kind": "crypto_deposit",
+      "description": "fixture",
+      "user_uuid": "00000000-0000-0000-0000-000000000000",
+      "rate": "1.0",
+      "rate_desc": null,
+      "amount": {
+        "currency": "BTC",
+        "amount": "1.5"
+      },
+      "native_amount": {
+        "currency": "USD",
+        "amount": "1.5"
+      },
+      "native_currency": "USD",
+      "note": null,
+      "address": null,
+      "meta": {},
+      "status": "done",
+      "created_at": "2026-10-01T00:00:00.000Z",
+      "updated_at": "2026-10-01T00:00:00.000Z",
+      "fee": {
+        "amount": "0",
+        "currency": "BTC"
+      },
+      "execute_rate": [],
+      "source_id": "0",
+      "source_type": "crypto_deposit",
+      "encoded_id": "fixture",
+      "icons": [],
+      "native_amount_32dp": "1.5"
+    },
+    {
+      "id": "00000000000000087",
+      "account_id": "0000000000000001",
+      "account_type": "main",
+      "context": "crypto",
+      "nature": "dpos",
+      "kind": "finance.dpos.staking.crypto_wallet",
+      "description": "fixture",
+      "user_uuid": "00000000-0000-0000-0000-000000000000",
+      "rate": "1.0",
+      "rate_desc": null,
+      "amount": {
+        "currency": "BTC",
+        "amount": "1.5"
+      },
+      "native_amount": {
+        "currency": "USD",
+        "amount": "1.5"
+      },
+      "native_currency": "USD",
+      "note": null,
+      "address": null,
+      "meta": {},
+      "status": "done",
+      "created_at": "2026-09-30T23:00:00.000Z",
+      "updated_at": "2026-09-30T23:00:00.000Z",
+      "fee": {
+        "amount": "0",
+        "currency": "BTC"
+      },
+      "execute_rate": [],
+      "source_id": "0",
+      "source_type": "dpos_staking",
+      "encoded_id": "fixture",
+      "icons": [],
+      "native_amount_32dp": "1.5"
+    },
+    {
+      "id": "00000000000000086",
+      "account_id": "0000000000000001",
+      "account_type": "main",
+      "context": "crypto",
+      "nature": "crypto_wallet_swap",
+      "kind": "crypto_wallet_swap_debited",
+      "description": "fixture",
+      "user_uuid": "00000000-0000-0000-0000-000000000000",
+      "rate": "1.0",
+      "rate_desc": null,
+      "amount": {
+        "currency": "BTC",
+        "amount": "1.5"
+      },
+      "native_amount": {
+        "currency": "USD",
+        "amount": "1.5"
+      },
+      "native_currency": "USD",
+      "note": null,
+      "address": null,
+      "meta": {},
+      "status": "done",
+      "created_at": "2026-09-30T22:00:00.000Z",
+      "updated_at": "2026-09-30T22:00:00.000Z",
+      "fee": {
+        "amount": "0",
+        "currency": "BTC"
+      },
+      "execute_rate": [],
+      "source_id": "0",
+      "source_type": "crypto_wallet_conversion",
+      "encoded_id": "fixture",
+      "icons": [],
+      "native_amount_32dp": "1.5"
+    },
+    {
+      "id": "00000000000000085",
+      "account_id": "0000000000000001",
+      "account_type": "main",
+      "context": "crypto",
+      "nature": "crypto_wallet_swap",
+      "kind": "crypto_wallet_swap_credited",
+      "description": "fixture",
+      "user_uuid": "00000000-0000-0000-0000-000000000000",
+      "rate": "1.0",
+      "rate_desc": null,
+      "amount": {
+        "currency": "BTC",
+        "amount": "1.5"
+      },
+      "native_amount": {
+        "currency": "USD",
+        "amount": "1.5"
+      },
+      "native_currency": "USD",
+      "note": null,
+      "address": null,
+      "meta": {},
+      "status": "done",
+      "created_at": "2026-09-30T21:00:00.000Z",
+      "updated_at": "2026-09-30T21:00:00.000Z",
+      "fee": {
+        "amount": "0",
+        "currency": "BTC"
+      },
+      "execute_rate": [],
+      "source_id": "0",
+      "source_type": "crypto_wallet_conversion",
+      "encoded_id": "fixture",
+      "icons": [],
+      "native_amount_32dp": "1.5"
+    },
+    {
+      "id": "00000000000000084",
+      "account_id": "0000000000000001",
+      "account_type": "main",
+      "context": "crypto",
+      "nature": "deposit",
+      "kind": "crypto_to_exchange_transfer",
+      "description": "fixture",
+      "user_uuid": "00000000-0000-0000-0000-000000000000",
+      "rate": "1.0",
+      "rate_desc": null,
+      "amount": {
+        "currency": "BTC",
+        "amount": "1.5"
+      },
+      "native_amount": {
+        "currency": "USD",
+        "amount": "1.5"
+      },
+      "native_currency": "USD",
+      "note": null,
+      "address": null,
+      "meta": {},
+      "status": "done",
+      "created_at": "2026-09-30T20:00:00.000Z",
+      "updated_at": "2026-09-30T20:00:00.000Z",
+      "fee": {
+        "amount": "0",
+        "currency": "BTC"
+      },
+      "execute_rate": [],
+      "source_id": "0",
+      "source_type": "crypto_wallet_internal_credit",
+      "encoded_id": "fixture",
+      "icons": [],
+      "native_amount_32dp": "1.5"
+    },
+    {
+      "id": "00000000000000083",
+      "account_id": "0000000000000001",
+      "account_type": "main",
+      "context": "crypto",
+      "nature": "deposit",
+      "kind": "exchange_to_crypto_transfer",
+      "description": "fixture",
+      "user_uuid": "00000000-0000-0000-0000-000000000000",
+      "rate": "1.0",
+      "rate_desc": null,
+      "amount": {
+        "currency": "BTC",
+        "amount": "1.5"
+      },
+      "native_amount": {
+        "currency": "USD",
+        "amount": "1.5"
+      },
+      "native_currency": "USD",
+      "note": null,
+      "address": null,
+      "meta": {},
+      "status": "done",
+      "created_at": "2026-09-30T19:00:00.000Z",
+      "updated_at": "2026-09-30T19:00:00.000Z",
+      "fee": {
+        "amount": "0",
+        "currency": "BTC"
+      },
+      "execute_rate": [],
+      "source_id": "0",
+      "source_type": "crypto_wallet_internal_credit",
+      "encoded_id": "fixture",
+      "icons": [],
+      "native_amount_32dp": "1.5"
+    },
+    {
+      "id": "00000000000000082",
+      "account_id": "0000000000000001",
+      "account_type": "main",
+      "context": "crypto",
+      "nature": "deposit",
+      "kind": "crypto_deposit",
+      "description": "fixture",
+      "user_uuid": "00000000-0000-0000-0000-000000000000",
+      "rate": "1.0",
+      "rate_desc": null,
+      "amount": {
+        "currency": "BTC",
+        "amount": "1.5"
+      },
+      "native_amount": {
+        "currency": "USD",
+        "amount": "1.5"
+      },
+      "native_currency": "USD",
+      "note": null,
+      "address": null,
+      "meta": {},
+      "status": "done",
+      "created_at": "2026-09-30T18:00:00.000Z",
+      "updated_at": "2026-09-30T18:00:00.000Z",
+      "fee": {
+        "amount": "0",
+        "currency": "BTC"
+      },
+      "execute_rate": [],
+      "source_id": "0",
+      "source_type": "crypto_deposit",
+      "encoded_id": "fixture",
+      "icons": [],
+      "native_amount_32dp": "1.5"
+    },
+    {
+      "id": "00000000000000081",
+      "account_id": "0000000000000001",
+      "account_type": "main",
+      "context": "crypto",
+      "nature": "dpos",
+      "kind": "finance.dpos.staking.crypto_wallet",
+      "description": "fixture",
+      "user_uuid": "00000000-0000-0000-0000-000000000000",
+      "rate": "1.0",
+      "rate_desc": null,
+      "amount": {
+        "currency": "BTC",
+        "amount": "1.5"
+      },
+      "native_amount": {
+        "currency": "USD",
+        "amount": "1.5"
+      },
+      "native_currency": "USD",
+      "note": null,
+      "address": null,
+      "meta": {},
+      "status": "done",
+      "created_at": "2026-09-30T17:00:00.000Z",
+      "updated_at": "2026-09-30T17:00:00.000Z",
+      "fee": {
+        "amount": "0",
+        "currency": "BTC"
+      },
+      "execute_rate": [],
+      "source_id": "0",
+      "source_type": "dpos_staking",
+      "encoded_id": "fixture",
+      "icons": [],
+      "native_amount_32dp": "1.5"
+    },
+    {
+      "id": "00000000000000080",
+      "account_id": "0000000000000001",
+      "account_type": "main",
+      "context": "crypto",
+      "nature": "crypto_wallet_swap",
+      "kind": "crypto_wallet_swap_debited",
+      "description": "fixture",
+      "user_uuid": "00000000-0000-0000-0000-000000000000",
+      "rate": "1.0",
+      "rate_desc": null,
+      "amount": {
+        "currency": "BTC",
+        "amount": "1.5"
+      },
+      "native_amount": {
+        "currency": "USD",
+        "amount": "1.5"
+      },
+      "native_currency": "USD",
+      "note": null,
+      "address": null,
+      "meta": {},
+      "status": "done",
+      "created_at": "2026-09-30T16:00:00.000Z",
+      "updated_at": "2026-09-30T16:00:00.000Z",
+      "fee": {
+        "amount": "0",
+        "currency": "BTC"
+      },
+      "execute_rate": [],
+      "source_id": "0",
+      "source_type": "crypto_wallet_conversion",
+      "encoded_id": "fixture",
+      "icons": [],
+      "native_amount_32dp": "1.5"
+    },
+    {
+      "id": "00000000000000079",
+      "account_id": "0000000000000001",
+      "account_type": "main",
+      "context": "crypto",
+      "nature": "crypto_wallet_swap",
+      "kind": "crypto_wallet_swap_credited",
+      "description": "fixture",
+      "user_uuid": "00000000-0000-0000-0000-000000000000",
+      "rate": "1.0",
+      "rate_desc": null,
+      "amount": {
+        "currency": "BTC",
+        "amount": "1.5"
+      },
+      "native_amount": {
+        "currency": "USD",
+        "amount": "1.5"
+      },
+      "native_currency": "USD",
+      "note": null,
+      "address": null,
+      "meta": {},
+      "status": "done",
+      "created_at": "2026-09-30T15:00:00.000Z",
+      "updated_at": "2026-09-30T15:00:00.000Z",
+      "fee": {
+        "amount": "0",
+        "currency": "BTC"
+      },
+      "execute_rate": [],
+      "source_id": "0",
+      "source_type": "crypto_wallet_conversion",
+      "encoded_id": "fixture",
+      "icons": [],
+      "native_amount_32dp": "1.5"
+    },
+    {
+      "id": "00000000000000078",
+      "account_id": "0000000000000001",
+      "account_type": "main",
+      "context": "crypto",
+      "nature": "deposit",
+      "kind": "crypto_to_exchange_transfer",
+      "description": "fixture",
+      "user_uuid": "00000000-0000-0000-0000-000000000000",
+      "rate": "1.0",
+      "rate_desc": null,
+      "amount": {
+        "currency": "BTC",
+        "amount": "1.5"
+      },
+      "native_amount": {
+        "currency": "USD",
+        "amount": "1.5"
+      },
+      "native_currency": "USD",
+      "note": null,
+      "address": null,
+      "meta": {},
+      "status": "done",
+      "created_at": "2026-09-30T14:00:00.000Z",
+      "updated_at": "2026-09-30T14:00:00.000Z",
+      "fee": {
+        "amount": "0",
+        "currency": "BTC"
+      },
+      "execute_rate": [],
+      "source_id": "0",
+      "source_type": "crypto_wallet_internal_credit",
+      "encoded_id": "fixture",
+      "icons": [],
+      "native_amount_32dp": "1.5"
+    },
+    {
+      "id": "00000000000000077",
+      "account_id": "0000000000000001",
+      "account_type": "main",
+      "context": "crypto",
+      "nature": "deposit",
+      "kind": "exchange_to_crypto_transfer",
+      "description": "fixture",
+      "user_uuid": "00000000-0000-0000-0000-000000000000",
+      "rate": "1.0",
+      "rate_desc": null,
+      "amount": {
+        "currency": "BTC",
+        "amount": "1.5"
+      },
+      "native_amount": {
+        "currency": "USD",
+        "amount": "1.5"
+      },
+      "native_currency": "USD",
+      "note": null,
+      "address": null,
+      "meta": {},
+      "status": "done",
+      "created_at": "2026-09-30T13:00:00.000Z",
+      "updated_at": "2026-09-30T13:00:00.000Z",
+      "fee": {
+        "amount": "0",
+        "currency": "BTC"
+      },
+      "execute_rate": [],
+      "source_id": "0",
+      "source_type": "crypto_wallet_internal_credit",
+      "encoded_id": "fixture",
+      "icons": [],
+      "native_amount_32dp": "1.5"
+    },
+    {
+      "id": "00000000000000076",
+      "account_id": "0000000000000001",
+      "account_type": "main",
+      "context": "crypto",
+      "nature": "deposit",
+      "kind": "crypto_deposit",
+      "description": "fixture",
+      "user_uuid": "00000000-0000-0000-0000-000000000000",
+      "rate": "1.0",
+      "rate_desc": null,
+      "amount": {
+        "currency": "BTC",
+        "amount": "1.5"
+      },
+      "native_amount": {
+        "currency": "USD",
+        "amount": "1.5"
+      },
+      "native_currency": "USD",
+      "note": null,
+      "address": null,
+      "meta": {},
+      "status": "done",
+      "created_at": "2026-09-30T12:00:00.000Z",
+      "updated_at": "2026-09-30T12:00:00.000Z",
+      "fee": {
+        "amount": "0",
+        "currency": "BTC"
+      },
+      "execute_rate": [],
+      "source_id": "0",
+      "source_type": "crypto_deposit",
+      "encoded_id": "fixture",
+      "icons": [],
+      "native_amount_32dp": "1.5"
+    },
+    {
+      "id": "00000000000000075",
+      "account_id": "0000000000000001",
+      "account_type": "main",
+      "context": "crypto",
+      "nature": "dpos",
+      "kind": "finance.dpos.staking.crypto_wallet",
+      "description": "fixture",
+      "user_uuid": "00000000-0000-0000-0000-000000000000",
+      "rate": "1.0",
+      "rate_desc": null,
+      "amount": {
+        "currency": "BTC",
+        "amount": "1.5"
+      },
+      "native_amount": {
+        "currency": "USD",
+        "amount": "1.5"
+      },
+      "native_currency": "USD",
+      "note": null,
+      "address": null,
+      "meta": {},
+      "status": "done",
+      "created_at": "2026-09-30T11:00:00.000Z",
+      "updated_at": "2026-09-30T11:00:00.000Z",
+      "fee": {
+        "amount": "0",
+        "currency": "BTC"
+      },
+      "execute_rate": [],
+      "source_id": "0",
+      "source_type": "dpos_staking",
+      "encoded_id": "fixture",
+      "icons": [],
+      "native_amount_32dp": "1.5"
+    },
+    {
+      "id": "00000000000000074",
+      "account_id": "0000000000000001",
+      "account_type": "main",
+      "context": "crypto",
+      "nature": "crypto_wallet_swap",
+      "kind": "crypto_wallet_swap_debited",
+      "description": "fixture",
+      "user_uuid": "00000000-0000-0000-0000-000000000000",
+      "rate": "1.0",
+      "rate_desc": null,
+      "amount": {
+        "currency": "BTC",
+        "amount": "1.5"
+      },
+      "native_amount": {
+        "currency": "USD",
+        "amount": "1.5"
+      },
+      "native_currency": "USD",
+      "note": null,
+      "address": null,
+      "meta": {},
+      "status": "done",
+      "created_at": "2026-09-30T10:00:00.000Z",
+      "updated_at": "2026-09-30T10:00:00.000Z",
+      "fee": {
+        "amount": "0",
+        "currency": "BTC"
+      },
+      "execute_rate": [],
+      "source_id": "0",
+      "source_type": "crypto_wallet_conversion",
+      "encoded_id": "fixture",
+      "icons": [],
+      "native_amount_32dp": "1.5"
+    },
+    {
+      "id": "00000000000000073",
+      "account_id": "0000000000000001",
+      "account_type": "main",
+      "context": "crypto",
+      "nature": "crypto_wallet_swap",
+      "kind": "crypto_wallet_swap_credited",
+      "description": "fixture",
+      "user_uuid": "00000000-0000-0000-0000-000000000000",
+      "rate": "1.0",
+      "rate_desc": null,
+      "amount": {
+        "currency": "BTC",
+        "amount": "1.5"
+      },
+      "native_amount": {
+        "currency": "USD",
+        "amount": "1.5"
+      },
+      "native_currency": "USD",
+      "note": null,
+      "address": null,
+      "meta": {},
+      "status": "done",
+      "created_at": "2026-09-30T09:00:00.000Z",
+      "updated_at": "2026-09-30T09:00:00.000Z",
+      "fee": {
+        "amount": "0",
+        "currency": "BTC"
+      },
+      "execute_rate": [],
+      "source_id": "0",
+      "source_type": "crypto_wallet_conversion",
+      "encoded_id": "fixture",
+      "icons": [],
+      "native_amount_32dp": "1.5"
+    },
+    {
+      "id": "00000000000000072",
+      "account_id": "0000000000000001",
+      "account_type": "main",
+      "context": "crypto",
+      "nature": "deposit",
+      "kind": "crypto_to_exchange_transfer",
+      "description": "fixture",
+      "user_uuid": "00000000-0000-0000-0000-000000000000",
+      "rate": "1.0",
+      "rate_desc": null,
+      "amount": {
+        "currency": "BTC",
+        "amount": "1.5"
+      },
+      "native_amount": {
+        "currency": "USD",
+        "amount": "1.5"
+      },
+      "native_currency": "USD",
+      "note": null,
+      "address": null,
+      "meta": {},
+      "status": "done",
+      "created_at": "2026-09-30T08:00:00.000Z",
+      "updated_at": "2026-09-30T08:00:00.000Z",
+      "fee": {
+        "amount": "0",
+        "currency": "BTC"
+      },
+      "execute_rate": [],
+      "source_id": "0",
+      "source_type": "crypto_wallet_internal_credit",
+      "encoded_id": "fixture",
+      "icons": [],
+      "native_amount_32dp": "1.5"
+    },
+    {
+      "id": "00000000000000071",
+      "account_id": "0000000000000001",
+      "account_type": "main",
+      "context": "crypto",
+      "nature": "deposit",
+      "kind": "exchange_to_crypto_transfer",
+      "description": "fixture",
+      "user_uuid": "00000000-0000-0000-0000-000000000000",
+      "rate": "1.0",
+      "rate_desc": null,
+      "amount": {
+        "currency": "BTC",
+        "amount": "1.5"
+      },
+      "native_amount": {
+        "currency": "USD",
+        "amount": "1.5"
+      },
+      "native_currency": "USD",
+      "note": null,
+      "address": null,
+      "meta": {},
+      "status": "done",
+      "created_at": "2026-09-30T07:00:00.000Z",
+      "updated_at": "2026-09-30T07:00:00.000Z",
+      "fee": {
+        "amount": "0",
+        "currency": "BTC"
+      },
+      "execute_rate": [],
+      "source_id": "0",
+      "source_type": "crypto_wallet_internal_credit",
+      "encoded_id": "fixture",
+      "icons": [],
+      "native_amount_32dp": "1.5"
+    },
+    {
+      "id": "00000000000000070",
+      "account_id": "0000000000000001",
+      "account_type": "main",
+      "context": "crypto",
+      "nature": "deposit",
+      "kind": "crypto_deposit",
+      "description": "fixture",
+      "user_uuid": "00000000-0000-0000-0000-000000000000",
+      "rate": "1.0",
+      "rate_desc": null,
+      "amount": {
+        "currency": "BTC",
+        "amount": "1.5"
+      },
+      "native_amount": {
+        "currency": "USD",
+        "amount": "1.5"
+      },
+      "native_currency": "USD",
+      "note": null,
+      "address": null,
+      "meta": {},
+      "status": "done",
+      "created_at": "2026-09-30T06:00:00.000Z",
+      "updated_at": "2026-09-30T06:00:00.000Z",
+      "fee": {
+        "amount": "0",
+        "currency": "BTC"
+      },
+      "execute_rate": [],
+      "source_id": "0",
+      "source_type": "crypto_deposit",
+      "encoded_id": "fixture",
+      "icons": [],
+      "native_amount_32dp": "1.5"
+    },
+    {
+      "id": "00000000000000069",
+      "account_id": "0000000000000001",
+      "account_type": "main",
+      "context": "crypto",
+      "nature": "dpos",
+      "kind": "finance.dpos.staking.crypto_wallet",
+      "description": "fixture",
+      "user_uuid": "00000000-0000-0000-0000-000000000000",
+      "rate": "1.0",
+      "rate_desc": null,
+      "amount": {
+        "currency": "BTC",
+        "amount": "1.5"
+      },
+      "native_amount": {
+        "currency": "USD",
+        "amount": "1.5"
+      },
+      "native_currency": "USD",
+      "note": null,
+      "address": null,
+      "meta": {},
+      "status": "done",
+      "created_at": "2026-09-30T05:00:00.000Z",
+      "updated_at": "2026-09-30T05:00:00.000Z",
+      "fee": {
+        "amount": "0",
+        "currency": "BTC"
+      },
+      "execute_rate": [],
+      "source_id": "0",
+      "source_type": "dpos_staking",
+      "encoded_id": "fixture",
+      "icons": [],
+      "native_amount_32dp": "1.5"
+    },
+    {
+      "id": "00000000000000068",
+      "account_id": "0000000000000001",
+      "account_type": "main",
+      "context": "crypto",
+      "nature": "crypto_wallet_swap",
+      "kind": "crypto_wallet_swap_debited",
+      "description": "fixture",
+      "user_uuid": "00000000-0000-0000-0000-000000000000",
+      "rate": "1.0",
+      "rate_desc": null,
+      "amount": {
+        "currency": "BTC",
+        "amount": "1.5"
+      },
+      "native_amount": {
+        "currency": "USD",
+        "amount": "1.5"
+      },
+      "native_currency": "USD",
+      "note": null,
+      "address": null,
+      "meta": {},
+      "status": "done",
+      "created_at": "2026-09-30T04:00:00.000Z",
+      "updated_at": "2026-09-30T04:00:00.000Z",
+      "fee": {
+        "amount": "0",
+        "currency": "BTC"
+      },
+      "execute_rate": [],
+      "source_id": "0",
+      "source_type": "crypto_wallet_conversion",
+      "encoded_id": "fixture",
+      "icons": [],
+      "native_amount_32dp": "1.5"
+    },
+    {
+      "id": "00000000000000067",
+      "account_id": "0000000000000001",
+      "account_type": "main",
+      "context": "crypto",
+      "nature": "crypto_wallet_swap",
+      "kind": "crypto_wallet_swap_credited",
+      "description": "fixture",
+      "user_uuid": "00000000-0000-0000-0000-000000000000",
+      "rate": "1.0",
+      "rate_desc": null,
+      "amount": {
+        "currency": "BTC",
+        "amount": "1.5"
+      },
+      "native_amount": {
+        "currency": "USD",
+        "amount": "1.5"
+      },
+      "native_currency": "USD",
+      "note": null,
+      "address": null,
+      "meta": {},
+      "status": "done",
+      "created_at": "2026-09-30T03:00:00.000Z",
+      "updated_at": "2026-09-30T03:00:00.000Z",
+      "fee": {
+        "amount": "0",
+        "currency": "BTC"
+      },
+      "execute_rate": [],
+      "source_id": "0",
+      "source_type": "crypto_wallet_conversion",
+      "encoded_id": "fixture",
+      "icons": [],
+      "native_amount_32dp": "1.5"
+    },
+    {
+      "id": "00000000000000066",
+      "account_id": "0000000000000001",
+      "account_type": "main",
+      "context": "crypto",
+      "nature": "deposit",
+      "kind": "crypto_to_exchange_transfer",
+      "description": "fixture",
+      "user_uuid": "00000000-0000-0000-0000-000000000000",
+      "rate": "1.0",
+      "rate_desc": null,
+      "amount": {
+        "currency": "BTC",
+        "amount": "1.5"
+      },
+      "native_amount": {
+        "currency": "USD",
+        "amount": "1.5"
+      },
+      "native_currency": "USD",
+      "note": null,
+      "address": null,
+      "meta": {},
+      "status": "done",
+      "created_at": "2026-09-30T02:00:00.000Z",
+      "updated_at": "2026-09-30T02:00:00.000Z",
+      "fee": {
+        "amount": "0",
+        "currency": "BTC"
+      },
+      "execute_rate": [],
+      "source_id": "0",
+      "source_type": "crypto_wallet_internal_credit",
+      "encoded_id": "fixture",
+      "icons": [],
+      "native_amount_32dp": "1.5"
+    },
+    {
+      "id": "00000000000000065",
+      "account_id": "0000000000000001",
+      "account_type": "main",
+      "context": "crypto",
+      "nature": "deposit",
+      "kind": "exchange_to_crypto_transfer",
+      "description": "fixture",
+      "user_uuid": "00000000-0000-0000-0000-000000000000",
+      "rate": "1.0",
+      "rate_desc": null,
+      "amount": {
+        "currency": "BTC",
+        "amount": "1.5"
+      },
+      "native_amount": {
+        "currency": "USD",
+        "amount": "1.5"
+      },
+      "native_currency": "USD",
+      "note": null,
+      "address": null,
+      "meta": {},
+      "status": "done",
+      "created_at": "2026-09-30T01:00:00.000Z",
+      "updated_at": "2026-09-30T01:00:00.000Z",
+      "fee": {
+        "amount": "0",
+        "currency": "BTC"
+      },
+      "execute_rate": [],
+      "source_id": "0",
+      "source_type": "crypto_wallet_internal_credit",
+      "encoded_id": "fixture",
+      "icons": [],
+      "native_amount_32dp": "1.5"
+    },
+    {
+      "id": "00000000000000064",
+      "account_id": "0000000000000001",
+      "account_type": "main",
+      "context": "crypto",
+      "nature": "deposit",
+      "kind": "crypto_deposit",
+      "description": "fixture",
+      "user_uuid": "00000000-0000-0000-0000-000000000000",
+      "rate": "1.0",
+      "rate_desc": null,
+      "amount": {
+        "currency": "BTC",
+        "amount": "1.5"
+      },
+      "native_amount": {
+        "currency": "USD",
+        "amount": "1.5"
+      },
+      "native_currency": "USD",
+      "note": null,
+      "address": null,
+      "meta": {},
+      "status": "done",
+      "created_at": "2026-09-30T00:00:00.000Z",
+      "updated_at": "2026-09-30T00:00:00.000Z",
+      "fee": {
+        "amount": "0",
+        "currency": "BTC"
+      },
+      "execute_rate": [],
+      "source_id": "0",
+      "source_type": "crypto_deposit",
+      "encoded_id": "fixture",
+      "icons": [],
+      "native_amount_32dp": "1.5"
+    },
+    {
+      "id": "00000000000000063",
+      "account_id": "0000000000000001",
+      "account_type": "main",
+      "context": "crypto",
+      "nature": "dpos",
+      "kind": "finance.dpos.staking.crypto_wallet",
+      "description": "fixture",
+      "user_uuid": "00000000-0000-0000-0000-000000000000",
+      "rate": "1.0",
+      "rate_desc": null,
+      "amount": {
+        "currency": "BTC",
+        "amount": "1.5"
+      },
+      "native_amount": {
+        "currency": "USD",
+        "amount": "1.5"
+      },
+      "native_currency": "USD",
+      "note": null,
+      "address": null,
+      "meta": {},
+      "status": "done",
+      "created_at": "2026-09-29T23:00:00.000Z",
+      "updated_at": "2026-09-29T23:00:00.000Z",
+      "fee": {
+        "amount": "0",
+        "currency": "BTC"
+      },
+      "execute_rate": [],
+      "source_id": "0",
+      "source_type": "dpos_staking",
+      "encoded_id": "fixture",
+      "icons": [],
+      "native_amount_32dp": "1.5"
+    },
+    {
+      "id": "00000000000000062",
+      "account_id": "0000000000000001",
+      "account_type": "main",
+      "context": "crypto",
+      "nature": "crypto_wallet_swap",
+      "kind": "crypto_wallet_swap_debited",
+      "description": "fixture",
+      "user_uuid": "00000000-0000-0000-0000-000000000000",
+      "rate": "1.0",
+      "rate_desc": null,
+      "amount": {
+        "currency": "BTC",
+        "amount": "1.5"
+      },
+      "native_amount": {
+        "currency": "USD",
+        "amount": "1.5"
+      },
+      "native_currency": "USD",
+      "note": null,
+      "address": null,
+      "meta": {},
+      "status": "done",
+      "created_at": "2026-09-29T22:00:00.000Z",
+      "updated_at": "2026-09-29T22:00:00.000Z",
+      "fee": {
+        "amount": "0",
+        "currency": "BTC"
+      },
+      "execute_rate": [],
+      "source_id": "0",
+      "source_type": "crypto_wallet_conversion",
+      "encoded_id": "fixture",
+      "icons": [],
+      "native_amount_32dp": "1.5"
+    },
+    {
+      "id": "00000000000000061",
+      "account_id": "0000000000000001",
+      "account_type": "main",
+      "context": "crypto",
+      "nature": "crypto_wallet_swap",
+      "kind": "crypto_wallet_swap_credited",
+      "description": "fixture",
+      "user_uuid": "00000000-0000-0000-0000-000000000000",
+      "rate": "1.0",
+      "rate_desc": null,
+      "amount": {
+        "currency": "BTC",
+        "amount": "1.5"
+      },
+      "native_amount": {
+        "currency": "USD",
+        "amount": "1.5"
+      },
+      "native_currency": "USD",
+      "note": null,
+      "address": null,
+      "meta": {},
+      "status": "done",
+      "created_at": "2026-09-29T21:00:00.000Z",
+      "updated_at": "2026-09-29T21:00:00.000Z",
+      "fee": {
+        "amount": "0",
+        "currency": "BTC"
+      },
+      "execute_rate": [],
+      "source_id": "0",
+      "source_type": "crypto_wallet_conversion",
+      "encoded_id": "fixture",
+      "icons": [],
+      "native_amount_32dp": "1.5"
+    },
+    {
+      "id": "00000000000000060",
+      "account_id": "0000000000000001",
+      "account_type": "main",
+      "context": "crypto",
+      "nature": "deposit",
+      "kind": "crypto_to_exchange_transfer",
+      "description": "fixture",
+      "user_uuid": "00000000-0000-0000-0000-000000000000",
+      "rate": "1.0",
+      "rate_desc": null,
+      "amount": {
+        "currency": "BTC",
+        "amount": "1.5"
+      },
+      "native_amount": {
+        "currency": "USD",
+        "amount": "1.5"
+      },
+      "native_currency": "USD",
+      "note": null,
+      "address": null,
+      "meta": {},
+      "status": "done",
+      "created_at": "2026-09-29T20:00:00.000Z",
+      "updated_at": "2026-09-29T20:00:00.000Z",
+      "fee": {
+        "amount": "0",
+        "currency": "BTC"
+      },
+      "execute_rate": [],
+      "source_id": "0",
+      "source_type": "crypto_wallet_internal_credit",
+      "encoded_id": "fixture",
+      "icons": [],
+      "native_amount_32dp": "1.5"
+    },
+    {
+      "id": "00000000000000059",
+      "account_id": "0000000000000001",
+      "account_type": "main",
+      "context": "crypto",
+      "nature": "deposit",
+      "kind": "exchange_to_crypto_transfer",
+      "description": "fixture",
+      "user_uuid": "00000000-0000-0000-0000-000000000000",
+      "rate": "1.0",
+      "rate_desc": null,
+      "amount": {
+        "currency": "BTC",
+        "amount": "1.5"
+      },
+      "native_amount": {
+        "currency": "USD",
+        "amount": "1.5"
+      },
+      "native_currency": "USD",
+      "note": null,
+      "address": null,
+      "meta": {},
+      "status": "done",
+      "created_at": "2026-09-29T19:00:00.000Z",
+      "updated_at": "2026-09-29T19:00:00.000Z",
+      "fee": {
+        "amount": "0",
+        "currency": "BTC"
+      },
+      "execute_rate": [],
+      "source_id": "0",
+      "source_type": "crypto_wallet_internal_credit",
+      "encoded_id": "fixture",
+      "icons": [],
+      "native_amount_32dp": "1.5"
+    },
+    {
+      "id": "00000000000000058",
+      "account_id": "0000000000000001",
+      "account_type": "main",
+      "context": "crypto",
+      "nature": "deposit",
+      "kind": "crypto_deposit",
+      "description": "fixture",
+      "user_uuid": "00000000-0000-0000-0000-000000000000",
+      "rate": "1.0",
+      "rate_desc": null,
+      "amount": {
+        "currency": "BTC",
+        "amount": "1.5"
+      },
+      "native_amount": {
+        "currency": "USD",
+        "amount": "1.5"
+      },
+      "native_currency": "USD",
+      "note": null,
+      "address": null,
+      "meta": {},
+      "status": "done",
+      "created_at": "2026-09-29T18:00:00.000Z",
+      "updated_at": "2026-09-29T18:00:00.000Z",
+      "fee": {
+        "amount": "0",
+        "currency": "BTC"
+      },
+      "execute_rate": [],
+      "source_id": "0",
+      "source_type": "crypto_deposit",
+      "encoded_id": "fixture",
+      "icons": [],
+      "native_amount_32dp": "1.5"
+    },
+    {
+      "id": "00000000000000057",
+      "account_id": "0000000000000001",
+      "account_type": "main",
+      "context": "crypto",
+      "nature": "dpos",
+      "kind": "finance.dpos.staking.crypto_wallet",
+      "description": "fixture",
+      "user_uuid": "00000000-0000-0000-0000-000000000000",
+      "rate": "1.0",
+      "rate_desc": null,
+      "amount": {
+        "currency": "BTC",
+        "amount": "1.5"
+      },
+      "native_amount": {
+        "currency": "USD",
+        "amount": "1.5"
+      },
+      "native_currency": "USD",
+      "note": null,
+      "address": null,
+      "meta": {},
+      "status": "done",
+      "created_at": "2026-09-29T17:00:00.000Z",
+      "updated_at": "2026-09-29T17:00:00.000Z",
+      "fee": {
+        "amount": "0",
+        "currency": "BTC"
+      },
+      "execute_rate": [],
+      "source_id": "0",
+      "source_type": "dpos_staking",
+      "encoded_id": "fixture",
+      "icons": [],
+      "native_amount_32dp": "1.5"
+    },
+    {
+      "id": "00000000000000056",
+      "account_id": "0000000000000001",
+      "account_type": "main",
+      "context": "crypto",
+      "nature": "crypto_wallet_swap",
+      "kind": "crypto_wallet_swap_debited",
+      "description": "fixture",
+      "user_uuid": "00000000-0000-0000-0000-000000000000",
+      "rate": "1.0",
+      "rate_desc": null,
+      "amount": {
+        "currency": "BTC",
+        "amount": "1.5"
+      },
+      "native_amount": {
+        "currency": "USD",
+        "amount": "1.5"
+      },
+      "native_currency": "USD",
+      "note": null,
+      "address": null,
+      "meta": {},
+      "status": "done",
+      "created_at": "2026-09-29T16:00:00.000Z",
+      "updated_at": "2026-09-29T16:00:00.000Z",
+      "fee": {
+        "amount": "0",
+        "currency": "BTC"
+      },
+      "execute_rate": [],
+      "source_id": "0",
+      "source_type": "crypto_wallet_conversion",
+      "encoded_id": "fixture",
+      "icons": [],
+      "native_amount_32dp": "1.5"
+    },
+    {
+      "id": "00000000000000055",
+      "account_id": "0000000000000001",
+      "account_type": "main",
+      "context": "crypto",
+      "nature": "crypto_wallet_swap",
+      "kind": "crypto_wallet_swap_credited",
+      "description": "fixture",
+      "user_uuid": "00000000-0000-0000-0000-000000000000",
+      "rate": "1.0",
+      "rate_desc": null,
+      "amount": {
+        "currency": "BTC",
+        "amount": "1.5"
+      },
+      "native_amount": {
+        "currency": "USD",
+        "amount": "1.5"
+      },
+      "native_currency": "USD",
+      "note": null,
+      "address": null,
+      "meta": {},
+      "status": "done",
+      "created_at": "2026-09-29T15:00:00.000Z",
+      "updated_at": "2026-09-29T15:00:00.000Z",
+      "fee": {
+        "amount": "0",
+        "currency": "BTC"
+      },
+      "execute_rate": [],
+      "source_id": "0",
+      "source_type": "crypto_wallet_conversion",
+      "encoded_id": "fixture",
+      "icons": [],
+      "native_amount_32dp": "1.5"
+    },
+    {
+      "id": "00000000000000054",
+      "account_id": "0000000000000001",
+      "account_type": "main",
+      "context": "crypto",
+      "nature": "deposit",
+      "kind": "crypto_to_exchange_transfer",
+      "description": "fixture",
+      "user_uuid": "00000000-0000-0000-0000-000000000000",
+      "rate": "1.0",
+      "rate_desc": null,
+      "amount": {
+        "currency": "BTC",
+        "amount": "1.5"
+      },
+      "native_amount": {
+        "currency": "USD",
+        "amount": "1.5"
+      },
+      "native_currency": "USD",
+      "note": null,
+      "address": null,
+      "meta": {},
+      "status": "done",
+      "created_at": "2026-09-29T14:00:00.000Z",
+      "updated_at": "2026-09-29T14:00:00.000Z",
+      "fee": {
+        "amount": "0",
+        "currency": "BTC"
+      },
+      "execute_rate": [],
+      "source_id": "0",
+      "source_type": "crypto_wallet_internal_credit",
+      "encoded_id": "fixture",
+      "icons": [],
+      "native_amount_32dp": "1.5"
+    },
+    {
+      "id": "00000000000000053",
+      "account_id": "0000000000000001",
+      "account_type": "main",
+      "context": "crypto",
+      "nature": "deposit",
+      "kind": "exchange_to_crypto_transfer",
+      "description": "fixture",
+      "user_uuid": "00000000-0000-0000-0000-000000000000",
+      "rate": "1.0",
+      "rate_desc": null,
+      "amount": {
+        "currency": "BTC",
+        "amount": "1.5"
+      },
+      "native_amount": {
+        "currency": "USD",
+        "amount": "1.5"
+      },
+      "native_currency": "USD",
+      "note": null,
+      "address": null,
+      "meta": {},
+      "status": "done",
+      "created_at": "2026-09-29T13:00:00.000Z",
+      "updated_at": "2026-09-29T13:00:00.000Z",
+      "fee": {
+        "amount": "0",
+        "currency": "BTC"
+      },
+      "execute_rate": [],
+      "source_id": "0",
+      "source_type": "crypto_wallet_internal_credit",
+      "encoded_id": "fixture",
+      "icons": [],
+      "native_amount_32dp": "1.5"
+    },
+    {
+      "id": "00000000000000052",
+      "account_id": "0000000000000001",
+      "account_type": "main",
+      "context": "crypto",
+      "nature": "deposit",
+      "kind": "crypto_deposit",
+      "description": "fixture",
+      "user_uuid": "00000000-0000-0000-0000-000000000000",
+      "rate": "1.0",
+      "rate_desc": null,
+      "amount": {
+        "currency": "BTC",
+        "amount": "1.5"
+      },
+      "native_amount": {
+        "currency": "USD",
+        "amount": "1.5"
+      },
+      "native_currency": "USD",
+      "note": null,
+      "address": null,
+      "meta": {},
+      "status": "done",
+      "created_at": "2026-09-29T12:00:00.000Z",
+      "updated_at": "2026-09-29T12:00:00.000Z",
+      "fee": {
+        "amount": "0",
+        "currency": "BTC"
+      },
+      "execute_rate": [],
+      "source_id": "0",
+      "source_type": "crypto_deposit",
+      "encoded_id": "fixture",
+      "icons": [],
+      "native_amount_32dp": "1.5"
+    },
+    {
+      "id": "00000000000000051",
+      "account_id": "0000000000000001",
+      "account_type": "main",
+      "context": "crypto",
+      "nature": "dpos",
+      "kind": "finance.dpos.staking.crypto_wallet",
+      "description": "fixture",
+      "user_uuid": "00000000-0000-0000-0000-000000000000",
+      "rate": "1.0",
+      "rate_desc": null,
+      "amount": {
+        "currency": "BTC",
+        "amount": "1.5"
+      },
+      "native_amount": {
+        "currency": "USD",
+        "amount": "1.5"
+      },
+      "native_currency": "USD",
+      "note": null,
+      "address": null,
+      "meta": {},
+      "status": "done",
+      "created_at": "2026-09-29T11:00:00.000Z",
+      "updated_at": "2026-09-29T11:00:00.000Z",
+      "fee": {
+        "amount": "0",
+        "currency": "BTC"
+      },
+      "execute_rate": [],
+      "source_id": "0",
+      "source_type": "dpos_staking",
+      "encoded_id": "fixture",
+      "icons": [],
+      "native_amount_32dp": "1.5"
+    }
+  ],
+  "meta": {
+    "pagination": {
+      "total": 2,
+      "next": {
+        "last_id": "00000000000000051",
+        "count": 50,
+        "pagination_key": "PAGEKEY1",
+        "sort_by": "id",
+        "order": "desc"
+      }
+    }
+  }
+}
