@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { createHmac } from 'crypto';
 import { CryptoComAppAdapter, classifyScopes } from './CryptoComAppAdapter';
+import { cryptoComAppSign } from './cryptocomapp.signing';
 import {
   ExchangeAuthError,
   ExchangeNetworkError,
@@ -271,11 +272,6 @@ describe('CryptoComAppAdapter', () => {
     it.each([
       ['crypto no wallets', emptyAcct, fixture('fiat-account.json')],
       ['fiat no balances', fixture('crypto-account.json'), emptyAcct],
-      [
-        'fiat bad amount',
-        fixture('crypto-account.json'),
-        '{"ok":true,"account":{"balances":[{"currency":"USD","amount":5}]}}',
-      ],
     ])('throws ExchangeSchemaError: %s', async (_n, crypto, fiat) => {
       const { fn } = makeFetch(
         byPath({
@@ -286,6 +282,37 @@ describe('CryptoComAppAdapter', () => {
       await expect(adapter(fn).fetchBalances(creds)).rejects.toBeInstanceOf(
         ExchangeSchemaError,
       );
+    });
+
+    it('skips malformed fiat entries instead of failing, accepts object and string amounts', async () => {
+      const fiat = JSON.stringify({
+        ok: true,
+        account: {
+          balances: [
+            { currency: 'USD', amount: { currency: 'USD', amount: '12.34' } },
+            { currency: 'EUR', amount: { currency: 'EUR', amount: '0.00' } },
+            { currency: 'GBP', amount: 5 },
+            { currency: 'CAD', amount: { currency: 'CAD' } },
+            { currency: 'AUD', amount: null },
+            { currency: 'CHF' },
+            { currency: '', amount: { amount: '1' } },
+            null,
+            { currency: 'JPY', amount: '7' },
+          ],
+        },
+      });
+      const { fn } = makeFetch(
+        byPath({
+          '/v1/crypto-account': {
+            body: '{"ok":true,"account":{"wallets":[]}}',
+          },
+          '/v1/fiat-account': { body: fiat },
+        }),
+      );
+      expect(await adapter(fn).fetchBalances(creds)).toEqual([
+        { asset: 'USD', free: '12.34', locked: '0' },
+        { asset: 'JPY', free: '7', locked: '0' },
+      ]);
     });
 
     const walletsOnly = (wallets: any[]) =>
@@ -539,7 +566,7 @@ describe('CryptoComAppAdapter', () => {
       }
       expect(params(calls[0])).toEqual({ count: '50' });
       expect(params(calls[1])).toEqual({
-        last_id: '00000000000000051',
+        last_id: 'txid/00000000000051',
         count: '50',
         pagination_key: 'PAGEKEY1',
         sort_by: 'id',
@@ -563,7 +590,10 @@ describe('CryptoComAppAdapter', () => {
         r.records.filter((x: any) => x.payload.item.kind === k)[0] as any;
       expect(byKind('crypto_deposit').type).toBe('deposit');
       expect(byKind('crypto_deposit').payload.internalTransfer).toBe(false);
-      expect(byKind('finance.dpos.staking.crypto_wallet').type).toBe('reward');
+      // principal movement, piece 3 decides: kept raw, not income
+      expect(byKind('finance.dpos.staking.crypto_wallet').type).toBe(
+        'unparsed',
+      );
       const out = byKind('crypto_to_exchange_transfer');
       expect(out.type).toBe('withdrawal');
       expect(out.payload.internalTransfer).toBe(true);
@@ -676,7 +706,8 @@ describe('CryptoComAppAdapter', () => {
         ['admin_wallet_credited', 'admin_wallet_credit', 'unparsed', false],
         ['zzz', 'income', 'reward', false],
         ['zzz', 'payment', 'unparsed', false],
-        ['finance.dpos.staking.crypto_wallet', 'dpos', 'reward', false],
+        // principal movement, piece 3 decides
+        ['finance.dpos.staking.crypto_wallet', 'dpos', 'unparsed', false],
         [
           'finance.dpos.non_compound_interest.crypto_wallet',
           'dpos',
@@ -824,7 +855,14 @@ describe('CryptoComAppAdapter', () => {
       ['array', '[]'],
       ['null', 'null'],
       ['missing last_id', JSON.stringify({ ...NEXT, last_id: undefined })],
-      ['non-numeric last_id', JSON.stringify({ ...NEXT, last_id: 'abc' })],
+      ['unsafe-charset last_id', JSON.stringify({ ...NEXT, last_id: 'a b' })],
+      ['empty last_id', JSON.stringify({ ...NEXT, last_id: '' })],
+      ['object last_id', JSON.stringify({ ...NEXT, last_id: { a: 1 } })],
+      ['numeric last_id', JSON.stringify({ ...NEXT, last_id: 5 })],
+      [
+        'oversize last_id',
+        JSON.stringify({ ...NEXT, last_id: 'a'.repeat(129) }),
+      ],
       ['huge count', JSON.stringify({ ...NEXT, count: 500 })],
       ['zero count', JSON.stringify({ ...NEXT, count: 0 })],
       ['string count', JSON.stringify({ ...NEXT, count: '50' })],
@@ -845,6 +883,108 @@ describe('CryptoComAppAdapter', () => {
         expect(calls).toHaveLength(0);
       },
     );
+
+    it('letters+slash+digits last_id round-trips into the next query, encoded and unsigned', async () => {
+      const next = { ...NEXT, last_id: 'abcd/000012345678' };
+      const { fn, calls } = makeFetch((_c, n) =>
+        n === 1 ? body(env([one({ id: '1' })], next)) : body(env([])),
+      );
+      const a = adapter(fn);
+      const r1 = await a.fetchHistory(creds, {});
+      expect(JSON.parse(r1.nextCursor!).last_id).toBe('abcd/000012345678');
+      await a.fetchHistory(creds, { cursor: r1.nextCursor });
+      expect(calls[1].url).toContain('last_id=abcd%2F000012345678');
+      expect(params(calls[1]).last_id).toBe('abcd/000012345678');
+      // the signature covers only the path (query is not signed)
+      const sig = (c: Call) => (c.init.headers as any)['Cdc-Api-Signature'];
+      const ts = (c: Call) => (c.init.headers as any)['Cdc-Api-Timestamp'];
+      expect(sig(calls[1])).toBe(
+        cryptoComAppSign({
+          timestamp: Number(ts(calls[1])),
+          method: 'GET',
+          path: '/v1/transactions',
+          secret: 'TEST_SECRET',
+        }),
+      );
+    });
+
+    it('signed amounts: negative legs are typed, classification table uses real observed values', async () => {
+      const row = (
+        id: string,
+        kind: string,
+        nature: string,
+        st: string,
+        amount: string,
+      ) =>
+        one({
+          id,
+          kind,
+          nature,
+          source_type: st,
+          amount: { currency: 'XRP', amount },
+        });
+      const { fn } = makeFetch(() =>
+        body(
+          env([
+            row(
+              '1',
+              'finance.dpos.non_compound_interest.crypto_wallet',
+              'dpos',
+              'dpos_interest',
+              '0.5',
+            ),
+            row(
+              '2',
+              'finance.dpos.staking.crypto_wallet',
+              'dpos',
+              'dpos_staking',
+              '-100.25',
+            ),
+            row(
+              '3',
+              'crypto_wallet_swap_credited',
+              'crypto_wallet_swap',
+              'crypto_wallet_conversion',
+              '12.5',
+            ),
+            row(
+              '4',
+              'crypto_wallet_swap_debited',
+              'crypto_wallet_swap',
+              'crypto_wallet_conversion',
+              '-9999.99999999',
+            ),
+            row(
+              '5',
+              'crypto_wallet_swap_debited',
+              'crypto_wallet_swap',
+              'crypto_wallet_conversion',
+              '--5',
+            ),
+            row(
+              '6',
+              'crypto_wallet_swap_debited',
+              'crypto_wallet_swap',
+              'crypto_wallet_conversion',
+              '-',
+            ),
+          ]),
+        ),
+      );
+      const r = await adapter(fn).fetchHistory(creds, {});
+      expect(r.records.map((x) => x.type)).toEqual([
+        'reward',
+        'unparsed',
+        'trade',
+        'trade',
+        'unparsed',
+        'unparsed',
+      ]);
+      // exact string kept as-is
+      expect((r.records[3].payload as any).item.amount.amount).toBe(
+        '-9999.99999999',
+      );
+    });
 
     it('extra keys in a cursor are not forwarded', async () => {
       const { fn, calls } = makeFetch(() => body(env([])));

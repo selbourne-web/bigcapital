@@ -89,6 +89,10 @@ export function classifyScopes(scopes: string[]): {
 
 type Json = Record<string, any>;
 
+/** Decimal text with an optional leading minus (outflow legs are negative); never parsed to float. */
+const isSignedDecimal = (v: unknown): v is string =>
+  typeof v === 'string' && /^-?\d+(\.\d+)?$/.test(v);
+
 const PAGE_SIZE = 50;
 const LOOKBACK_MS = 7 * 24 * 3600 * 1000;
 const OLDER_STOP = 3;
@@ -215,16 +219,21 @@ export class CryptoComAppAdapter implements ExchangeAdapter {
       add(normalizeAsset('crypto_com_app', w.currency), free, locked);
     }
     for (const b of fiatBalances) {
+      // Live shape: `amount` is `{ currency, amount }` (decimal string inside).
+      // A plain decimal string is also accepted. A malformed entry is skipped,
+      // never failing the whole sync; only a wrong top-level shape throws.
+      const value =
+        typeof b?.amount === 'object' ? b.amount?.amount : b?.amount;
       if (
         !b ||
         typeof b.currency !== 'string' ||
         b.currency.trim() === '' ||
-        !isDecimal(b.amount)
+        !isDecimal(value) ||
+        isZero(value)
       ) {
-        throw this.schemaError('fiat-account balance has bad shape', fiat);
+        continue;
       }
-      if (isZero(b.amount)) continue;
-      add(normalizeAsset('crypto_com_app', b.currency), b.amount, '0');
+      add(normalizeAsset('crypto_com_app', b.currency), value, '0');
     }
     return [...out.entries()].map(([asset, v]) => ({ asset, ...v }));
   }
@@ -309,7 +318,11 @@ export class CryptoComAppAdapter implements ExchangeAdapter {
   /** Whitelist exactly the five next-page params, bounded; undefined if malformed. */
   private validateCursor(v: any): HistoryCursor | undefined {
     if (!v || typeof v !== 'object' || Array.isArray(v)) return undefined;
-    if (typeof v.last_id !== 'string' || !/^\d{1,32}$/.test(v.last_id))
+    // Live ids look like `<letters>/<digits>`: any bounded, safe-charset string.
+    if (
+      typeof v.last_id !== 'string' ||
+      !/^[A-Za-z0-9_\-/=+.:]{1,128}$/.test(v.last_id)
+    )
       return undefined;
     if (!Number.isInteger(v.count) || v.count < 1 || v.count > PAGE_SIZE)
       return undefined;
@@ -366,7 +379,16 @@ export class CryptoComAppAdapter implements ExchangeAdapter {
       typeof amount !== 'object' ||
       typeof amount.currency !== 'string' ||
       amount.currency.trim() === '' ||
-      !isDecimal(amount.amount)
+      !isSignedDecimal(amount.amount)
+    ) {
+      return unparsed();
+    }
+    // Principal lock/unlock (negative amounts observed), not income: kept raw,
+    // piece 3 decides.
+    if (
+      (typeof item.kind === 'string' &&
+        item.kind.toLowerCase().startsWith('finance.dpos.staking')) ||
+      item.source_type === 'dpos_staking'
     ) {
       return unparsed();
     }
