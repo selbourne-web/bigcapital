@@ -1,3 +1,4 @@
+import { Logger } from '@nestjs/common';
 import * as fs from 'fs';
 import * as path from 'path';
 import {
@@ -593,8 +594,29 @@ describe('CryptoComAdapter.fetchHistory', () => {
         makeFetch(() => ({ body: '{"code":40001,"message":"BAD_REQUEST"}' }))
           .fn,
       );
-      const r = await a.fetchHistory(creds, { cursor: cur('rewards', NOW) });
-      expect(r).toEqual({ records: [] });
+      const warn = jest
+        .spyOn(Logger.prototype, 'warn')
+        .mockImplementation(() => undefined);
+      try {
+        const r = await a.fetchHistory(creds, { cursor: cur('rewards', NOW) });
+        expect(r).toEqual({ records: [] });
+        // a second skip for the same key must not warn again
+        await a.fetchHistory(creds, { cursor: cur('rewards', NOW) });
+        expect(warn).toHaveBeenCalledTimes(1);
+        const msg = String(warn.mock.calls[0][0]);
+        expect(msg).toMatch(/rewards/);
+        expect(msg).toMatch(/40001/);
+        expect(msg).not.toContain('TEST_KEY');
+        expect(msg).not.toContain('TEST_SECRET');
+        // a different key warns once for itself
+        await a.fetchHistory(
+          { apiKey: 'OTHER_KEY', apiSecret: 'OTHER_SECRET' },
+          { cursor: cur('rewards', NOW) },
+        );
+        expect(warn).toHaveBeenCalledTimes(2);
+      } finally {
+        warn.mockRestore();
+      }
     });
   });
 

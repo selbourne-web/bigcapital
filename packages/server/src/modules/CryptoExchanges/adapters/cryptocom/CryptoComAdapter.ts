@@ -1,4 +1,5 @@
 import { createHash } from 'crypto';
+import { Logger } from '@nestjs/common';
 import { CryptoExchangeId } from '../../CryptoExchanges.constants';
 import { redactSecrets } from '../../utils/redact';
 import {
@@ -249,6 +250,10 @@ export class CryptoComAdapter implements ExchangeAdapter {
    * shared singleton, so a global queue would let one tenant's slow call delay
    * another's. Entries are removed when the key has no calls in flight.
    */
+  private readonly logger = new Logger('CryptoComAdapter');
+  /** api-key hashes already warned about a skipped rewards stream (bounded, process lifetime). */
+  private readonly rewardsWarned = new Set<string>();
+
   private readonly lanes = new Map<
     string,
     {
@@ -526,6 +531,7 @@ export class CryptoComAdapter implements ExchangeAdapter {
         err instanceof ExchangeNetworkError &&
         !err.retryable
       ) {
+        this.warnRewardsSkipped(creds, err);
         return done([], [], floor);
       }
       throw err;
@@ -564,6 +570,22 @@ export class CryptoComAdapter implements ExchangeAdapter {
       }
     }
     return done(records, rest);
+  }
+
+  /**
+   * One redacted warning per api key per process when the optional rewards stream is
+   * skipped, so a never-working stream is visible without logging on every sync.
+   * Only the stream name and the error text built from the exchange code or HTTP
+   * status are logged: no keys, addresses or payloads.
+   */
+  private warnRewardsSkipped(creds: Credentials, err: ExchangeNetworkError) {
+    const key = createHash('sha256').update(creds.apiKey).digest('hex');
+    if (this.rewardsWarned.has(key)) return;
+    if (this.rewardsWarned.size >= 1000) this.rewardsWarned.clear();
+    this.rewardsWarned.add(key);
+    this.logger.warn(
+      `Crypto.com staking rewards stream skipped: ${err.message}`,
+    );
   }
 
   private timeRows(stream: Stream, body: Json): any[] {
