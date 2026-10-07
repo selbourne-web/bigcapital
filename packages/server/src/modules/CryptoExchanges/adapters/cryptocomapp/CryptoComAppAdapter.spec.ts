@@ -600,14 +600,116 @@ describe('CryptoComAppAdapter', () => {
       ]);
     });
 
-    it('stops at since, emits only newer records and no nextCursor', async () => {
+    it('stops at the bound (since minus 7 days), emits only newer records and no nextCursor', async () => {
       const p = page('transactions-page1.json');
-      const since = new Date(p.transactions[9].created_at);
+      const since = new Date(
+        new Date(p.transactions[9].created_at).getTime() + 7 * 24 * 3600e3,
+      );
       const { fn, calls } = makeFetch(() => ({ body: JSON.stringify(p) }));
       const r = await adapter(fn).fetchHistory(creds, { since });
-      expect(r.records).toHaveLength(10); // items 0..9 (created_at >= since)
-      expect(r.nextCursor).toBeUndefined();
+      expect(r.records).toHaveLength(10); // items 0..9 are >= bound
+      expect(r.nextCursor).toBeUndefined(); // even though next is present
       expect(calls).toHaveLength(1);
+    });
+
+    it('re-fetches the last 7 days before since (lookback)', async () => {
+      const p = page('transactions-page1.json');
+      const since = new Date(p.transactions[0].created_at); // newest item
+      const { fn } = makeFetch(() => ({ body: JSON.stringify(p) }));
+      const r = await adapter(fn).fetchHistory(creds, { since });
+      expect(r.records).toHaveLength(50); // all within 7 days of since
+      expect(r.nextCursor).toBeDefined();
+    });
+
+    it('tolerates back-dated items: stops only after 3 consecutive older items', async () => {
+      const day = 24 * 3600e3;
+      const since = new Date('2026-10-01T00:00:00.000Z');
+      const at = (d: number) =>
+        new Date(since.getTime() - d * day).toISOString();
+      const { fn } = makeFetch(() =>
+        body(
+          env(
+            [
+              one({ id: '1', created_at: at(0) }),
+              one({ id: '2', created_at: at(10) }), // back-dated, older than bound
+              one({ id: '3', created_at: at(1) }),
+              one({ id: '4', created_at: at(10) }),
+              one({ id: '5', created_at: at(11) }),
+              one({ id: '6', created_at: at(2) }), // streak reset
+              one({ id: '7', created_at: at(10) }),
+              one({ id: '8', created_at: at(10) }),
+              one({ id: '9', created_at: at(10) }), // third consecutive: stop
+              one({ id: '10', created_at: at(0) }),
+            ],
+            NEXT,
+          ),
+        ),
+      );
+      const r = await adapter(fn).fetchHistory(creds, { since });
+      expect(r.records.map((x: any) => x.payload.item.id)).toEqual([
+        '1',
+        '3',
+        '6',
+      ]);
+      expect(r.nextCursor).toBeUndefined();
+    });
+
+    it('older items short of the streak keep paging via next', async () => {
+      const since = new Date('2026-10-01T00:00:00.000Z');
+      const old = new Date(since.getTime() - 30 * 24 * 3600e3).toISOString();
+      const { fn } = makeFetch(() =>
+        body(env([one({ id: '1' }), one({ id: '2', created_at: old })], NEXT)),
+      );
+      const r = await adapter(fn).fetchHistory(creds, { since });
+      expect(r.records).toHaveLength(1);
+      expect(r.nextCursor).toBeDefined();
+    });
+
+    it('classifies the real observed enum values', async () => {
+      const rows: [string, string, string, boolean][] = [
+        [
+          'rewards_platform_deposit_credited',
+          'rewards_platform_deposit_credit',
+          'reward',
+          false,
+        ],
+        ['admin_wallet_credited', 'admin_wallet_credit', 'unparsed', false],
+        ['zzz', 'income', 'reward', false],
+        ['zzz', 'payment', 'unparsed', false],
+        ['finance.dpos.staking.crypto_wallet', 'dpos', 'reward', false],
+        [
+          'finance.dpos.non_compound_interest.crypto_wallet',
+          'dpos',
+          'reward',
+          false,
+        ],
+        ['crypto_deposit', 'deposit', 'deposit', false],
+        ['crypto_to_exchange_transfer', 'deposit', 'withdrawal', true],
+        ['exchange_to_crypto_transfer', 'deposit', 'deposit', true],
+        ['crypto_wallet_swap_credited', 'crypto_wallet_swap', 'trade', false],
+        ['crypto_wallet_swap_debited', 'crypto_wallet_swap', 'trade', false],
+      ];
+      const { fn } = makeFetch(() =>
+        body(
+          env(
+            rows.map(([kind, nature], i) =>
+              one({ id: String(200 + i), kind, nature }),
+            ),
+          ),
+        ),
+      );
+      const r = await adapter(fn).fetchHistory(creds, {});
+      expect(
+        r.records.map((x: any) => [x.type, x.payload.internalTransfer]),
+      ).toEqual(rows.map((x) => [x[2], x[3]]));
+    });
+
+    it('accepts a DESC cursor order and normalizes it', async () => {
+      const { fn, calls } = makeFetch(() => body(env([])));
+      await adapter(fn).fetchHistory(creds, {
+        cursor: JSON.stringify({ ...NEXT, order: 'DESC' }),
+      });
+      expect(params(calls[0]).order).toBe('desc');
     });
 
     it('tolerates unknown kind, pending status, missing fee and missing amount', async () => {

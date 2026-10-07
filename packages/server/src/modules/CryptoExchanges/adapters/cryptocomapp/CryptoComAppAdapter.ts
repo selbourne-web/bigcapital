@@ -90,6 +90,8 @@ export function classifyScopes(scopes: string[]): {
 type Json = Record<string, any>;
 
 const PAGE_SIZE = 50;
+const LOOKBACK_MS = 7 * 24 * 3600 * 1000;
+const OLDER_STOP = 3;
 type HistoryCursor = {
   last_id: string;
   count: number;
@@ -250,15 +252,24 @@ export class CryptoComAppAdapter implements ExchangeAdapter {
     if (body.ok !== true || !Array.isArray(body.transactions)) {
       throw this.schemaError('transactions response is not the envelope', body);
     }
-    const sinceMs = q.since ? q.since.getTime() : undefined;
+    // Own lookback: re-fetch the last 7 days so status changes of recent
+    // transactions are seen (duplicates are harmless, ids are idempotent).
+    const boundMs = q.since ? q.since.getTime() - LOOKBACK_MS : undefined;
     const records: RawRecordInput[] = [];
     let reachedSince = false;
+    let olderStreak = 0;
     for (const item of body.transactions) {
       const at = this.itemDate(item);
-      if (sinceMs !== undefined && at !== undefined && at.getTime() < sinceMs) {
-        reachedSince = true;
-        break;
+      if (boundMs !== undefined && at !== undefined && at.getTime() < boundMs) {
+        // Back-dated items exist: stop only after OLDER_STOP consecutive older
+        // items; older items are never emitted.
+        if (++olderStreak >= OLDER_STOP) {
+          reachedSince = true;
+          break;
+        }
+        continue;
       }
+      olderStreak = 0;
       records.push(this.mapItem(item, at));
     }
     if (reachedSince) return { records };
@@ -310,13 +321,14 @@ export class CryptoComAppAdapter implements ExchangeAdapter {
       return undefined;
     if (typeof v.sort_by !== 'string' || !/^[a-z_]{1,32}$/.test(v.sort_by))
       return undefined;
-    if (v.order !== 'desc') return undefined; // newest first is what `since` relies on
+    if (typeof v.order !== 'string' || v.order.toLowerCase() !== 'desc')
+      return undefined; // newest first is what `since` relies on
     return {
       last_id: v.last_id,
       count: v.count,
       pagination_key: v.pagination_key,
       sort_by: v.sort_by,
-      order: v.order,
+      order: 'desc',
     };
   }
 
@@ -380,12 +392,15 @@ export class CryptoComAppAdapter implements ExchangeAdapter {
       return { type: 'withdrawal', internalTransfer: true };
     if (s === 'exchange_to_crypto_transfer')
       return { type: 'deposit', internalTransfer: true };
+    // Reward keywords first: rewards_platform_deposit_credited is an airdrop, not
+    // a deposit. Unmapped values (e.g. admin_wallet_credited) become 'unparsed':
+    // counted, raw item kept.
+    if (['dpos', 'rewards', 'airdrop', 'income'].some((k) => s.includes(k)))
+      return { type: 'reward', internalTransfer: false };
     if (s.includes('deposit'))
       return { type: 'deposit', internalTransfer: false };
     if (s.includes('withdraw'))
       return { type: 'withdrawal', internalTransfer: false };
-    if (['dpos', 'rewards', 'airdrop', 'income'].some((k) => s.includes(k)))
-      return { type: 'reward', internalTransfer: false };
     if (
       s === 'crypto_wallet_swap_credited' ||
       s === 'crypto_wallet_swap_debited'
