@@ -392,6 +392,38 @@ suite('CryptoSyncService (integration, scratch DB)', () => {
       },
     );
 
+    it('auth failure keeps the sanitized adapter message as run-error detail, not in lastError', async () => {
+      const err = new ExchangeAuthError(
+        'Binance error -2015: Invalid API-key, IP, or permissions for action',
+      );
+      adapter.balanceError = err;
+      const run = await make().syncConnection(connectionId, 'incremental', ORG);
+      const conn = await connection();
+      expect(conn.status).toBe('error');
+      expect(conn.lastError).toBe(err.userMessage);
+      expect(conn.lastError).not.toContain('-2015');
+      const stored = JSON.parse(run.errors)[0];
+      expect(stored.message).toBe(err.userMessage);
+      expect(stored.detail).toContain('Binance error -2015');
+    });
+
+    it('truncates run-error detail to 300 characters', async () => {
+      adapter.balanceError = new ExchangeAuthError('x'.repeat(1000));
+      const run = await make().syncConnection(connectionId, 'incremental', ORG);
+      expect(JSON.parse(run.errors)[0].detail).toHaveLength(300);
+    });
+
+    it('does not record detail for non-adapter errors', async () => {
+      adapter.pages = { start: new Error('boom with internals') };
+      await expect(
+        make().syncConnection(connectionId, 'initial', ORG),
+      ).rejects.toBeDefined();
+      const runs = await db('crypto_sync_runs').where({
+        connection_id: connectionId,
+      });
+      expect(JSON.parse(runs[0].errors)[0].detail).toBeUndefined();
+    });
+
     it('an auth error during history also stops without a retry', async () => {
       adapter.pages = { start: new ExchangeAuthError() };
       const run = await make().syncConnection(connectionId, 'initial', ORG);

@@ -81,6 +81,7 @@ const SLICE_BUDGET_MS = 7 * 60_000;
 const EXTEND_LOCK_LUA = `if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('pexpire', KEYS[1], ARGV[2]) else return 0 end`;
 const SCHEMA_DRIFT = 'SCHEMA_DRIFT';
 const BLOCKED_RUNS_BEFORE_ERROR = 3;
+const MAX_ERROR_DETAIL = 300;
 const SCHEMA_ERROR_MESSAGE = 'Exchange response format not recognised';
 
 type RunError = {
@@ -89,6 +90,11 @@ type RunError = {
   retryable: boolean;
   at: string;
   code?: string;
+  /**
+   * Sanitized adapter message (ExchangeError only), for operators. Truncated; stored in the
+   * run's errors JSON but NOT exposed by the sync-runs API (allow-list serializer).
+   */
+  detail?: string;
   /** Cursor the schema error occurred at (SCHEMA_DRIFT only). */
   cursor?: string | null;
 };
@@ -493,16 +499,25 @@ export class CryptoSyncService {
         : `Unexpected error during sync (${
             error instanceof Error ? error.name : 'unknown'
           }).`;
+    // Only adapter errors (which sanitize their own messages) contribute detail; any other
+    // error is logged by class name only.
+    const detail =
+      error instanceof ExchangeError
+        ? scrub(error.message, credentials).slice(0, MAX_ERROR_DETAIL)
+        : undefined;
     state.errors.push(
       this.runError(
         error instanceof Error ? error.name : 'Error',
         message,
         !authFailure,
         finishedAt,
+        detail ? { detail } : {},
       ),
     );
     this.logger.warn(
-      `Crypto sync for connection ${connection.id} failed: ${message}`,
+      `Crypto sync for connection ${connection.id} failed: ${message}${
+        detail ? ` [${(error as ExchangeError).name}: ${detail}]` : ''
+      }`,
     );
 
     if (authFailure) {
@@ -541,7 +556,7 @@ export class CryptoSyncService {
     message: string,
     retryable: boolean,
     at: Date,
-    extra: Pick<RunError, 'code' | 'cursor'> = {},
+    extra: Pick<RunError, 'code' | 'cursor' | 'detail'> = {},
   ): RunError {
     return { name, message, retryable, at: at.toISOString(), ...extra };
   }
