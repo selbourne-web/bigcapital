@@ -69,6 +69,27 @@ const STAKED_WRAPPER = /^([A-Z0-9]{2,20})\.STAKED$/;
 export const earnUnderlying = (asset: string): string | undefined =>
   EARN_WRAPPER.exec(asset)?.[1] ?? STAKED_WRAPPER.exec(asset)?.[1];
 
+/**
+ * Assets quoted in a fraction of another asset's unit: Pionex `METH` is milli-ETH and is
+ * stored as `MILLIETH` (it must never be priced as Mantle's `METH`). Price =
+ * underlying price x factor. Keep in sync with `UNIT_WRAPPERS` in
+ * packages/server/src/modules/CryptoExchanges/adapters/assets.ts.
+ */
+const UNIT_WRAPPERS: Record<string, { underlying: string; factor: number }> = {
+  MILLIETH: { underlying: 'ETH', factor: 0.001 },
+};
+
+/** Look-through target and price scale for a wrapper asset (earn wrappers: factor 1). */
+export const priceLookThrough = (
+  asset: string,
+): { underlying: string; factor: number } | undefined => {
+  const earn = earnUnderlying(asset);
+  if (earn) return { underlying: earn, factor: 1 };
+  return Object.prototype.hasOwnProperty.call(UNIT_WRAPPERS, asset)
+    ? UNIT_WRAPPERS[asset]
+    : undefined;
+};
+
 const ownQuote = (prices: PriceMap, asset: string) =>
   Object.prototype.hasOwnProperty.call(prices, asset)
     ? prices[asset]
@@ -105,17 +126,23 @@ export const valueHoldings = (
       const isUsd = USD_ASSETS.has(b.asset);
       let quote = isUsd ? undefined : ownQuote(prices, b.asset);
       let viaUnderlying: string | undefined;
+      let factor = 1;
       if (!isUsd && quote === undefined) {
-        const underlying = earnUnderlying(b.asset);
-        const underlyingQuote = underlying
-          ? ownQuote(prices, underlying)
+        const look = priceLookThrough(b.asset);
+        const underlyingQuote = look
+          ? ownQuote(prices, look.underlying)
           : undefined;
-        if (underlying && underlyingQuote) {
+        if (look && underlyingQuote) {
           quote = underlyingQuote;
-          viaUnderlying = underlying;
+          viaUnderlying = look.underlying;
+          factor = look.factor;
         }
       }
-      const priceUsd = isUsd ? 1 : quote?.usd;
+      const priceUsd = isUsd
+        ? 1
+        : quote?.usd === undefined
+          ? undefined
+          : quote.usd * factor;
 
       if (priceUsd === undefined) {
         unpriced.add(b.asset);

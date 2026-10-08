@@ -1,4 +1,43 @@
-import { earnUnderlying, normalizeAsset, pricingAssets } from './assets';
+import {
+  earnUnderlying,
+  normalizeAsset,
+  pricingAssets,
+  unitWrapper,
+} from './assets';
+
+describe('Pionex milli-ETH symbol collision', () => {
+  it('maps the Pionex coin METH (milli-ETH) to MILLIETH, case-insensitively', () => {
+    expect(normalizeAsset('pionex', 'METH')).toBe('MILLIETH');
+    expect(normalizeAsset('pionex', ' meth ')).toBe('MILLIETH');
+  });
+
+  it('leaves METH (Mantle Staked ETH) alone on every other exchange', () => {
+    for (const ex of [
+      'binance',
+      'kraken',
+      'crypto_com',
+      'crypto_com_app',
+      'nexo',
+    ] as const) {
+      expect(normalizeAsset(ex, 'METH')).toBe('METH');
+    }
+    expect(normalizeAsset('pionex', 'ETH')).toBe('ETH');
+    expect(normalizeAsset('pionex', 'MILLIETH')).toBe('MILLIETH');
+  });
+
+  it('unitWrapper looks MILLIETH through to ETH at 0.001', () => {
+    expect(unitWrapper('MILLIETH')).toEqual({
+      underlying: 'ETH',
+      factor: 0.001,
+    });
+    expect(unitWrapper('METH')).toBeUndefined();
+    expect(unitWrapper('ETH')).toBeUndefined();
+  });
+
+  it('pricingAssets subscribes ETH for MILLIETH and not METH', () => {
+    expect(pricingAssets(['MILLIETH'])).toEqual(['ETH', 'MILLIETH']);
+  });
+});
 
 describe('normalizeAsset', () => {
   it.each([

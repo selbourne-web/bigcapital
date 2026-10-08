@@ -236,6 +236,30 @@ describe('PionexAdapter.fetchHistory', () => {
       ]).toEqual(['BTC_USDT']);
     });
 
+    it('walks the RAW market METH_USDT for a METH (milli-ETH) balance or its canonical MILLIETH known asset', async () => {
+      // Pionex coin METH is stored as MILLIETH (assets.ts); the market symbol is
+      // the exchange's own and must still be walked.
+      const symbols = [
+        { symbol: 'METH_USDT', base: 'METH' },
+        { symbol: 'ETH_USDT', base: 'ETH' },
+      ];
+      const byBalance = new Server();
+      byBalance.symbols = symbols;
+      byBalance.balanceCoins = ['METH'];
+      await drain(make(byBalance), byBalance, {});
+      const seen = (s: Server) => [
+        ...new Set(
+          s.of('/api/v1/trade/fills').map((x) => x.query.get('symbol')),
+        ),
+      ];
+      expect(seen(byBalance)).toEqual(['METH_USDT']);
+
+      const byKnown = new Server();
+      byKnown.symbols = symbols;
+      await drain(make(byKnown), byKnown, { knownAssets: ['MILLIETH'] });
+      expect(seen(byKnown)).toEqual(['METH_USDT']);
+    });
+
     it('returns no records and no cursor when no asset has a market', async () => {
       const srv = new Server();
       const a = make(srv);

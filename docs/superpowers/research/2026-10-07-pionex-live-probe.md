@@ -116,6 +116,10 @@ No-symbol behaviour (natural single try each, both returned **HTTP 200**): `{ re
 - **Error handling:** check the envelope first, map `code` from HTTP-200 bodies, then HTTP 401/429/5xx; treat `TRADE_PARAMETER_ERROR` / `TRADE_INVALID_SYMBOL` for one market as non-fatal for that market (skip with warning), not a whole-sync failure.
 - **inspectKey:** `bot-read` can be derived from a successful `bot/orders?status=running` (worked); permission probes must stay non-propagating.
 
+## Symbol collisions
+
+- **`METH` is milli-ETH on Pionex** (1 mETH = 0.001 ETH, market `METH_USDT`, about $2.58), not Mantle Staked ETH (about $2,811) which the price feed calls `METH`. Pionex `METH` is stored as the distinct asset `MILLIETH` (`PIONEX_ALIASES` in `adapters/assets.ts`), quantities unrescaled, and priced via ETH x 0.001 (`UNIT_WRAPPERS` in `assets.ts` and the webapp `valuation.ts`). Market symbols stay the raw `METH_USDT`. The next Pionex sync writes `MILLIETH`; `writeSnapshot` then zeroes the stale `METH` row.
+
 ## 12. Secret scan
 
 Programmatic scan (done before the commit) of this document and all captured script output files in the scratchpad for the key and secret substrings: zero hits. Raw response files used for analysis were deleted from the scratchpad after the probe.
