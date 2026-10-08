@@ -591,8 +591,90 @@ describe('PionexAdapter.fetchHistory', () => {
         );
         const { records } = await drain(make(srv), srv);
         expect(new Set(ids(records)).size).toBe(250);
-        expect(srv.of('/api/v1/trade/allOrders').length).toBeLessThan(10);
+        expect(srv.of('/api/v1/trade/allOrders').length).toBeLessThan(20);
       }
+    });
+
+    it.each([false, true])(
+      'a full page of orders updated in ONE millisecond under updateTime windows loses nothing past the page (exclusive endTime: %s)',
+      async (exclusive) => {
+        const U = T0 + 500_000;
+        const srv = new Server();
+        srv.windowMode = 'update';
+        srv.exclusiveEnd = exclusive;
+        srv.orders['BTC_USDT'] = [
+          // exactly one page updated at the same ms, created long before
+          ...Array.from({ length: 200 }, (_, i) =>
+            order(i + 1, T0 + 1_000 + i, 'CLOSED', 'BTC_USDT', U),
+          ),
+          ...Array.from({ length: 100 }, (_, i) =>
+            order(
+              500 + i,
+              T0 + 2_000 + i,
+              'CLOSED',
+              'BTC_USDT',
+              T0 + 2_000 + i,
+            ),
+          ),
+        ];
+        const { records } = await drain(make(srv), srv);
+        expect(new Set(ids(records)).size).toBe(300);
+      },
+    );
+
+    it.each([false, true])(
+      'more than a page of orders updated in ONE millisecond loses only the excess, warns, and still reaches older rows (exclusive endTime: %s)',
+      async (exclusive) => {
+        const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation();
+        const U = T0 + 500_000;
+        const srv = new Server();
+        srv.windowMode = 'update';
+        srv.exclusiveEnd = exclusive;
+        srv.orders['BTC_USDT'] = [
+          ...Array.from({ length: 260 }, (_, i) =>
+            order(i + 1, T0 + 1_000 + i, 'CLOSED', 'BTC_USDT', U),
+          ),
+          ...Array.from({ length: 50 }, (_, i) =>
+            order(
+              500 + i,
+              T0 + 2_000 + i,
+              'CLOSED',
+              'BTC_USDT',
+              T0 + 2_000 + i,
+            ),
+          ),
+        ];
+        const { records } = await drain(make(srv), srv);
+        const got = new Set(ids(records));
+        expect(got.size).toBeGreaterThanOrEqual(250); // 200 of the 260 + all 50 older
+        for (let i = 0; i < 50; i++)
+          expect(got.has(`order:${500 + i}:sCLOSED`)).toBe(true);
+        expect(
+          warn.mock.calls.some((c) => String(c[0]).includes('no progress')),
+        ).toBe(true);
+        warn.mockRestore();
+      },
+    );
+
+    it('does not warn about progress when update times are distinct', async () => {
+      const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation();
+      const srv = new Server();
+      srv.windowMode = 'update';
+      srv.orders['BTC_USDT'] = Array.from({ length: 450 }, (_, i) =>
+        order(
+          i + 1,
+          T0 + 1000 + i * 10,
+          'CLOSED',
+          'BTC_USDT',
+          T0 + 1000 + i * 10,
+        ),
+      );
+      const { records } = await drain(make(srv), srv);
+      expect(new Set(ids(records)).size).toBe(450);
+      expect(
+        warn.mock.calls.some((c) => String(c[0]).includes('no progress')),
+      ).toBe(false);
+      warn.mockRestore();
     });
 
     it('long ids are shortened with a hash and stay under 191 characters', async () => {

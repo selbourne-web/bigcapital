@@ -74,6 +74,8 @@ const ORDERS_PAGE = 200;
  * cursor size: 300 symbols of at most 40 characters serialize to under 13 KB.
  */
 export const MAX_PIONEX_MARKETS = 300;
+/** Consecutive no-progress steps before the createTime fallback is trusted (orders). */
+const STUCK_LIMIT = 4;
 const MAX_SYMBOL_LENGTH = 40;
 const SYMBOL_RE = /^[A-Za-z0-9_.\-]+$/;
 const MAX_CURSOR_LENGTH = 16_384;
@@ -93,6 +95,8 @@ type HistoryCursor = {
   /** Lower bound (ms) of every window in this run. */
   start: number;
   symbols: string[];
+  /** Consecutive steps that made no progress (omitted when 0). */
+  stuck?: number;
 };
 
 /** Segments of `wallet/balancesFull` botAccount that hold funds NOT in account/balances. */
@@ -318,12 +322,18 @@ export class PionexAdapter implements ExchangeAdapter {
    * rows at the oldest millisecond come back (deduplicated), with an exclusive end
    * they are included too, so a same-millisecond group straddling the page edge is
    * never lost. For orders the docs do not say whether the window uses createTime or
-   * updateTime: the candidates are minimum updateTime + 1 (exact for updateTime
-   * windows, safe for createTime windows since update >= create), then minimum
-   * createTime + 1, then endTime - 1 when neither makes progress, so a walk always
-   * terminates. Only more than a page of rows in ONE millisecond can be lost (the
-   * last fallback; logged once per key). A call makes at most MAX_REQUESTS_PER_CALL HTTP requests (discovery
-   * included); no `nextCursor` once the last market and phase are done.
+   * updateTime: the first candidate is minimum updateTime + 1 (exact for updateTime
+   * windows, safe for createTime windows since update >= create). When it makes no
+   * progress the window steps back 1 ms (`endTime - 1`, logged once per key) and a
+   * `stuck` counter in the cursor counts such steps. Minimum createTime + 1 is used
+   * only when the page proves createTime windowing (a row updated after `endTime`),
+   * or, as a bounded last resort, after STUCK_LIMIT consecutive stuck steps (a
+   * createTime-windowed API whose orders were all updated recently would otherwise
+   * crawl 1 ms at a time; this can skip rows if the API windows by updateTime and
+   * more than STUCK_LIMIT ms are each full pages, and is logged). So a walk always
+   * terminates; rows beyond a page sharing one millisecond are the expected loss.
+   * A call makes at most MAX_REQUESTS_PER_CALL HTTP requests (discovery included);
+   * no `nextCursor` once the last market and phase are done.
    *
    * A market the API rejects (TRADE_INVALID_SYMBOL / TRADE_PARAMETER_ERROR) is skipped.
    */
@@ -495,6 +505,7 @@ export class PionexAdapter implements ExchangeAdapter {
 
     let oldest: number | undefined;
     let oldestAlt: number | undefined;
+    let newest: number | undefined;
     for (const row of rows) {
       const mapped = fills
         ? this.mapFill(row, cur.endTime)
@@ -510,6 +521,12 @@ export class PionexAdapter implements ExchangeAdapter {
         oldest = mapped.walkMs;
       }
       if (
+        mapped.walkMs !== undefined &&
+        (newest === undefined || mapped.walkMs > newest)
+      ) {
+        newest = mapped.walkMs;
+      }
+      if (
         mapped.altMs !== undefined &&
         (oldestAlt === undefined || mapped.altMs < oldestAlt)
       ) {
@@ -519,32 +536,53 @@ export class PionexAdapter implements ExchangeAdapter {
 
     const cap = fills ? FILLS_PAGE : ORDERS_PAGE;
     if (rows.length >= cap && oldest !== undefined) {
-      // First candidate that moves the window back; endTime - 1 is the last resort.
-      const candidates = [oldest + 1, (oldestAlt ?? oldest) + 1];
-      const next = candidates.find((c) => c < cur.endTime);
+      const stuck = cur.stuck ?? 0;
+      let next: number | undefined =
+        oldest + 1 < cur.endTime ? oldest + 1 : undefined;
+      let nextStuck = 0;
       if (next === undefined) {
-        this.warnOnce(
-          creds,
-          'tie',
-          'Pionex history: a full page made no progress; more than a page of rows may share one millisecond and the excess can be missed',
-        );
+        const alt = (oldestAlt ?? oldest) + 1;
+        // A row updated after endTime proves the window is not on updateTime.
+        const proven = newest !== undefined && newest > cur.endTime;
+        if (alt < cur.endTime && (proven || stuck >= STUCK_LIMIT)) {
+          next = alt;
+          if (!proven) {
+            this.warnOnce(
+              creds,
+              'alt',
+              'Pionex history: allOrders made no progress for several steps; continued from the earliest createTime and rows updated in between may be missed',
+            );
+          }
+        } else {
+          this.warnOnce(
+            creds,
+            'tie',
+            'Pionex history: a full page made no progress; more than a page of rows may share one millisecond and the excess can be missed',
+          );
+          nextStuck = Math.min(stuck + 1, STUCK_LIMIT);
+        }
       }
-      return { ...cur, endTime: next ?? cur.endTime - 1 };
+      const out: HistoryCursor = { ...cur, endTime: next ?? cur.endTime - 1 };
+      if (nextStuck > 0) out.stuck = nextStuck;
+      else delete out.stuck;
+      return out;
     }
     return this.afterPhase(cur);
   }
 
   private afterPhase(cur: HistoryCursor): HistoryCursor | undefined {
     if (cur.phase === 'fills') {
-      return { ...cur, phase: 'orders', endTime: this.freshEnd(cur) };
+      const { stuck: _stuck, ...rest } = cur;
+      return { ...rest, phase: 'orders', endTime: this.freshEnd(cur) };
     }
     return this.nextMarket(cur);
   }
 
   private nextMarket(cur: HistoryCursor): HistoryCursor | undefined {
     if (cur.symbolIndex + 1 >= cur.symbols.length) return undefined;
+    const { stuck: _stuck, ...rest } = cur;
     return {
-      ...cur,
+      ...rest,
       phase: 'fills',
       symbolIndex: cur.symbolIndex + 1,
       endTime: this.freshEnd(cur),
@@ -730,7 +768,11 @@ export class PionexAdapter implements ExchangeAdapter {
       !Number.isSafeInteger(v.endTime) ||
       v.endTime <= 0 ||
       !Number.isSafeInteger(v.start) ||
-      v.start < HISTORY_FLOOR_MS
+      v.start < HISTORY_FLOOR_MS ||
+      (v.stuck !== undefined &&
+        (!Number.isSafeInteger(v.stuck) ||
+          v.stuck < 1 ||
+          v.stuck > STUCK_LIMIT))
     ) {
       throw bad();
     }
@@ -740,6 +782,7 @@ export class PionexAdapter implements ExchangeAdapter {
       endTime: v.endTime,
       start: v.start,
       symbols: [...v.symbols],
+      ...(v.stuck ? { stuck: v.stuck } : {}),
     };
   }
 
@@ -750,6 +793,7 @@ export class PionexAdapter implements ExchangeAdapter {
       endTime: c.endTime,
       start: c.start,
       symbols: c.symbols,
+      ...(c.stuck ? { stuck: c.stuck } : {}),
     });
   }
 
