@@ -12,6 +12,7 @@ import {
   CRYPTO_SYNC_CRYPTO_COM_APP_QUEUE,
   CRYPTO_SYNC_CRYPTO_COM_QUEUE,
   CRYPTO_SYNC_KRAKEN_QUEUE,
+  CRYPTO_SYNC_PIONEX_QUEUE,
   CryptoSyncKind,
   cryptoContinuationJobId,
 } from '../CryptoExchanges.constants';
@@ -245,6 +246,18 @@ export class CryptoComSyncWorker extends WorkerHost {
 
 @Processor({ name: CRYPTO_SYNC_CRYPTO_COM_APP_QUEUE, scope: Scope.REQUEST })
 export class CryptoComAppSyncWorker extends WorkerHost {
+  constructor(private readonly processor: CryptoSyncProcessor) {
+    super();
+  }
+
+  @UseCls()
+  async process(job: Job<CryptoSyncJobData>) {
+    return this.processor.process(job);
+  }
+}
+
+@Processor({ name: CRYPTO_SYNC_PIONEX_QUEUE, scope: Scope.REQUEST })
+export class CryptoPionexSyncWorker extends WorkerHost {
   constructor(private readonly processor: CryptoSyncProcessor) {
     super();
   }

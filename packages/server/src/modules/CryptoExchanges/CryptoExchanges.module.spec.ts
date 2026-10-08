@@ -34,6 +34,7 @@ import {
   CRYPTO_SYNC_CRYPTO_COM_QUEUE,
   CRYPTO_SYNC_JOB_OPTIONS,
   CRYPTO_SYNC_KRAKEN_QUEUE,
+  CRYPTO_SYNC_PIONEX_QUEUE,
   CRYPTO_SYNC_QUEUE_NAMES,
 } from './CryptoExchanges.constants';
 import { CRYPTO_LIVE_EMITTER } from './CryptoExchanges.types';
@@ -93,6 +94,7 @@ const stubs = (key: string | null): Provider[] => [
   { provide: getQueueToken(CRYPTO_SYNC_BINANCE_QUEUE), useValue: {} },
   { provide: getQueueToken(CRYPTO_SYNC_CRYPTO_COM_QUEUE), useValue: {} },
   { provide: getQueueToken(CRYPTO_SYNC_CRYPTO_COM_APP_QUEUE), useValue: {} },
+  { provide: getQueueToken(CRYPTO_SYNC_PIONEX_QUEUE), useValue: {} },
 ];
 
 const compile = (key: string | null = validKey) =>

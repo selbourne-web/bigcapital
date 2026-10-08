@@ -9,6 +9,7 @@ import {
   CRYPTO_SYNC_JOB,
   CRYPTO_SYNC_JOB_OPTIONS,
   CRYPTO_SYNC_KRAKEN_QUEUE,
+  CRYPTO_SYNC_PIONEX_QUEUE,
   CryptoSyncKind,
   cryptoScheduleId,
   queueNameFor,
@@ -36,6 +37,7 @@ export class CryptoSyncScheduler {
     @InjectQueue(CRYPTO_SYNC_BINANCE_QUEUE) binanceQueue: Queue,
     @InjectQueue(CRYPTO_SYNC_CRYPTO_COM_QUEUE) cryptoComQueue: Queue,
     @InjectQueue(CRYPTO_SYNC_CRYPTO_COM_APP_QUEUE) cryptoComAppQueue: Queue,
+    @InjectQueue(CRYPTO_SYNC_PIONEX_QUEUE) pionexQueue: Queue,
     private readonly configService: ConfigService,
   ) {
     this.queues = {
@@ -43,6 +45,7 @@ export class CryptoSyncScheduler {
       [CRYPTO_SYNC_BINANCE_QUEUE]: binanceQueue,
       [CRYPTO_SYNC_CRYPTO_COM_QUEUE]: cryptoComQueue,
       [CRYPTO_SYNC_CRYPTO_COM_APP_QUEUE]: cryptoComAppQueue,
+      [CRYPTO_SYNC_PIONEX_QUEUE]: pionexQueue,
     };
   }
 
@@ -139,7 +142,7 @@ export class CryptoSyncScheduler {
   /**
    * Removes the repeatable job and any waiting/delayed job of the connection.
    * The exchange is unknown here (the row may be archived), so all queues are
-   * tried. A job that is running or locked is left; the processor skips it
+   * tried (all queues). A job that is running or locked is left; the processor skips it
    * because the connection is paused or archived by then.
    */
   async unschedule(

@@ -48,13 +48,18 @@ const wire = async (value: unknown) => {
   return JSON.parse(JSON.stringify(out));
 };
 
-const setup = (exchange: 'crypto_com' | 'crypto_com_app') => {
+const PIONEX_NOTE =
+  'Pionex API history is limited to the latest 100 fills per market and excludes deposits, withdrawals and bot activity; import the CSV exports for complete history.';
+
+const setup = (exchange: 'crypto_com' | 'crypto_com_app' | 'pionex') => {
   const adapter = new FakeAdapter() as any;
   adapter.id = exchange;
   adapter.historyCoverage =
     exchange === 'crypto_com'
       ? { level: 'partial', note: 'Limited to the last 6 months.' }
-      : { level: 'full' };
+      : exchange === 'pionex'
+        ? { level: 'partial', note: PIONEX_NOTE }
+        : { level: 'full' };
   const accounts = new FakeAccounts();
   const repo = new FakeRepo();
   const { validators } = makeValidators(adapter, accounts, repo);
@@ -106,6 +111,7 @@ describe('Crypto.com connections over the wire', () => {
       { id: 1, exchange: 'crypto_com', label: 'x', status: 'active' },
       { id: 2, exchange: 'crypto_com_app', label: 'y', status: 'active' },
       { id: 3, exchange: 'kraken', label: 'z', status: 'active' },
+      { id: 4, exchange: 'pionex', label: 'p', status: 'active' },
     ];
     const query: any = {
       whereNull: () => query,
@@ -120,7 +126,10 @@ describe('Crypto.com connections over the wire', () => {
       'partial',
       'full',
       'full',
+      'partial',
     ]);
+    expect(out[3].history_coverage.note).toMatch(/CSV/);
+    expect(out[3].key_expires_at).toBeNull();
     expect(out[0].history_coverage.note).toMatch(/6 months/);
     expect(out[0].key_expires_at).toBeNull();
   });
@@ -150,6 +159,42 @@ describe('Crypto.com connections over the wire', () => {
       dto('crypto_com', { attestReadOnly: true }),
     );
     expect(view.exchange).toBe('crypto_com');
+  });
+});
+
+describe('Pionex connections over the wire', () => {
+  it('create returns a snake_case view with exchange, null key_expires_at, no secrets', async () => {
+    const t = setup('pionex');
+    t.adapter.inspection = { readOnly: true, permissions: ['read'] };
+    const out = await wire(await t.service.execute(dto('pionex')));
+    expect(out).toMatchObject({
+      exchange: 'pionex',
+      key_expires_at: null,
+      status: 'active',
+    });
+    expectNoSecrets(out);
+  });
+
+  it('a key whose permissions cannot be verified gets the 422 attestation body with code, permissions and warnings', async () => {
+    const t = setup('pionex');
+    t.adapter.inspection = {
+      readOnly: 'unverifiable',
+      permissions: ['read'],
+      warnings: ['Pionex cannot confirm this key is read-only.'],
+    };
+    const error: any = await t.service.execute(dto('pionex')).catch((e) => e);
+    expect(error).toBeInstanceOf(UnprocessableEntityException);
+    expect(error.getResponse()).toEqual({
+      code: 'ATTESTATION_REQUIRED',
+      permissions: ['read'],
+      warnings: ['Pionex cannot confirm this key is read-only.'],
+    });
+    expectNoSecrets(error.getResponse());
+    expect(t.repo.rows.size).toBe(0);
+    const view = await t.service.execute(
+      dto('pionex', { attestReadOnly: true }),
+    );
+    expect(view.exchange).toBe('pionex');
   });
 });
 

@@ -30,6 +30,13 @@ export const CRYPTO_EXCHANGES = [
       "In the Crypto.com App's API key management, create a key with read-only scopes (balances and history). Keys expire (about 90 days), so Selbourne Financial shows the expiry and asks you to rotate before then.",
     ],
   },
+  {
+    value: 'pionex',
+    label: 'Pionex',
+    help: [
+      "In Pionex, open API management and create a key with 'Enable reading' only (add 'Bot reading' if you use trading bots). Leave trading and transfer off. Pionex cannot confirm a key's permissions, so you will be asked to confirm the key is read-only.",
+    ],
+  },
 ] as const;
 
 const titleCase = (value: string) =>

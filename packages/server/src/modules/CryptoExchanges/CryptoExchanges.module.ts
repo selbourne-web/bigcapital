@@ -25,6 +25,7 @@ import {
   BinanceSyncWorker,
   CryptoComAppSyncWorker,
   CryptoComSyncWorker,
+  CryptoPionexSyncWorker,
   CryptoSyncProcessor,
   KrakenSyncWorker,
 } from './sync/CryptoSync.processor';
@@ -74,6 +75,7 @@ export const cryptoExchangesProviders: Provider[] = [
   BinanceSyncWorker,
   CryptoComSyncWorker,
   CryptoComAppSyncWorker,
+  CryptoPionexSyncWorker,
   CryptoSyncConnectionSubscriber,
   CryptoSyncRequestService,
   CryptoConnectionRepository,

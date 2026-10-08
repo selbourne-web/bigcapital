@@ -73,14 +73,16 @@ const makeScheduler = (interval?: number) => {
   const binance = new FakeQueue();
   const cryptoCom = new FakeQueue();
   const cryptoComApp = new FakeQueue();
+  const pionex = new FakeQueue();
   const scheduler = new CryptoSyncScheduler(
     kraken as any,
     binance as any,
     cryptoCom as any,
     cryptoComApp as any,
+    pionex as any,
     config(interval),
   );
-  return { scheduler, kraken, binance, cryptoCom, cryptoComApp };
+  return { scheduler, kraken, binance, cryptoCom, cryptoComApp, pionex };
 };
 
 describe('queue names', () => {
@@ -119,6 +121,7 @@ describe('CryptoSyncScheduler', () => {
     ['binance', 'crypto-sync-binance'],
     ['crypto_com', 'crypto-sync-crypto_com'],
     ['crypto_com_app', 'crypto-sync-crypto_com_app'],
+    ['pionex', 'crypto-sync-pionex'],
   ])(
     'registers the %s job on exactly its own queue (%s)',
     async (exchange, queueName) => {
@@ -128,6 +131,7 @@ describe('CryptoSyncScheduler', () => {
         'crypto-sync-binance': t.binance,
         'crypto-sync-crypto_com': t.cryptoCom,
         'crypto-sync-crypto_com_app': t.cryptoComApp,
+        'crypto-sync-pionex': t.pionex,
       };
       expect(queueNameFor(exchange)).toBe(queueName);
       await t.scheduler.schedule({ id: 9, exchange } as any, '42');
@@ -178,12 +182,14 @@ describe('CryptoSyncScheduler', () => {
   });
 
   it('re-upserts when the configured interval changed', async () => {
-    const { kraken, binance, cryptoCom, cryptoComApp } = makeScheduler();
+    const { kraken, binance, cryptoCom, cryptoComApp, pionex } =
+      makeScheduler();
     const first = new CryptoSyncScheduler(
       kraken as any,
       binance as any,
       cryptoCom as any,
       cryptoComApp as any,
+      pionex as any,
       config(60000),
     );
     const second = new CryptoSyncScheduler(
@@ -191,6 +197,7 @@ describe('CryptoSyncScheduler', () => {
       binance as any,
       cryptoCom as any,
       cryptoComApp as any,
+      pionex as any,
       config(120000),
     );
     const conn = { id: 7, exchange: 'kraken' } as any;
