@@ -49,7 +49,7 @@ const wire = async (value: unknown) => {
 };
 
 const PIONEX_NOTE =
-  'Pionex API history is limited to the latest 100 fills per market and excludes deposits, withdrawals and bot activity; import the CSV exports for complete history.';
+  'Pionex API history excludes deposits, withdrawals and bot activity.';
 
 const setup = (exchange: 'crypto_com' | 'crypto_com_app' | 'pionex') => {
   const adapter = new FakeAdapter() as any;
@@ -128,7 +128,7 @@ describe('Crypto.com connections over the wire', () => {
       'full',
       'partial',
     ]);
-    expect(out[3].history_coverage.note).toMatch(/CSV/);
+    expect(out[3].history_coverage.note).toMatch(/deposits/);
     expect(out[3].key_expires_at).toBeNull();
     expect(out[0].history_coverage.note).toMatch(/6 months/);
     expect(out[0].key_expires_at).toBeNull();

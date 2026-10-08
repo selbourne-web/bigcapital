@@ -844,7 +844,19 @@ describe('PionexAdapter.fetchHistory', () => {
   });
 
   describe('rejected markets', () => {
-    it.each(['TRADE_INVALID_SYMBOL', 'TRADE_PARAMETER_ERROR'])(
+    it('TRADE_PARAMETER_ERROR is not skipped: it fails the call with the non-retryable error', async () => {
+      const srv = new Server();
+      srv.rejected.set('BTC_USDT', 'TRADE_PARAMETER_ERROR');
+      await expect(
+        make(srv).fetchHistory(creds, { knownAssets: ['BTC'] }),
+      ).rejects.toMatchObject({
+        name: 'ExchangeNetworkError',
+        retryable: false,
+        message: expect.stringContaining('TRADE_PARAMETER_ERROR'),
+      });
+    });
+
+    it.each(['TRADE_INVALID_SYMBOL'])(
       'skips a market the API rejects (%s) without failing the sync or tripping the cool-down',
       async (code) => {
         const srv = new Server();
@@ -966,6 +978,76 @@ describe('PionexAdapter.fetchHistory', () => {
       await expect(
         make(s2).fetchHistory(creds, { knownAssets: ['BTC'] }),
       ).rejects.toBeInstanceOf(ExchangeSchemaError);
+    });
+  });
+
+  describe('windows the API ignores', () => {
+    const ignoring = (srv: Server) => {
+      const base = srv.respond;
+      srv.respond = (url: any) => {
+        const u = new URL(String(url));
+        // drop the window: always answer as if start/end were wide open
+        u.searchParams.set('startTime', String(FLOOR));
+        u.searchParams.set('endTime', String(NOW + 10 * DAY));
+        return base(u.toString());
+      };
+    };
+
+    it('fills: a full page newer than the window end ends the phase with a warning, no infinite crawl', async () => {
+      const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation();
+      const srv = new Server();
+      srv.fills['BTC_USDT'] = Array.from({ length: 150 }, (_, i) =>
+        fill(i + 1, T0 + 1000 + i * 10),
+      );
+      ignoring(srv);
+      const { records } = await drain(make(srv), srv);
+      expect(records.length).toBeGreaterThan(0);
+      expect(srv.of('/api/v1/trade/fills').length).toBeLessThanOrEqual(3);
+      expect(
+        warn.mock.calls.some((c) =>
+          String(c[0]).includes('ignored the requested window'),
+        ),
+      ).toBe(true);
+      warn.mockRestore();
+    });
+
+    it('allOrders: a window-ignoring API ends within a bounded number of requests with a warning', async () => {
+      const warn = jest.spyOn(Logger.prototype, 'warn').mockImplementation();
+      const srv = new Server();
+      srv.orders['BTC_USDT'] = Array.from({ length: 300 }, (_, i) =>
+        order(i + 1, T0 + 1000 + i * 10),
+      );
+      ignoring(srv);
+      const { records } = await drain(make(srv), srv);
+      expect(records.length).toBeGreaterThan(0);
+      expect(srv.of('/api/v1/trade/allOrders').length).toBeLessThan(40);
+      expect(
+        warn.mock.calls.some((c) => String(c[0]).includes('16 steps')),
+      ).toBe(true);
+      warn.mockRestore();
+    });
+
+    it('the stuck counter validates from 1 to 15', async () => {
+      const srv = new Server();
+      const good = {
+        phase: 'orders',
+        symbolIndex: 0,
+        endTime: NOW,
+        start: FLOOR,
+        symbols: ['BTC_USDT'],
+      };
+      await expect(
+        make(srv).fetchHistory(creds, {
+          cursor: JSON.stringify({ ...good, stuck: 15 }),
+        }),
+      ).resolves.toBeDefined();
+      for (const stuck of [0, 16, 1.5, 'x']) {
+        await expect(
+          make(srv).fetchHistory(creds, {
+            cursor: JSON.stringify({ ...good, stuck }),
+          }),
+        ).rejects.toBeInstanceOf(ExchangeSchemaError);
+      }
     });
   });
 

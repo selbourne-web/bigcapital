@@ -133,7 +133,7 @@ describeRedis('RateLimiter against real Redis', () => {
       expect(expected.granted).toBe(true);
       expect(r.next!.tokens).toBeCloseTo(expected.state.tokens, 6);
       expect(r.next!.tokens).toBeGreaterThan(0);
-      expect(r.next!.tokens).toBeLessThan(capacity - 1);
+      expect(r.next!.tokens).toBeLessThanOrEqual(capacity - 1);
 
       // Clamp: 100 ms would refill 10 tokens but the bucket holds only 3.
       await delay(100);

@@ -39,6 +39,13 @@ export const CRYPTO_EXCHANGES = [
   },
 ] as const;
 
+/** Exchanges whose API keys carry no passphrase: the Add dialog hides that field. */
+const NO_PASSPHRASE = new Set<string>(['pionex']);
+
+/** Whether the Add dialog shows the passphrase field (default true). */
+export const needsPassphrase = (value: string): boolean =>
+  !NO_PASSPHRASE.has(value);
+
 const titleCase = (value: string) =>
   value
     .split('_')

@@ -39,7 +39,7 @@ export function extractAssetsFromPayload(
       typeof rec.symbol === 'string' &&
       rec.symbol.includes('_')
     ) {
-      const base = rec.symbol.split('_')[0];
+      const base = rec.symbol.split('_')[0].toUpperCase();
       if (BASE_ASSET.test(base) && out.size < MAX_KNOWN_ASSETS) out.add(base);
     }
     for (const [key, value] of Object.entries(node)) {

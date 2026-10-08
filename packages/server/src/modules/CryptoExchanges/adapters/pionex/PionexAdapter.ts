@@ -76,6 +76,8 @@ const ORDERS_PAGE = 200;
 export const MAX_PIONEX_MARKETS = 300;
 /** Consecutive no-progress steps before the createTime fallback is trusted (orders). */
 const STUCK_LIMIT = 4;
+/** Consecutive no-progress steps after which a market phase is ended (window ignored by the API). */
+const STUCK_END = 16;
 const MAX_SYMBOL_LENGTH = 40;
 const SYMBOL_RE = /^[A-Za-z0-9_.\-]+$/;
 const MAX_CURSOR_LENGTH = 16_384;
@@ -101,6 +103,8 @@ type HistoryCursor = {
 
 /** Segments of `wallet/balancesFull` botAccount that hold funds NOT in account/balances. */
 const BOT_FUND_SEGMENTS = new Set(['trading_bot', 'lending']);
+/** Known segments that hold nothing to add: `spot` repeats the trading account, `arbitrage` has no list. */
+const IGNORED_SEGMENTS = new Set(['spot', 'arbitrage']);
 
 const BOT_PERMISSION_WARNING =
   'Bot and lending balances need the Bot reading permission; without it only spot balances are imported.';
@@ -129,7 +133,7 @@ export class PionexAdapter implements ExchangeAdapter {
   readonly id: CryptoExchangeId = 'pionex';
   readonly historyCoverage: HistoryCoverage = {
     level: 'partial',
-    note: 'Pionex API history is limited to the latest 100 fills per market and excludes deposits, withdrawals and bot activity; import the CSV exports for complete history.',
+    note: 'Pionex API history excludes deposits, withdrawals and bot activity.',
   };
   /** 10 req/s per account and IP; fills/allOrders weigh 5. A history page costs 10 tokens (capacity must be >= cost). */
   readonly rateLimit = { capacity: 10, refillPerSec: 10, historyPageCost: 10 };
@@ -180,7 +184,12 @@ export class PionexAdapter implements ExchangeAdapter {
    * the trading account (adding it would double count), `arbitrage`, `traderAccount`
    * and `extractBalances` are out of scope, so only `trading_bot` and `lending`
    * entries (`investmentAmount + profit` in `investmentToken`) are added, as locked.
-   * A failing balancesFull call propagates: bot funds are never silently omitted.
+   * Failure handling: a PERMISSION_DENIED answer from balancesFull (key without Bot
+   * reading) degrades to spot-only balances with a once-per-key warning; every other
+   * balancesFull error propagates. Bot/earn entries that cannot be used (unknown
+   * segment types, malformed amounts, null or garbled entries) are skipped, counted
+   * and reported in ONE once-per-key warning (counts and segment type names only), so
+   * a skipped entry is logged, never silent.
    */
   async fetchBalances(c: Credentials): Promise<RawBalance[]> {
     const creds = this.trim(c);
@@ -196,6 +205,11 @@ export class PionexAdapter implements ExchangeAdapter {
       }
     };
 
+    const skipped = {
+      malformed: 0,
+      unknownEntries: 0,
+      types: new Set<string>(),
+    };
     const trading = await this.call(creds, '/api/v1/account/balances', {});
     const rows = trading.data?.balances;
     if (!Array.isArray(rows)) {
@@ -212,7 +226,8 @@ export class PionexAdapter implements ExchangeAdapter {
         !isDecimal(row.free) ||
         !isDecimal(row.frozen)
       ) {
-        continue; // zero/negative/malformed entries never fail the sync
+        skipped.malformed++; // negative/malformed entries never fail the sync
+        continue;
       }
       if (isZero(row.free) && isZero(row.frozen)) continue;
       add(row.coin, addDecimal(row.free, '0'), addDecimal(row.frozen, '0'));
@@ -240,19 +255,45 @@ export class PionexAdapter implements ExchangeAdapter {
         );
       }
       for (const segment of bot.detail) {
-        if (
-          !isObject(segment) ||
-          typeof segment.type !== 'string' ||
-          !BOT_FUND_SEGMENTS.has(segment.type) ||
-          !Array.isArray(segment.list)
-        ) {
-          continue; // spot (duplicate), arbitrage (null list), unknown segments
+        if (!isObject(segment) || typeof segment.type !== 'string') {
+          skipped.malformed++;
+          continue;
+        }
+        if (!BOT_FUND_SEGMENTS.has(segment.type)) {
+          // spot repeats the trading account and arbitrage has no list: both known
+          // and ignored; anything else is unknown and reported.
+          if (!IGNORED_SEGMENTS.has(segment.type)) {
+            skipped.types.add(
+              /^[A-Za-z0-9_.\-]{1,32}$/.test(segment.type)
+                ? segment.type
+                : 'other',
+            );
+            skipped.unknownEntries += Array.isArray(segment.list)
+              ? segment.list.length
+              : 1;
+          }
+          continue;
+        }
+        if (segment.list === null || segment.list === undefined) continue;
+        if (!Array.isArray(segment.list)) {
+          skipped.malformed++;
+          continue;
         }
         for (const entry of segment.list) {
           const funds = this.botFunds(entry);
-          if (funds) add(funds.coin, '0', funds.amount);
+          if (funds === 'malformed') skipped.malformed++;
+          else if (funds) add(funds.coin, '0', funds.amount);
         }
       }
+    }
+    const total = skipped.malformed + skipped.unknownEntries;
+    if (total > 0) {
+      const types = [...skipped.types].sort().slice(0, 10).join(',');
+      this.warnOnce(
+        creds,
+        'balances-skipped',
+        `Pionex bot/lending balances: skipped ${total} entries (unknown segment types: ${types || 'none'}; malformed: ${skipped.malformed})`,
+      );
     }
     return this.toBalances(out);
   }
@@ -279,27 +320,54 @@ export class PionexAdapter implements ExchangeAdapter {
     );
   }
 
-  /** `investmentAmount + profit` (profit may be negative); undefined for unusable entries. */
+  /**
+   * Exact decimal text: plain, with a leading '+', or in exponent form (expanded
+   * without rounding; |exponent| <= 30). Returns `{neg, text}` or undefined.
+   */
+  private exactDecimal(v: unknown): { neg: boolean; text: string } | undefined {
+    if (typeof v !== 'string') return undefined;
+    const m = /^([+-]?)(\d+)(?:\.(\d+))?(?:[eE]([+-]?\d{1,2}))?$/.exec(v);
+    if (!m) return undefined;
+    const [, sign, int, frac = '', exp] = m;
+    let digits = int + frac;
+    let point = int.length + Number(exp ?? 0);
+    if (point < 0) {
+      digits = '0'.repeat(-point) + digits;
+      point = 0;
+    } else if (point > digits.length) {
+      digits = digits.padEnd(point, '0');
+    }
+    const whole = digits.slice(0, point).replace(/^0+(?=\d)/, '') || '0';
+    const fraction = digits.slice(point).replace(/0+$/, '');
+    return {
+      neg: sign === '-',
+      text: fraction ? `${whole}.${fraction}` : whole,
+    };
+  }
+
+  /**
+   * `investmentAmount + profit` (profit may be negative). undefined for a zero or
+   * negative total (nothing to add), 'malformed' for entries that cannot be read.
+   */
   private botFunds(
     entry: unknown,
-  ): { coin: string; amount: string } | undefined {
+  ): { coin: string; amount: string } | undefined | 'malformed' {
     if (
       !isObject(entry) ||
       typeof entry.investmentToken !== 'string' ||
-      entry.investmentToken.trim() === '' ||
-      !isDecimal(entry.investmentAmount)
+      entry.investmentToken.trim() === ''
     ) {
-      return undefined;
+      return 'malformed';
     }
-    const profit = entry.profit === undefined ? '0' : entry.profit;
-    let amount: string;
-    if (isDecimal(profit)) {
-      amount = addDecimal(entry.investmentAmount, profit);
-    } else if (typeof profit === 'string' && /^-\d+(\.\d+)?$/.test(profit)) {
-      amount = subDecimal(entry.investmentAmount, profit.slice(1)); // clamps at 0
-    } else {
-      return undefined;
-    }
+    const invested = this.exactDecimal(entry.investmentAmount);
+    const profit =
+      entry.profit === undefined || entry.profit === null
+        ? { neg: false, text: '0' }
+        : this.exactDecimal(entry.profit);
+    if (!invested || invested.neg || !profit) return 'malformed';
+    const amount = profit.neg
+      ? subDecimal(invested.text, profit.text) // clamps at 0
+      : addDecimal(invested.text, profit.text);
     if (isZero(amount)) return undefined;
     return { coin: entry.investmentToken, amount };
   }
@@ -335,7 +403,9 @@ export class PionexAdapter implements ExchangeAdapter {
    * A call makes at most MAX_REQUESTS_PER_CALL HTTP requests (discovery included);
    * no `nextCursor` once the last market and phase are done.
    *
-   * A market the API rejects (TRADE_INVALID_SYMBOL / TRADE_PARAMETER_ERROR) is skipped.
+   * A market the API reports as TRADE_INVALID_SYMBOL is skipped. TRADE_PARAMETER_ERROR is
+   * NOT skipped (the adapter always sends a symbol, so it means a bad request): it
+   * propagates as the non-retryable error and the sync run fails at its saved cursor.
    */
   async fetchHistory(
     c: Credentials,
@@ -489,7 +559,7 @@ export class PionexAdapter implements ExchangeAdapter {
         this.warnOnce(
           creds,
           `skip:${symbol}`,
-          `Pionex history: market ${symbol} skipped (${(e as Error).message.match(/TRADE_(?:INVALID_SYMBOL|PARAMETER_ERROR)/)![0]})`,
+          `Pionex history: market ${symbol} skipped (TRADE_INVALID_SYMBOL)`,
         );
         return this.nextMarket(cur);
       }
@@ -536,6 +606,16 @@ export class PionexAdapter implements ExchangeAdapter {
 
     const cap = fills ? FILLS_PAGE : ORDERS_PAGE;
     if (rows.length >= cap && oldest !== undefined) {
+      if (fills && newest !== undefined && newest > cur.endTime) {
+        // The API returned a row newer than the window's end: it ignores the window,
+        // so paging back would repeat the same page. End this market phase.
+        this.warnOnce(
+          creds,
+          'ignored',
+          'Pionex history: fills ignored the requested window; the walk for this market was ended early',
+        );
+        return this.afterPhase(cur);
+      }
       const stuck = cur.stuck ?? 0;
       let next: number | undefined =
         oldest + 1 < cur.endTime ? oldest + 1 : undefined;
@@ -559,7 +639,16 @@ export class PionexAdapter implements ExchangeAdapter {
             'tie',
             'Pionex history: a full page made no progress; more than a page of rows may share one millisecond and the excess can be missed',
           );
-          nextStuck = Math.min(stuck + 1, STUCK_LIMIT);
+          nextStuck = stuck + 1;
+          if (nextStuck >= STUCK_END) {
+            // Real same-millisecond ties clear in 1-2 steps: this is a window the API ignores.
+            this.warnOnce(
+              creds,
+              'stuck-end',
+              'Pionex history: a market made no progress for 16 steps; its walk was ended early',
+            );
+            return this.afterPhase(cur);
+          }
         }
       }
       const out: HistoryCursor = { ...cur, endTime: next ?? cur.endTime - 1 };
@@ -608,7 +697,7 @@ export class PionexAdapter implements ExchangeAdapter {
   private isRejectedMarket(e: unknown): boolean {
     return (
       e instanceof ExchangeNetworkError &&
-      /TRADE_(INVALID_SYMBOL|PARAMETER_ERROR)/.test(e.message)
+      /TRADE_INVALID_SYMBOL/.test(e.message)
     );
   }
 
@@ -770,9 +859,7 @@ export class PionexAdapter implements ExchangeAdapter {
       !Number.isSafeInteger(v.start) ||
       v.start < HISTORY_FLOOR_MS ||
       (v.stuck !== undefined &&
-        (!Number.isSafeInteger(v.stuck) ||
-          v.stuck < 1 ||
-          v.stuck > STUCK_LIMIT))
+        (!Number.isSafeInteger(v.stuck) || v.stuck < 1 || v.stuck >= STUCK_END))
     ) {
       throw bad();
     }

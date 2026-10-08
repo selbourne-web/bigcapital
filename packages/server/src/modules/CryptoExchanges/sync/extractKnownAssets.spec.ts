@@ -96,14 +96,19 @@ describe('extractAssetsFromPayload', () => {
         out,
       );
       extractAssetsFromPayload({ _source: 'trades', symbol: 'BTC_USDT' }, out);
-      // marker but not a plain base (lower-case prefix, too long, no base)
-      extractAssetsFromPayload({ _source: 'fills', symbol: 'xDOGE_USDT' }, out);
+      // marker but not a plain base (too long, no base)
       extractAssetsFromPayload({ _source: 'fills', symbol: '_USDT' }, out);
       extractAssetsFromPayload(
         { _source: 'fills', symbol: `${'A'.repeat(21)}_USDT` },
         out,
       );
       expect([...out]).toEqual(['BNB']);
+    });
+
+    it('upper-cases a mixed-case base code before validating it', () => {
+      const out = new Set<string>();
+      extractAssetsFromPayload({ _source: 'fills', symbol: 'xDOGE_USDT' }, out);
+      expect([...out]).toEqual(['XDOGE']);
     });
   });
 });

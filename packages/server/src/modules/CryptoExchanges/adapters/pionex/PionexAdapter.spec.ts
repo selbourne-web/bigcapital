@@ -1,5 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
+import { Logger } from '@nestjs/common';
 import { PionexAdapter } from './PionexAdapter';
 import { pionexSign } from './pionex.signing';
 import {
@@ -65,7 +66,7 @@ describe('PionexAdapter', () => {
     );
     expect(a.historyCoverage).toEqual({
       level: 'partial',
-      note: 'Pionex API history is limited to the latest 100 fills per market and excludes deposits, withdrawals and bot activity; import the CSV exports for complete history.',
+      note: 'Pionex API history excludes deposits, withdrawals and bot activity.',
     });
   });
 
@@ -188,6 +189,90 @@ describe('PionexAdapter', () => {
         { asset: 'XRP', free: '3', locked: '0' },
         { asset: 'ETH', free: '0', locked: '2.5' },
       ]);
+    });
+
+    describe('skipped bot entries are reported once', () => {
+      const warnSpy = () =>
+        jest.spyOn(Logger.prototype, 'warn').mockImplementation();
+      const skippedWarnings = (w: jest.SpyInstance) =>
+        w.mock.calls
+          .map((c) => String(c[0]))
+          .filter((m) => m.startsWith('Pionex bot/lending balances'));
+
+      it('unknown segment, malformed amount and null entry: balances still returned, exactly one redacted warning', async () => {
+        const w = warnSpy();
+        const { fn } = makeFetch(
+          withBot([
+            {
+              type: 'trading_bot',
+              list: [
+                { investmentToken: 'USDT', investmentAmount: '5', profit: '0' },
+                {
+                  investmentToken: 'USDT',
+                  investmentAmount: 'abc',
+                  profit: '1',
+                },
+                null,
+              ],
+            },
+            {
+              type: 'zzz_new',
+              list: [
+                { investmentToken: 'BTC', investmentAmount: '123456' },
+                { investmentToken: 'BTC', investmentAmount: '7' },
+              ],
+            },
+            { type: 'spot', list: [] },
+            { type: 'arbitrage', list: null },
+          ]),
+        );
+        const a = adapter(fn);
+        expect(await a.fetchBalances(creds)).toEqual([
+          { asset: 'USDT', free: '0', locked: '5' },
+        ]);
+        await a.fetchBalances(creds);
+        expect(skippedWarnings(w)).toEqual([
+          'Pionex bot/lending balances: skipped 4 entries (unknown segment types: zzz_new; malformed: 2)',
+        ]);
+        w.mockRestore();
+      });
+
+      it('clean data produces no warning', async () => {
+        const w = warnSpy();
+        const { fn } = makeFetch(byPath(fullMap()));
+        await adapter(fn).fetchBalances(creds);
+        expect(skippedWarnings(w)).toEqual([]);
+        w.mockRestore();
+      });
+
+      it('reads a leading plus and exponent forms exactly instead of dropping the entry', async () => {
+        const w = warnSpy();
+        const { fn } = makeFetch(
+          withBot([
+            {
+              type: 'trading_bot',
+              list: [
+                {
+                  investmentToken: 'BTC',
+                  investmentAmount: '1e-8',
+                  profit: '+0.5',
+                },
+                {
+                  investmentToken: 'ETH',
+                  investmentAmount: '2.5E+2',
+                  profit: '-1e-1',
+                },
+              ],
+            },
+          ]),
+        );
+        expect(await adapter(fn).fetchBalances(creds)).toEqual([
+          { asset: 'BTC', free: '0', locked: '0.50000001' },
+          { asset: 'ETH', free: '0', locked: '249.9' },
+        ]);
+        expect(skippedWarnings(w)).toEqual([]);
+        w.mockRestore();
+      });
     });
 
     it('keeps exact decimals when amounts arrive as JSON numbers', async () => {

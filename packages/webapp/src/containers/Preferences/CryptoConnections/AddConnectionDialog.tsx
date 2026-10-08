@@ -17,7 +17,11 @@ import {
 } from './AccountPicker';
 import styles from './CryptoConnections.module.scss';
 import { AppToaster } from '@/components';
-import { CRYPTO_EXCHANGES, exchangeLabel } from '@/containers/Crypto/exchanges';
+import {
+  CRYPTO_EXCHANGES,
+  exchangeLabel,
+  needsPassphrase,
+} from '@/containers/Crypto/exchanges';
 import {
   CryptoApiError,
   useCreateCryptoConnection,
@@ -167,6 +171,7 @@ function ConnectionForm({
 
   const activeExchange = rotate ? rotate.exchange : exchange;
   const help = CRYPTO_EXCHANGES.find((e) => e.value === activeExchange)?.help;
+  const showPassphrase = needsPassphrase(activeExchange);
 
   const clearSecrets = () => {
     setApiKey('');
@@ -197,7 +202,9 @@ function ConnectionForm({
     const credentials = {
       apiKey: apiKey.trim(),
       apiSecret: apiSecret.trim(),
-      ...(passphrase.trim() ? { passphrase: passphrase.trim() } : {}),
+      ...(showPassphrase && passphrase.trim()
+        ? { passphrase: passphrase.trim() }
+        : {}),
       ...(needsAttestation && attested ? { attestReadOnly: true } : {}),
     };
 
@@ -356,22 +363,24 @@ function ConnectionForm({
           />
         </FormGroup>
 
-        <FormGroup
-          label="Passphrase (optional)"
-          labelFor={`${uid}-passphrase`}
-          helperText="Only if your exchange issued one with the key."
-        >
-          <InputGroup
-            id={`${uid}-passphrase`}
-            type="password"
-            autoComplete="new-password"
-            spellCheck={false}
-            value={passphrase}
-            data-1p-ignore
-            data-lpignore="true"
-            onChange={(event) => setPassphrase(event.currentTarget.value)}
-          />
-        </FormGroup>
+        {showPassphrase && (
+          <FormGroup
+            label="Passphrase (optional)"
+            labelFor={`${uid}-passphrase`}
+            helperText="Only if your exchange issued one with the key."
+          >
+            <InputGroup
+              id={`${uid}-passphrase`}
+              type="password"
+              autoComplete="new-password"
+              spellCheck={false}
+              value={passphrase}
+              data-1p-ignore
+              data-lpignore="true"
+              onChange={(event) => setPassphrase(event.currentTarget.value)}
+            />
+          </FormGroup>
+        )}
 
         {!rotate && (
           <AccountPicker

@@ -142,7 +142,7 @@ export function ConnectionRow({
             {connection.historyCoverage.note
               ? `: ${connection.historyCoverage.note.replace(/\.+$/, '')}`
               : ''}
-            . Import a CSV for older records.
+            .
           </p>
         )}
         {isError && connection.lastError && (
