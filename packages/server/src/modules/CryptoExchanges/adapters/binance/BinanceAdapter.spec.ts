@@ -695,6 +695,142 @@ describe('BinanceAdapter', () => {
         badTrade.fetchHistory(creds, { cursor: 'trd:>:0' }),
       ).rejects.toBeInstanceOf(ExchangeSchemaError);
     });
+
+    describe('non-ASCII symbols (Binance lists e.g. 币安人生USDT, 牛来USDC)', () => {
+      const CJK = ['币安人生U', '币安人生USD1', '牛来USDC'];
+      const cjkInfo = () => {
+        const info = fixture('exchange-info.json');
+        info.symbols.push(
+          {
+            symbol: '币安人生U',
+            status: 'TRADING',
+            baseAsset: '币安人生',
+            quoteAsset: 'U',
+          },
+          {
+            symbol: '币安人生USD1',
+            status: 'TRADING',
+            baseAsset: '币安人生',
+            quoteAsset: 'USD1',
+          },
+          {
+            symbol: '牛来USDC',
+            status: 'TRADING',
+            baseAsset: '牛来',
+            quoteAsset: 'USDC',
+          },
+        );
+        return info;
+      };
+      const cjkRouter = (overrides: Record<string, (c: Call) => Reply> = {}) =>
+        router({
+          '/api/v3/exchangeInfo': () => ({ json: cjkInfo() }),
+          ...overrides,
+        });
+      const trades = (calls: Call[]) =>
+        calls.filter((c) => c.path === '/api/v3/myTrades');
+
+      it('round-trips the cursor the adapter itself emits after the last ASCII symbol', async () => {
+        const { fn, calls } = makeFetch(cjkRouter());
+        const a = adapterWith(fn);
+        const p = await a.fetchHistory(creds, { cursor: 'trd:>XRPEUR:0' });
+        expect(trades(calls)[0].params.get('symbol')).toBe('币安人生U');
+        expect(p.nextCursor).toBe('trd:>币安人生U:0');
+        // the parser accepts what the producer emitted
+        const q = await a.fetchHistory(creds, { cursor: p.nextCursor });
+        expect(trades(calls)[1].params.get('symbol')).toBe('币安人生USD1');
+        expect(q.nextCursor).toBe('trd:>币安人生USD1:0');
+      });
+
+      it('walks through every CJK symbol to the end of the list without error', async () => {
+        const { fn, calls } = makeFetch(cjkRouter());
+        const a = adapterWith(fn);
+        let cursor: string | undefined = 'trd:>:0';
+        const emitted: string[] = [];
+        for (let i = 0; i < 50 && cursor; i++) {
+          cursor = (await a.fetchHistory(creds, { cursor })).nextCursor;
+          if (cursor) emitted.push(cursor);
+        }
+        expect(cursor).toBeUndefined();
+        expect(emitted).toContain('trd:>币安人生U:0');
+        expect(trades(calls).map((c) => c.params.get('symbol'))).toEqual(
+          expect.arrayContaining(CJK),
+        );
+        // ASCII symbols still come first, in the same order as before
+        expect(trades(calls)[0].params.get('symbol')).toBe('BNBBTC');
+      });
+
+      it('continues a full page for a CJK symbol with a cursor it can parse', async () => {
+        const rows = Array.from({ length: 1000 }, (_, i) => ({
+          ...fixture('my-trades.json')[1],
+          symbol: '币安人生U',
+          id: 7 + i,
+        }));
+        const { fn, calls } = makeFetch(
+          cjkRouter({ '/api/v3/myTrades': () => ({ json: rows }) }),
+        );
+        const a = adapterWith(fn);
+        const p1 = await a.fetchHistory(creds, { cursor: 'trd:>XRPEUR:0' });
+        expect(p1.nextCursor).toBe('trd:币安人生U:1007');
+        await a.fetchHistory(creds, { cursor: p1.nextCursor });
+        const last = trades(calls).pop()!;
+        expect(last.params.get('symbol')).toBe('币安人生U');
+        expect(last.params.get('fromId')).toBe('1007');
+      });
+
+      it('stores CJK trade record ids as SYMBOL:id and signs exactly what it sends', async () => {
+        const rows = [
+          { ...fixture('my-trades.json')[1], symbol: '牛来USDC', id: 42 },
+        ];
+        const { fn, calls } = makeFetch(
+          cjkRouter({ '/api/v3/myTrades': () => ({ json: rows }) }),
+        );
+        const page = await adapterWith(fn).fetchHistory(creds, {
+          cursor: 'trd:>币安人生USD1:0',
+        });
+        const ids = page.records.map((r) => r.exchangeRecordId);
+        expect(ids).toContain('牛来USDC:42');
+        expect(ids.every((id) => id.startsWith('牛来USDC:42'))).toBe(true);
+
+        const sent = trades(calls)[0].url;
+        expect(sent).toContain(`symbol=${encodeURIComponent('牛来USDC')}`);
+        const qs = sent.slice(sent.indexOf('?') + 1);
+        const idx = qs.lastIndexOf('&signature=');
+        expect(qs.slice(idx + '&signature='.length)).toBe(
+          signBinance(qs.slice(0, idx), SECRET.trim()),
+        );
+      });
+
+      it('keeps ASCII behaviour unchanged', async () => {
+        const { fn } = makeFetch(router());
+        const p = await adapterWith(fn).fetchHistory(creds, {
+          cursor: 'trd:>BTCUSDT:0',
+        });
+        expect(p.nextCursor).toBe('trd:>BTCXYZ:0');
+      });
+
+      it('still rejects garbage trade cursors', async () => {
+        const a = adapterWith(makeFetch(router()).fn);
+        for (const bad of [
+          'trd:a:b:0',
+          'trd:>A B:0',
+          'trd:>AB:CD:0',
+          'trd:BTC USDT:5',
+          'trd:BTC\nUSDT:5',
+          'trd:币安 人生:5',
+          `trd:>${'A'.repeat(33)}:0`,
+          `trd:${'币'.repeat(33)}:0`,
+          'trd:>BTC/USDT:0',
+          'trd:BTC-USDT:0',
+          'trd::5',
+          'trd:>币安人生U:x',
+        ]) {
+          await expect(
+            a.fetchHistory(creds, { cursor: bad }),
+          ).rejects.toBeInstanceOf(ExchangeSchemaError);
+        }
+      });
+    });
   });
 
   describe('read-only guard', () => {

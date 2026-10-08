@@ -61,6 +61,22 @@ const NEUTRAL_BOOLEAN = ['ipRestrict', 'enableFixReadOnly'];
 /** Harmless numbers (not permissions). */
 const NEUTRAL_NUMBER = ['createTime'];
 
+/**
+ * Characters allowed in a Binance trading symbol (and in cached asset names):
+ * Unicode letters and digits. Binance lists non-ASCII symbols (e.g. 币安人生USDT,
+ * 牛来USDC), so an ASCII-only class makes the adapter reject cursors it emitted
+ * itself. `:` and whitespace stay excluded so the cursor grammar is unambiguous.
+ * The cursor producer and parser both build from this ONE constant.
+ */
+const SYMBOL_CHARS = '[\\p{L}\\p{N}]';
+const SYMBOL_MAX_LEN = 32;
+const SYMBOL_BODY = `${SYMBOL_CHARS}{1,${SYMBOL_MAX_LEN}}`;
+const SYMBOL_RE = new RegExp(`^${SYMBOL_BODY}$`, 'u');
+const TRADE_CURSOR_RE = new RegExp(
+  `^trd:(>?)(${SYMBOL_CHARS}{0,${SYMBOL_MAX_LEN}}):(\\d{1,15})$`,
+  'u',
+);
+
 const RECV_WINDOW_MS = 10_000; // docs: default 5000, max 60000
 const DAY_MS = 86_400_000;
 /** Deposit/withdraw history: start..end span must not exceed 90 days. */
@@ -416,8 +432,8 @@ export class BinanceAdapter implements ExchangeAdapter {
 
     const nextCursor =
       body.length >= PAGE_LIMIT
-        ? `trd:${symbol}:${maxId + 1}`
-        : `trd:>${symbol}:0`;
+        ? this.tradeCursor(false, symbol, maxId + 1)
+        : this.tradeCursor(true, symbol, 0);
     return { records, nextCursor };
   }
 
@@ -467,7 +483,7 @@ export class BinanceAdapter implements ExchangeAdapter {
     for (const a of assets.slice(0, MAX_KNOWN_ASSETS)) {
       if (typeof a !== 'string') continue;
       const n = normalizeAsset('binance', a);
-      if (/^[A-Z0-9]{1,20}$/.test(n)) out.add(n);
+      if (SYMBOL_RE.test(n)) out.add(n);
     }
     return [...out].sort();
   }
@@ -576,6 +592,22 @@ export class BinanceAdapter implements ExchangeAdapter {
       .map(([asset, v]) => ({ asset, free: v.free, locked: v.locked }));
   }
 
+  /**
+   * The only producer of `trd:` cursors. It refuses (loudly, before anything is
+   * persisted) to emit a cursor that parseCursor would reject, so the two cannot
+   * diverge into a permanently failing persisted cursor.
+   */
+  private tradeCursor(after: boolean, symbol: string, fromId: number): string {
+    const cursor = `trd:${after ? '>' : ''}${symbol}:${fromId}`;
+    if (!TRADE_CURSOR_RE.test(cursor) || (!after && symbol === '')) {
+      throw new ExchangeSchemaError(
+        'Binance symbol cannot be represented in a history cursor',
+        symbol,
+      );
+    }
+    return cursor;
+  }
+
   private parseCursor(cursor: string): Cursor {
     const w = /^(dep|wd):(\d{1,15}):(\d{1,9}):(\d{1,15})$/.exec(cursor);
     if (w) {
@@ -586,7 +618,7 @@ export class BinanceAdapter implements ExchangeAdapter {
         origin: Number(w[4]),
       };
     }
-    const t = /^trd:(>?)([A-Z0-9]{0,20}):(\d{1,15})$/.exec(cursor);
+    const t = TRADE_CURSOR_RE.exec(cursor);
     if (t && (t[1] === '>' || t[2] !== '')) {
       return {
         stage: 'trd',
