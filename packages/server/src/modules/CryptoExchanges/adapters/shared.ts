@@ -32,6 +32,33 @@ export const isZero = (v: string) => /^0*\.?0*$/.test(v);
 export const isDecimal = (v: unknown): v is string =>
   typeof v === 'string' && /^\d+(\.\d+)?$/.test(v);
 
+/** Fractional digits stored by the DECIMAL(36,18) balance columns. */
+const STORED_SCALE = 18;
+
+/**
+ * Canonical form of a non-negative decimal string: no leading zeros, no trailing
+ * fractional zeros, rounded half-up to the 18 places the balance columns store.
+ * Exact (BigInt), never a float. Non-decimal input is returned trimmed unchanged.
+ */
+export function normalizeDecimal(
+  value: string | number | null | undefined,
+): string {
+  const v = String(value ?? '').trim();
+  if (!isDecimal(v)) return v;
+  const [i, f = ''] = v.split('.');
+  let scaled = BigInt(i + f.slice(0, STORED_SCALE).padEnd(STORED_SCALE, '0'));
+  if (f.length > STORED_SCALE && f.charCodeAt(STORED_SCALE) >= 53) {
+    scaled += BigInt(1);
+  }
+  return formatDecimal(scaled, STORED_SCALE);
+}
+
+/** Numeric equality of two decimal strings ('1.50' equals '1.5'). */
+export const decimalEquals = (
+  a: string | number | null | undefined,
+  b: string | number | null | undefined,
+): boolean => normalizeDecimal(a) === normalizeDecimal(b);
+
 export const MAX_ERROR_TEXT = 300;
 
 /** Strip secrets from text and bound its length. */

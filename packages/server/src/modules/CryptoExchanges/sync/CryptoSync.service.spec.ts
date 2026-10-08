@@ -680,11 +680,228 @@ suite('CryptoSyncService (integration, scratch DB)', () => {
       adapter.balances = [];
       await service.syncConnection(connectionId, 'incremental', ORG);
       const btc = await snapshots('BTC');
-      expect(btc).toHaveLength(4); // 1, 1, 1, then the zero row
-      expect(sum(btc[3])).toBe(0);
+      expect(btc).toHaveLength(2); // 1 (unchanged syncs write nothing), then the zero row
+      expect(sum(btc[1])).toBe(0);
       await service.syncConnection(connectionId, 'incremental', ORG);
-      expect(await snapshots('BTC')).toHaveLength(4);
+      expect(await snapshots('BTC')).toHaveLength(2);
       expect(await service.heldAssets(connectionId)).toEqual([]);
+    });
+
+    describe('write-on-change', () => {
+      const sync = async (
+        service: CryptoSyncService,
+        balances: Array<{ asset: string; free: string; locked: string }>,
+      ) => {
+        adapter.pages = { start: { records: [] } };
+        adapter.balances = balances;
+        await service.syncConnection(connectionId, 'incremental', ORG);
+      };
+
+      it('first sync inserts every non-zero asset; an unchanged sync inserts nothing', async () => {
+        const service = make();
+        const b = [
+          { asset: 'BTC', free: '1', locked: '0' },
+          { asset: 'ETH', free: '2', locked: '0.5' },
+        ];
+        await sync(service, b);
+        expect(await snapshots()).toHaveLength(2);
+        await sync(service, b);
+        await sync(service, b);
+        expect(await snapshots()).toHaveLength(2);
+      });
+
+      it('a changed free amount inserts exactly one row', async () => {
+        const service = make();
+        await sync(service, [{ asset: 'BTC', free: '1', locked: '0' }]);
+        await sync(service, [{ asset: 'BTC', free: '1.25', locked: '0' }]);
+        expect(await snapshots('BTC')).toHaveLength(2);
+      });
+
+      it('a changed locked amount inserts exactly one row', async () => {
+        const service = make();
+        await sync(service, [{ asset: 'BTC', free: '1', locked: '0' }]);
+        await sync(service, [{ asset: 'BTC', free: '1', locked: '0.1' }]);
+        expect(await snapshots('BTC')).toHaveLength(2);
+      });
+
+      it('numerically equal decimals do not insert', async () => {
+        const service = make();
+        await sync(service, [{ asset: 'BTC', free: '1.5', locked: '0.10' }]);
+        await sync(service, [{ asset: 'BTC', free: '1.50', locked: '0.1' }]);
+        await sync(service, [
+          { asset: 'BTC', free: '01.500', locked: '0.100' },
+        ]);
+        expect(await snapshots('BTC')).toHaveLength(1);
+      });
+
+      it('only the changed asset gets a row', async () => {
+        const service = make();
+        await sync(service, [
+          { asset: 'BTC', free: '1', locked: '0' },
+          { asset: 'ETH', free: '2', locked: '0' },
+        ]);
+        await sync(service, [
+          { asset: 'BTC', free: '1', locked: '0' },
+          { asset: 'ETH', free: '3', locked: '0' },
+        ]);
+        expect(await snapshots('BTC')).toHaveLength(1);
+        expect(await snapshots('ETH')).toHaveLength(2);
+      });
+    });
+
+    describe('compactSnapshots', () => {
+      const seed = async (
+        asset: string,
+        values: Array<[string, string]>,
+        conn = connectionId,
+      ) => {
+        for (const [free, locked] of values) {
+          await db('crypto_balance_snapshots').insert({
+            connection_id: conn,
+            asset,
+            free,
+            locked,
+            captured_at: new Date(Date.UTC(2026, 0, 1)),
+          });
+        }
+      };
+      const ids = async (asset: string, conn = connectionId) =>
+        (
+          await db('crypto_balance_snapshots')
+            .where({ connection_id: conn, asset })
+            .orderBy('id')
+        ).map((r) => r.id as number);
+
+      it('keeps first of each run and the latest row: A,A,A,B,B,A keeps 1st, 4th, 6th', async () => {
+        await seed('BTC', [
+          ['1', '0'],
+          ['1', '0'],
+          ['1', '0'],
+          ['2', '0'],
+          ['2', '0'],
+          ['1', '0'],
+        ]);
+        const before = await ids('BTC');
+        const deleted = await make().compactSnapshots(connectionId);
+        expect(deleted).toBe(3);
+        expect(await ids('BTC')).toEqual([before[0], before[3], before[5]]);
+      });
+
+      it('never deletes the latest row, even when it equals its predecessor', async () => {
+        await seed('BTC', [
+          ['1', '0'],
+          ['1', '0'],
+          ['1', '0'],
+        ]);
+        const before = await ids('BTC');
+        await make().compactSnapshots(connectionId);
+        expect(await ids('BTC')).toEqual([before[0], before[2]]);
+      });
+
+      it('treats a change in locked alone as a value change', async () => {
+        await seed('BTC', [
+          ['1', '0'],
+          ['1', '0.5'],
+          ['1', '0.5'],
+          ['1', '0'],
+        ]);
+        const before = await ids('BTC');
+        await make().compactSnapshots(connectionId);
+        expect(await ids('BTC')).toEqual([before[0], before[1], before[3]]);
+      });
+
+      it('treats numerically equal stored decimals as equal and different ones as different', async () => {
+        await seed('BTC', [
+          ['1.5', '0'],
+          ['1.50', '0'],
+          ['1.500000000000000001', '0'],
+          ['9', '0'],
+        ]);
+        const before = await ids('BTC');
+        await make().compactSnapshots(connectionId);
+        expect(await ids('BTC')).toEqual([before[0], before[2], before[3]]);
+      });
+
+      it('is idempotent', async () => {
+        await seed('BTC', [
+          ['1', '0'],
+          ['1', '0'],
+          ['1', '0'],
+          ['2', '0'],
+          ['2', '0'],
+        ]);
+        const service = make();
+        expect(await service.compactSnapshots(connectionId)).toBe(2);
+        const after = await ids('BTC');
+        expect(await service.compactSnapshots(connectionId)).toBe(0);
+        expect(await ids('BTC')).toEqual(after);
+      });
+
+      it('is scoped to its own connection and unaffected assets are untouched', async () => {
+        const [other] = await db('crypto_connections').insert({
+          exchange: 'kraken',
+          label: 'Other',
+          api_key_encrypted: 'x',
+          api_secret_encrypted: 'x',
+          key_version: 1,
+          status: 'active',
+        });
+        await seed('BTC', [
+          ['1', '0'],
+          ['1', '0'],
+          ['1', '0'],
+        ]);
+        await seed('ETH', [
+          ['1', '0'],
+          ['2', '0'],
+          ['3', '0'],
+        ]);
+        await seed(
+          'BTC',
+          [
+            ['1', '0'],
+            ['1', '0'],
+            ['1', '0'],
+          ],
+          other,
+        );
+        const otherBefore = await ids('BTC', other);
+        const ethBefore = await ids('ETH');
+        await make().compactSnapshots(connectionId);
+        expect(await ids('BTC')).toHaveLength(2);
+        expect(await ids('ETH')).toEqual(ethBefore);
+        expect(await ids('BTC', other)).toEqual(otherBefore);
+      });
+
+      it('runs after a successful sync, and a compaction failure does not fail the sync', async () => {
+        const service = make();
+        await seed('BTC', [
+          ['1', '0'],
+          ['1', '0'],
+          ['1', '0'],
+        ]);
+        adapter.pages = { start: { records: [] } };
+        adapter.balances = [{ asset: 'BTC', free: '1', locked: '0' }];
+        const run = await service.syncConnection(
+          connectionId,
+          'incremental',
+          ORG,
+        );
+        expect(run.status).not.toBe('failed');
+        expect(await ids('BTC')).toHaveLength(2);
+
+        const spy = jest
+          .spyOn(service, 'compactSnapshots')
+          .mockRejectedValue(new Error('boom secret-detail'));
+        const run2 = await service.syncConnection(
+          connectionId,
+          'incremental',
+          ORG,
+        );
+        expect(run2.status).not.toBe('failed');
+        expect((await connection())!.status).toBe('active');
+        spy.mockRestore();
+      });
     });
   });
 

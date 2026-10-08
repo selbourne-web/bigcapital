@@ -16,6 +16,7 @@ import {
   RawRecordInput,
 } from '../adapters/ExchangeAdapter';
 import { normalizeAsset } from '../adapters/assets';
+import { decimalEquals } from '../adapters/shared';
 import {
   ExchangeAuthError,
   ExchangeError,
@@ -33,6 +34,10 @@ import {
   MAX_KNOWN_ASSETS,
   extractAssetsFromPayload,
 } from './extractKnownAssets';
+
+/** Candidate rows examined per compaction call, and rows per DELETE statement. */
+const SNAPSHOT_COMPACT_MAX_ROWS = 20000;
+const SNAPSHOT_DELETE_CHUNK = 2000;
 
 export const CRYPTO_SYNC_OPTIONS = 'CRYPTO_SYNC_OPTIONS';
 
@@ -341,6 +346,7 @@ export class CryptoSyncService {
       complete ? 'succeeded' : 'partial',
       finishedAt,
     );
+    if (!state.blocked) await this.compactQuietly(connection.id);
     return Object.assign(finished, {
       continuation:
         remainingCursor !== undefined &&
@@ -729,8 +735,13 @@ export class CryptoSyncService {
   }
 
   /**
-   * Writes the non-zero balances. An asset whose latest stored row was non-zero and
+   * Writes balance changes only (write-on-change). A non-zero balance gets a row
+   * when it has no previous row or its free or locked amount differs numerically
+   * from the latest stored row. An asset whose latest stored row was non-zero and
    * that is now zero or absent gets a single zero row so dashboards clear it.
+   * Readers only use the latest row per (connection, asset), so unchanged
+   * balances need no new row. Note that a row's `capturedAt` is therefore the
+   * time the balance last CHANGED, not the time of the last sync.
    */
   private async writeSnapshot(
     connectionId: number,
@@ -738,10 +749,20 @@ export class CryptoSyncService {
     capturedAt: Date,
   ): Promise<void> {
     const previous = await this.latestSnapshotRows(connectionId);
+    const latest = new Map(previous.map((p) => [p.asset, p]));
     const rows: Array<Partial<CryptoBalanceSnapshot>> = [];
     const written = new Set<string>();
     for (const b of balances) {
       if (isPositive(b.free) || isPositive(b.locked)) {
+        written.add(b.asset);
+        const last = latest.get(b.asset);
+        if (
+          last &&
+          decimalEquals(last.free, b.free) &&
+          decimalEquals(last.locked, b.locked)
+        ) {
+          continue;
+        }
         rows.push({
           connectionId,
           asset: b.asset,
@@ -749,7 +770,6 @@ export class CryptoSyncService {
           locked: b.locked,
           capturedAt,
         });
-        written.add(b.asset);
       }
     }
     for (const p of previous) {
@@ -768,6 +788,59 @@ export class CryptoSyncService {
     }
     if (rows.length) {
       await this.insertRows(this.snapshotModel(), rows);
+    }
+  }
+
+  /**
+   * Lossless compaction of one connection's snapshot history. Deletes a row iff
+   *   (a) it is NOT the highest id of its (connection_id, asset) pair, AND
+   *   (b) the row immediately before it in that pair (by id) has exactly the same
+   *       free AND locked values.
+   * So the latest row of every pair is never deleted, and any row that starts a
+   * new value (differs from its predecessor) is never deleted: the value history
+   * (every change point) is preserved. Idempotent. Bounded: at most
+   * SNAPSHOT_COMPACT_MAX_ROWS candidates per call, deleted in id chunks.
+   * Returns the number of rows deleted.
+   */
+  async compactSnapshots(connectionId: number): Promise<number> {
+    const knex = this.snapshotModel().knex();
+    const table = this.snapshotModel().tableName;
+    const [result] = await knex.raw(
+      `SELECT id FROM (
+         SELECT id, free, locked,
+                LAG(free) OVER w AS prev_free,
+                LAG(locked) OVER w AS prev_locked,
+                MAX(id) OVER (PARTITION BY asset) AS max_id
+           FROM ?? WHERE connection_id = ?
+         WINDOW w AS (PARTITION BY asset ORDER BY id)
+       ) s
+       WHERE id < max_id AND prev_free = free AND prev_locked = locked
+       ORDER BY id
+       LIMIT ?`,
+      [table, connectionId, SNAPSHOT_COMPACT_MAX_ROWS],
+    );
+    const ids: number[] = (result as Array<{ id: number }>).map((r) => r.id);
+    let deleted = 0;
+    for (let i = 0; i < ids.length; i += SNAPSHOT_DELETE_CHUNK) {
+      const chunk = ids.slice(i, i + SNAPSHOT_DELETE_CHUNK);
+      deleted += await knex(table)
+        .where('connection_id', connectionId)
+        .whereIn('id', chunk)
+        .delete();
+    }
+    return deleted;
+  }
+
+  /** Best effort: a compaction failure must never fail or flip a sync. */
+  private async compactQuietly(connectionId: number): Promise<void> {
+    try {
+      await this.compactSnapshots(connectionId);
+    } catch (error) {
+      this.logger.warn(
+        `Snapshot compaction failed for connection ${connectionId}: ${
+          error instanceof Error ? error.name : 'UnknownError'
+        }`,
+      );
     }
   }
 
