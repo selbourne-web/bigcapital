@@ -1,4 +1,4 @@
 "date(UTC+0)","coin","amount","tag","comment"
-"2026-01-01 00:00:03","USDT","-0.0123","FundingFee",""
-"2026-01-01 08:00:03","USDT","0.0045","FundingFee",""
-"2026-01-02 00:00:00","USDT","1.25","RiskCoverage",""
+"2020-01-01 01:02:03","USDT","-0.5","FundingFee",""
+"2020-01-01 09:02:03","USDT","0.25","FundingFee",""
+"2020-01-02 00:00:00","USDT","3.75","RiskCoverage",""

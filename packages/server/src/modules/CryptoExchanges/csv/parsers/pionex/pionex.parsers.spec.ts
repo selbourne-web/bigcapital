@@ -2,6 +2,7 @@ import { readFileSync } from 'fs';
 import { join } from 'path';
 import { CsvParserRegistry } from '../../CsvParserRegistry';
 import { readCsv } from '../../CsvReader';
+import { assignCsvRecordIds } from '../../csvRecordId';
 import { CsvImportError, CsvParser, CsvRowResult } from '../../csv.types';
 import { PIONEX_CSV_PARSERS } from './pionex.parsers';
 
@@ -10,10 +11,10 @@ const registry = new CsvParserRegistry(PIONEX_CSV_PARSERS);
 const load = (name: string) =>
   readCsv(readFileSync(join(__dirname, '__fixtures__', name)));
 
-function run(name: string): {
-  parser: CsvParser;
-  results: CsvRowResult[];
-} {
+const parserFor = (name: string) =>
+  registry.resolve('pionex', load(name).headers);
+
+function run(name: string): { parser: CsvParser; results: CsvRowResult[] } {
   const csv = load(name);
   const parser = registry.resolve('pionex', csv.headers);
   return {
@@ -27,13 +28,17 @@ const rec = (r: CsvRowResult) => {
   return r.record;
 };
 
-const row = (
-  parser: CsvParser,
-  headers: string[],
-  values: string[],
-): CsvRowResult =>
-  parser.parseRow(Object.fromEntries(headers.map((h, i) => [h, values[i]])), {
-    line: 2,
+/** Parses the first fixture row of `name` with some cells overridden. */
+const withCells = (name: string, over: Record<string, string>) =>
+  parserFor(name).parseRow(
+    { ...load(name).rows[0].cells, ...over },
+    { line: 2 },
+  );
+
+const expectReject = (r: CsvRowResult, column: string) =>
+  expect(r).toEqual({
+    kind: 'reject',
+    reason: expect.stringContaining(column),
   });
 
 describe('Pionex CSV parsers', () => {
@@ -81,27 +86,43 @@ describe('Pionex CSV parsers', () => {
     ).toThrow(expect.objectContaining({ code: 'CSV_FORMAT_UNRECOGNIZED' }));
   });
 
-  it('header-only files yield zero rows and zero rejects', () => {
-    for (const f of [
-      'convert.csv',
-      'deposit-withdraw.csv',
-      'dust-collector.csv',
-      'structured-products.csv',
-    ]) {
-      const csv = load(f);
-      expect(csv.rows).toHaveLength(0);
-      expect(csv.rejected).toHaveLength(0);
-    }
-  });
+  describe('header-only reports', () => {
+    it('yield zero rows and zero rejects', () => {
+      for (const f of [
+        'convert.csv',
+        'deposit-withdraw.csv',
+        'dust-collector.csv',
+        'structured-products.csv',
+      ]) {
+        const csv = load(f);
+        expect(csv.rows).toHaveLength(0);
+        expect(csv.rejected).toHaveLength(0);
+      }
+    });
 
-  it('header-only parsers turn any data row into unparsed', () => {
-    const p = registry.resolve('pionex', load('convert.csv').headers);
-    const r = row(
-      p,
-      ['date(UTC+0)', 'sell_coin', 'sell_amount', 'buy_coin', 'buy_amount'],
-      ['2026-02-01 00:00:00', 'A', '1', 'B', '2'],
-    );
-    expect(rec(r).recordType).toBe('unparsed');
+    const headers = [
+      'date(UTC+0)',
+      'sell_coin',
+      'sell_amount',
+      'buy_coin',
+      'buy_amount',
+    ];
+    const cells = (date: string) =>
+      Object.fromEntries(
+        headers.map((h, i) => [h, i === 0 ? date : String(i)]),
+      );
+
+    it('turn any data row into unparsed', () => {
+      const p = parserFor('convert.csv');
+      const r = rec(p.parseRow(cells('2020-02-01 00:00:00'), { line: 2 }));
+      expect(r.recordType).toBe('unparsed');
+      expect(r.occurredAt).toEqual(new Date('2020-02-01T00:00:00.000Z'));
+    });
+
+    it('reject a data row with an invalid date', () => {
+      const p = parserFor('convert.csv');
+      expectReject(p.parseRow(cells('not a date'), { line: 2 }), 'date(UTC+0)');
+    });
   });
 
   describe('raw-trading-details', () => {
@@ -110,21 +131,21 @@ describe('Pionex CSV parsers', () => {
     it('maps FILLED spot to trade with all raw cells and normalized pair', () => {
       const r = rec(results[0]);
       expect(r.recordType).toBe('trade');
-      expect(r.occurredAt).toEqual(new Date('2026-01-02T03:39:19.000Z'));
-      expect(r.payload).toMatchObject({
-        'date(UTC+0)': '2026-01-02 03:39:19',
-        executed_qty: '0.13',
-        amount: '0.385',
-        price: '2.967',
+      expect(r.occurredAt).toEqual(new Date('2020-01-02T03:04:05.000Z'));
+      expect(r.payload).toEqual({
+        'date(UTC+0)': '2020-01-02 03:04:05',
+        executed_qty: '2.5',
+        amount: '250.625',
+        price: '100.25',
         order_type: 'LIMIT',
         side: 'BUY',
-        symbol: 'METH_USDT',
+        symbol: 'TEST_USDT',
         state: 'FILLED',
-        fee: '0.000065',
-        fee_coin: 'METH',
+        fee: '0.0025',
+        fee_coin: 'TEST',
         market_type: 'Spot',
-        tax_id: 's_1',
-        normalizedBase: 'METH',
+        tax_id: 's_t1',
+        normalizedBase: 'TEST',
         normalizedQuote: 'USDT',
         source: 'csv',
       });
@@ -138,86 +159,110 @@ describe('Pionex CSV parsers', () => {
       const r = rec(results[2]);
       expect(r.recordType).toBe('trade');
       expect(r.payload).toMatchObject({
-        symbol: 'ZEC_USDT_PERP',
+        symbol: 'FAKE_USDT_PERP',
         order_type: 'IOC',
-        normalizedBase: 'ZEC',
+        normalizedBase: 'FAKE',
         normalizedQuote: 'USDT',
       });
     });
 
     it('treats FILLED with zero executed_qty as unparsed', () => {
-      const p = registry.resolve(
-        'pionex',
-        load('raw-trading-details.csv').headers,
-      );
-      const cells = {
-        ...load('raw-trading-details.csv').rows[0].cells,
-        executed_qty: '0',
-      };
-      expect(rec(p.parseRow(cells, { line: 2 })).recordType).toBe('unparsed');
+      expect(
+        rec(withCells('raw-trading-details.csv', { executed_qty: '0' }))
+          .recordType,
+      ).toBe('unparsed');
     });
 
     it('rejects an invalid date naming the column', () => {
-      const p = registry.resolve(
-        'pionex',
-        load('raw-trading-details.csv').headers,
+      expectReject(
+        withCells('raw-trading-details.csv', {
+          'date(UTC+0)': '2020-13-45 99:00:00',
+        }),
+        'date(UTC+0)',
       );
-      const cells = {
-        ...load('raw-trading-details.csv').rows[0].cells,
-        'date(UTC+0)': '2026-13-45 99:00:00',
-      };
-      const r = p.parseRow(cells, { line: 2 });
-      expect(r).toEqual({
-        kind: 'reject',
-        reason: expect.stringContaining('date(UTC+0)'),
-      });
     });
 
     it('rejects a non-decimal price naming the column', () => {
-      const p = registry.resolve(
-        'pionex',
-        load('raw-trading-details.csv').headers,
+      expectReject(
+        withCells('raw-trading-details.csv', { price: '1e5' }),
+        'price',
       );
-      const cells = {
-        ...load('raw-trading-details.csv').rows[0].cells,
-        price: '1e5',
-      };
-      const r = p.parseRow(cells, { line: 2 });
-      expect(r).toEqual({
-        kind: 'reject',
-        reason: expect.stringContaining('price'),
-      });
     });
 
-    it('never throws on garbage rows', () => {
-      const p = registry.resolve(
-        'pionex',
-        load('raw-trading-details.csv').headers,
+    it.each(['executed_qty', 'price', 'fee'])(
+      'rejects +1 and -0.5 for %s',
+      (col) => {
+        expectReject(
+          withCells('raw-trading-details.csv', { [col]: '+1' }),
+          col,
+        );
+        expectReject(
+          withCells('raw-trading-details.csv', { [col]: '-0.5' }),
+          col,
+        );
+      },
+    );
+
+    it.each(['TESTUSDT', '_USDT', 'TEST_', `${'A'.repeat(60)}_USDT`])(
+      'rejects bad symbol %s naming the column',
+      (symbol) => {
+        expectReject(
+          withCells('raw-trading-details.csv', { symbol }),
+          'symbol',
+        );
+      },
+    );
+  });
+
+  describe('strict date format', () => {
+    it.each([
+      '2020-01-02T03:04:05',
+      '2020-01-02 03:04:05.123',
+      ' 2020-01-02 03:04:05',
+      '2020-01-02 03:04:05 ',
+      '2020-02-30 00:00:00',
+      '2020-01-02',
+    ])('rejects %p', (date) => {
+      expectReject(
+        withCells('trading.csv', { 'date(UTC+0)': date }),
+        'date(UTC+0)',
       );
-      expect(() => p.parseRow({} as never, { line: 1 })).not.toThrow();
+    });
+
+    it('accepts a leap day as the exact UTC instant', () => {
+      const r = rec(
+        withCells('trading.csv', { 'date(UTC+0)': '2020-02-29 23:59:59' }),
+      );
+      expect(r.occurredAt).toEqual(new Date('2020-02-29T23:59:59.000Z'));
     });
   });
 
   describe('trading', () => {
     it('maps rows to trade_summary', () => {
-      const { results } = run('trading.csv');
-      const r = rec(results[1]);
+      const r = rec(run('trading.csv').results[1]);
       expect(r.recordType).toBe('trade_summary');
       expect(r.payload).toMatchObject({
-        symbol: 'ZEC_USDT_PERP',
-        normalizedBase: 'ZEC',
+        symbol: 'FAKE_USDT_PERP',
+        normalizedBase: 'FAKE',
         normalizedQuote: 'USDT',
         source: 'csv',
       });
     });
 
     it('rejects a non-decimal fee naming the column', () => {
-      const { parser } = run('trading.csv');
-      const cells = { ...load('trading.csv').rows[0].cells, fee: 'abc' };
-      expect(parser.parseRow(cells, { line: 2 })).toEqual({
-        kind: 'reject',
-        reason: expect.stringContaining('fee'),
-      });
+      expectReject(withCells('trading.csv', { fee: 'abc' }), 'fee');
+    });
+
+    it.each(['executed_qty', 'price', 'fee'])(
+      'rejects +1 and -0.5 for %s',
+      (col) => {
+        expectReject(withCells('trading.csv', { [col]: '+1' }), col);
+        expectReject(withCells('trading.csv', { [col]: '-0.5' }), col);
+      },
+    );
+
+    it('rejects a symbol without underscore', () => {
+      expectReject(withCells('trading.csv', { symbol: 'TESTUSDT' }), 'symbol');
     });
   });
 
@@ -228,10 +273,24 @@ describe('Pionex CSV parsers', () => {
       expect(rec(results[0]).recordType).toBe('reward');
       expect(rec(results[1]).recordType).toBe('reward');
       expect(rec(results[0]).payload).toMatchObject({
-        'Received Quantity': '0.001',
-        normalizedAsset: 'SOL',
+        'Received Quantity': '0.5',
+        normalizedAsset: 'TEST',
         source: 'csv',
       });
+    });
+
+    it('gives the two identical rows distinct record ids', () => {
+      const csv = load('staking.csv');
+      const parser = registry.resolve('pionex', csv.headers);
+      const rows = csv.rows.map((r) => ({
+        cells: r.cells,
+        record: rec(parser.parseRow(r.cells, { line: r.line })),
+      }));
+      const ids = assignCsvRecordIds(parser.id, rows, csv.headers).map(
+        (x) => x.exchangeRecordId,
+      );
+      expect(new Set(ids).size).toBe(ids.length);
+      expect(ids[1]).toBe(`${ids[0]}:1`);
     });
 
     it('maps a Sent row to unparsed', () => {
@@ -245,12 +304,17 @@ describe('Pionex CSV parsers', () => {
     it('maps FundingFee to funding keeping the sign', () => {
       const r = rec(results[0]);
       expect(r.recordType).toBe('funding');
-      expect(r.payload.amount).toBe('-0.0123');
-      expect(rec(results[1]).payload.amount).toBe('0.0045');
+      expect(r.payload.amount).toBe('-0.5');
+      expect(rec(results[1]).payload.amount).toBe('0.25');
     });
 
     it('maps RiskCoverage to adjustment', () => {
       expect(rec(results[2]).recordType).toBe('adjustment');
+    });
+
+    it('rejects an invalid amount naming the column', () => {
+      expectReject(withCells('others.csv', { amount: 'abc' }), 'amount');
+      expectReject(withCells('others.csv', { amount: '+1' }), 'amount');
     });
   });
 
@@ -258,26 +322,80 @@ describe('Pionex CSV parsers', () => {
     it('maps to position with occurredAt = close_time', () => {
       const r = rec(run('position_futures.csv').results[0]);
       expect(r.recordType).toBe('position');
-      expect(r.occurredAt).toEqual(new Date('2026-01-04T06:07:08.000Z'));
+      expect(r.occurredAt).toEqual(new Date('2020-01-04T06:07:08.000Z'));
       expect(r.payload).toMatchObject({
-        symbol: 'ZEC_USDT_PERP',
-        pnl: '-1.5',
-        funding_fee: '-0.01',
-        normalizedBase: 'ZEC',
+        symbol: 'FAKE_USDT_PERP',
+        pnl: '-2.5',
+        funding_fee: '-0.0625',
+        normalizedBase: 'FAKE',
         normalizedQuote: 'USDT',
       });
     });
 
-    it('rejects an invalid close_time naming the column', () => {
-      const { parser } = run('position_futures.csv');
-      const cells = {
-        ...load('position_futures.csv').rows[0].cells,
-        close_time: 'x',
-      };
-      expect(parser.parseRow(cells, { line: 2 })).toEqual({
-        kind: 'reject',
-        reason: expect.stringContaining('close_time'),
+    it('accepts negative pnl, fee and funding_fee', () => {
+      const r = withCells('position_futures.csv', {
+        pnl: '-0.5',
+        fee: '-0.5',
+        funding_fee: '-0.5',
       });
+      expect(r.kind).toBe('record');
     });
+
+    it('rejects +1 for pnl, fee and funding_fee', () => {
+      for (const col of ['pnl', 'fee', 'funding_fee']) {
+        expectReject(withCells('position_futures.csv', { [col]: '+1' }), col);
+      }
+    });
+
+    it('rejects an invalid close_time naming the column', () => {
+      expectReject(
+        withCells('position_futures.csv', { close_time: 'x' }),
+        'close_time',
+      );
+    });
+
+    it('rejects close_time earlier than open_time', () => {
+      expectReject(
+        withCells('position_futures.csv', {
+          close_time: '2020-01-01 00:00:00',
+        }),
+        'close_time',
+      );
+    });
+
+    it('rejects a bad symbol', () => {
+      expectReject(
+        withCells('position_futures.csv', { symbol: '_X' }),
+        'symbol',
+      );
+    });
+  });
+
+  describe('never throws', () => {
+    const garbage: unknown[] = [
+      {},
+      undefined,
+      null,
+      { 'date(UTC+0)': undefined },
+      { 'date(UTC+0)': '2020-01-02 03:04:05', state: 'FILLED' },
+      {
+        'date(UTC+0)': '2020-01-02 03:04:05',
+        state: 'FILLED',
+        executed_qty: undefined,
+      },
+      { open_time: '2020-01-02 03:04:05', close_time: undefined, symbol: 5 },
+      { symbol: null, pnl: 1, fee: {} },
+    ];
+
+    it.each(PIONEX_CSV_PARSERS.filter((p) => p.disposition === 'import'))(
+      '$id returns a result for malformed rows',
+      (parser) => {
+        for (const g of garbage) {
+          expect(() => parser.parseRow(g as never, { line: 2 })).not.toThrow();
+          const r = parser.parseRow(g as never, { line: 2 });
+          expect(['record', 'reject']).toContain(r.kind);
+        }
+      },
+    );
   });
 });

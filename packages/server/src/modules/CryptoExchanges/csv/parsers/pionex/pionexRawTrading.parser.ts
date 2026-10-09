@@ -5,6 +5,7 @@ import {
   importParser,
   isPositiveDecimal,
   isReject,
+  isSymbolReject,
   rawPayload,
   record,
   reject,
@@ -43,7 +44,8 @@ export const pionexRawTradingParser = importParser(
     }
     const bad = firstBadDecimal(row, ['amount', 'price', 'fee']);
     if (bad) return reject(`Invalid decimal in column ${bad}`);
-    if (!row.symbol) return reject('Missing value in column symbol');
-    return record('trade', at, rawPayload(row, splitSymbol(row.symbol)));
+    const sym = splitSymbol(row.symbol);
+    if (isSymbolReject(sym)) return sym;
+    return record('trade', at, rawPayload(row, sym));
   }),
 );

@@ -3,6 +3,7 @@ import {
   firstBadDecimal,
   importParser,
   isReject,
+  isSymbolReject,
   rawPayload,
   record,
   reject,
@@ -31,7 +32,13 @@ export const pionexPositionFuturesParser = importParser(
     if (isReject(closed)) return closed;
     const bad = firstBadDecimal(row, ['pnl', 'fee', 'funding_fee'], true);
     if (bad) return reject(`Invalid decimal in column ${bad}`);
-    if (!row.symbol) return reject('Missing value in column symbol');
-    return record('position', closed, rawPayload(row, splitSymbol(row.symbol)));
+    if (closed.getTime() < opened.getTime()) {
+      return reject(
+        'close_time is earlier than open_time in column close_time',
+      );
+    }
+    const sym = splitSymbol(row.symbol);
+    if (isSymbolReject(sym)) return sym;
+    return record('position', closed, rawPayload(row, sym));
   }),
 );

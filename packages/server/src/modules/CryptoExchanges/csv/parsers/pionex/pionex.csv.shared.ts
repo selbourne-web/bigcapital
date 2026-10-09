@@ -7,17 +7,15 @@ export const DERIVED_EXPORT_REFUSE_REASON =
 
 export const DATE_COL = 'date(UTC+0)';
 
-const DATE_RE =
-  /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,3})\d*)?$/;
+const DATE_RE = /^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2}):(\d{2})$/;
 
-/** Parses `YYYY-MM-DD HH:MM:SS` as UTC. Returns null when not a real instant. */
+/** Parses strict `YYYY-MM-DD HH:mm:ss` as UTC. Null when not a real instant. */
 export function parseUtc(value: unknown): Date | null {
   if (typeof value !== 'string') return null;
-  const m = DATE_RE.exec(value.trim());
+  const m = DATE_RE.exec(value);
   if (!m) return null;
   const [y, mo, d, h, mi, s] = m.slice(1, 7).map(Number);
-  const ms = m[7] ? Number(m[7].padEnd(3, '0')) : 0;
-  const date = new Date(Date.UTC(y, mo - 1, d, h, mi, s, ms));
+  const date = new Date(Date.UTC(y, mo - 1, d, h, mi, s));
   if (
     date.getUTCFullYear() !== y ||
     date.getUTCMonth() !== mo - 1 ||
@@ -70,20 +68,33 @@ export function firstBadDecimal(
   return columns.find((c) => !ok(row[c])) ?? null;
 }
 
-/** Splits on the first `_`; futures keep the quote before the PERP suffix. */
-export function splitSymbol(symbol: string): {
-  normalizedBase: string;
-  normalizedQuote: string;
-} {
+const MAX_SYMBOL_LENGTH = 64;
+
+/**
+ * Splits on the first `_`; futures keep the quote before the PERP suffix.
+ * Rejects (naming `symbol`) a missing, `_`-less, `_`-leading or over-long symbol.
+ */
+export function splitSymbol(
+  symbol: unknown,
+): { normalizedBase: string; normalizedQuote: string } | CsvRowResult {
+  if (
+    typeof symbol !== 'string' ||
+    symbol.length > MAX_SYMBOL_LENGTH ||
+    symbol.indexOf('_') <= 0
+  ) {
+    return reject('Invalid value in column symbol');
+  }
   const i = symbol.indexOf('_');
-  if (i <= 0) return { normalizedBase: symbol, normalizedQuote: '' };
   const rest = symbol.slice(i + 1);
   const j = rest.indexOf('_');
-  return {
-    normalizedBase: symbol.slice(0, i),
-    normalizedQuote: j === -1 ? rest : rest.slice(0, j),
-  };
+  const quote = j === -1 ? rest : rest.slice(0, j);
+  if (!quote) return reject('Invalid value in column symbol');
+  return { normalizedBase: symbol.slice(0, i), normalizedQuote: quote };
 }
+
+export const isSymbolReject = (
+  v: ReturnType<typeof splitSymbol>,
+): v is CsvRowResult => 'kind' in v;
 
 /** Wraps a parseRow so an unexpected throw becomes a reject. */
 export function safe(fn: CsvParser['parseRow']): CsvParser['parseRow'] {
