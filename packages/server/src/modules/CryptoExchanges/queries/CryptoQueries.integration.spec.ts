@@ -94,6 +94,7 @@ suite('Crypto balances and sync-runs queries (integration, scratch DB)', () => {
       'crypto_sync_runs',
       'crypto_balance_snapshots',
       'crypto_raw_records',
+      'crypto_csv_imports',
       'crypto_connections',
     ]) {
       await db.schema.dropTableIfExists(t);

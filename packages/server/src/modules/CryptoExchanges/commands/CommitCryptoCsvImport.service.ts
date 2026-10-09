@@ -2,10 +2,13 @@ import { Injectable } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { ClsService } from 'nestjs-cls';
 import { ServiceError } from '@/modules/Items/ServiceError';
+import { AuditLogService } from '@/modules/EE/AuditLogs/AuditLog.service';
+import { AbilitySubject } from '@/modules/Roles/Roles.types';
 import { cryptoEvents } from '../CryptoExchanges.events';
 import { CsvImportError } from '../csv/csv.types';
 import {
   CSV_INSERT_BATCH,
+  CSV_INSERT_MAX_BYTES,
   CsvImportView,
   CsvPlannedRecord,
 } from '../csv/csvImport.types';
@@ -29,9 +32,13 @@ export class CommitCryptoCsvImportService {
     private readonly connections: CryptoConnectionRepository,
     private readonly imports: CryptoCsvImportRepository,
     private readonly csv: CsvImportService,
+    private readonly auditLog: AuditLogService,
     private readonly eventEmitter: EventEmitter2,
     private readonly cls: ClsService,
   ) {}
+
+  /** Payload bytes per INSERT statement (overridable in tests). */
+  protected insertMaxBytes = CSV_INSERT_MAX_BYTES;
 
   protected now(): Date {
     return new Date();
@@ -70,7 +77,11 @@ export class CommitCryptoCsvImportService {
 
     try {
       return await this.imports.inTransaction(async (trx) => {
-        // Serializes concurrent commits of the same import.
+        // FIRST statement: serialises imports per connection, so every read
+        // below sees any import that committed while we waited.
+        if (!(await this.imports.lockConnection(preview.connectionId, trx))) {
+          throw connectionNotFound();
+        }
         const locked = await this.imports.findImport(importId, trx, true);
         if (!locked) throw importNotFound();
         this.assertCommittable(locked.status);
@@ -92,13 +103,27 @@ export class CommitCryptoCsvImportService {
         }
 
         let inserted = 0;
-        for (let i = 0; i < plan.records.length; i += CSV_INSERT_BATCH) {
-          const batch = plan.records.slice(i, i + CSV_INSERT_BATCH);
-          inserted += await this.imports.insertIgnoringDuplicates(
-            batch.map((r) => this.toRow(locked.connectionId, importId, r)),
-            trx,
-          );
+        let batch: CsvRawRow[] = [];
+        let bytes = 0;
+        const flush = async () => {
+          if (!batch.length) return;
+          inserted += await this.imports.insertIgnoringDuplicates(batch, trx);
+          batch = [];
+          bytes = 0;
+        };
+        for (const planned of plan.records) {
+          const row = this.toRow(locked.connectionId, importId, planned);
+          const size = row.payload.length;
+          if (
+            batch.length >= CSV_INSERT_BATCH ||
+            (batch.length && bytes + size > this.insertMaxBytes)
+          ) {
+            await flush();
+          }
+          batch.push(row);
+          bytes += size;
         }
+        await flush();
 
         await this.verifyOutcome(
           locked.connectionId,
@@ -123,6 +148,21 @@ export class CommitCryptoCsvImportService {
           },
           trx,
         );
+        await this.auditLog.record({
+          trx,
+          action: 'csv_imported',
+          subject: AbilitySubject.CryptoExchange,
+          subjectId: locked.connectionId,
+          metadata: {
+            importId,
+            exchange: locked.exchange,
+            reportType: locked.reportType,
+            rowCount: plan.rowCount,
+            rowsImported: inserted,
+            rowsSkippedDuplicate: plan.records.length - inserted,
+            rowsRejected: plan.rejected.length,
+          },
+        });
         await emitConnectionEvent(
           this.eventEmitter,
           this.cls,

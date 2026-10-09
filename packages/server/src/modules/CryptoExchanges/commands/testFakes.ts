@@ -270,6 +270,27 @@ export class FakeCsvImportRepo {
     }
   };
 
+  lockConnection = async () => true;
+  findDependentImports = async (imp: any) => {
+    if (!imp.dateFrom || !imp.dateTo || !imp.committedAt) return [];
+    return [...this.imports.values()]
+      .filter(
+        (r) =>
+          r.connectionId === imp.connectionId &&
+          r.status === 'committed' &&
+          r.id !== imp.id &&
+          r.rowsSkippedDuplicate > 0 &&
+          (r.committedAt > imp.committedAt ||
+            (r.committedAt.getTime() === imp.committedAt.getTime() &&
+              r.id > imp.id)) &&
+          r.dateFrom &&
+          r.dateTo &&
+          r.dateFrom <= imp.dateTo &&
+          r.dateTo >= imp.dateFrom,
+      )
+      .map((r) => ({ ...r }));
+  };
+
   findImport = async (id: number) => {
     const row = this.imports.get(id);
     return row ? { ...row } : undefined;

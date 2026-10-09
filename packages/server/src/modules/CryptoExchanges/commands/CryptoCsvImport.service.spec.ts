@@ -10,7 +10,13 @@ import { PreviewCryptoCsvImportService } from './PreviewCryptoCsvImport.service'
 import { CommitCryptoCsvImportService } from './CommitCryptoCsvImport.service';
 import { RollbackCryptoCsvImportService } from './RollbackCryptoCsvImport.service';
 import { GetCryptoCsvImportsService } from '../queries/GetCryptoCsvImports.service';
-import { FakeCsvImportRepo, FakeEvents, FakeRepo, fakeCls } from './testFakes';
+import {
+  FakeAudit,
+  FakeCsvImportRepo,
+  FakeEvents,
+  FakeRepo,
+  fakeCls,
+} from './testFakes';
 
 const fixture = (name: string) =>
   readFileSync(join(__dirname, '../csv/parsers/pionex/__fixtures__', name));
@@ -36,6 +42,7 @@ describe('Crypto CSV import services (unit, fakes)', () => {
   let connections: FakeRepo;
   let repo: FakeCsvImportRepo;
   let events: FakeEvents;
+  let audit: FakeAudit;
   let preview: PreviewCryptoCsvImportService;
   let commit: CommitCryptoCsvImportService;
   let rollback: RollbackCryptoCsvImportService;
@@ -50,6 +57,7 @@ describe('Crypto CSV import services (unit, fakes)', () => {
     krakenId = connections.seed({ exchange: 'kraken' }).id;
     repo = new FakeCsvImportRepo();
     events = new FakeEvents();
+    audit = new FakeAudit();
     clock = new Date('2026-10-08T12:00:00Z');
     const csv = new CsvImportService(new CsvParserRegistry(PIONEX_CSV_PARSERS));
     const conns = connections as any;
@@ -60,11 +68,17 @@ describe('Crypto CSV import services (unit, fakes)', () => {
       conns,
       r,
       csv,
+      audit as any,
       events as any,
       fakeCls(),
     );
     (commit as any).now = () => clock;
-    rollback = new RollbackCryptoCsvImportService(r, events as any, fakeCls());
+    rollback = new RollbackCryptoCsvImportService(
+      r,
+      audit as any,
+      events as any,
+      fakeCls(),
+    );
     list = new GetCryptoCsvImportsService(conns, r);
   });
 
@@ -540,6 +554,147 @@ describe('Crypto CSV import services (unit, fakes)', () => {
       await expect(list.execute(999)).rejects.toMatchObject({
         errorType: 'CRYPTO_CONNECTION_NOT_FOUND',
       });
+    });
+  });
+
+  describe('audit trail', () => {
+    it('records commit and rollback with ids and counts but no row data or filename', async () => {
+      const buffer = fixture('trading.csv');
+      const p = await preview.execute(
+        pionexId,
+        upload(buffer, 'secret-name.csv'),
+        1,
+      );
+      await commit.execute(p.importId, { buffer });
+      await rollback.execute(p.importId);
+
+      expect(audit.rows).toHaveLength(2);
+      expect(audit.rows[0]).toMatchObject({
+        action: 'csv_imported',
+        subjectId: pionexId,
+        metadata: {
+          importId: p.importId,
+          reportType: p.reportType,
+          rowCount: 2,
+          rowsImported: 2,
+          rowsSkippedDuplicate: 0,
+          rowsRejected: 0,
+        },
+      });
+      expect(audit.rows[0].trx).toBeDefined();
+      expect(audit.rows[1]).toMatchObject({
+        action: 'csv_rolled_back',
+        subjectId: pionexId,
+        metadata: { importId: p.importId, rowsRemoved: 2 },
+      });
+      const text = JSON.stringify(audit.rows.map((r) => r.metadata));
+      expect(text).not.toContain('secret-name');
+      expect(text).not.toContain('TEST_USDT');
+    });
+
+    it('a failing audit write rolls the commit back', async () => {
+      const buffer = fixture('trading.csv');
+      const p = await preview.execute(pionexId, upload(buffer), 1);
+      audit.failWith = new Error('audit down');
+      await expect(commit.execute(p.importId, { buffer })).rejects.toThrow(
+        'audit down',
+      );
+      expect(repo.raw).toHaveLength(0);
+      expect(events.emitted).toHaveLength(0);
+      expect(repo.imports.get(p.importId).status).not.toBe('committed');
+    });
+
+    it('a failing audit write rolls the rollback back', async () => {
+      const buffer = fixture('trading.csv');
+      const p = await preview.execute(pionexId, upload(buffer), 1);
+      await commit.execute(p.importId, { buffer });
+      audit.failWith = new Error('audit down');
+      await expect(rollback.execute(p.importId)).rejects.toThrow('audit down');
+      expect(repo.raw).toHaveLength(2);
+      expect(repo.imports.get(p.importId).status).toBe('committed');
+    });
+  });
+
+  describe('rollback dependency guard', () => {
+    const extraRow = (n: number) =>
+      Buffer.from(
+        `"2020-01-0${n} 00:00:00","1","2","3","BUY","TEST_USDT","0.1","TEST","Spot","s_x${n}"\n`,
+      );
+    const commitFile = async (buffer: Buffer) => {
+      clock = new Date(clock.getTime() + 1000);
+      const p = await preview.execute(pionexId, upload(buffer), 1);
+      await commit.execute(p.importId, { buffer });
+      return p.importId;
+    };
+
+    it('refuses to roll back A while a later overlapping import skipped rows of A', async () => {
+      const a = fixture('trading.csv');
+      const b = Buffer.concat([a, extraRow(4)]);
+      const idA = await commitFile(a);
+      const idB = await commitFile(b);
+
+      const error = await rollback.execute(idA).catch((e) => e);
+      expect(error).toBeInstanceOf(CsvImportError);
+      expect(error.code).toBe('CSV_NOT_ROLLBACKABLE');
+      expect(error.details.dependentImportIds).toEqual([idB]);
+      expect(error.message).toMatch(/later import/i);
+      expect(repo.raw).toHaveLength(3);
+
+      await rollback.execute(idB);
+      await rollback.execute(idA);
+      expect(repo.raw).toHaveLength(0);
+    });
+
+    it('an unrelated later import (no skipped rows) does not block', async () => {
+      const idA = await commitFile(fixture('trading.csv'));
+      await commitFile(fixture('others.csv')); // different report type, no overlap in ids
+      const view = await rollback.execute(idA);
+      expect(view.status).toBe('rolled_back');
+    });
+
+    it('a later import with skipped rows but a disjoint date range does not block', async () => {
+      const a = fixture('trading.csv'); // 2020-01-02 .. 2020-01-03
+      const idA = await commitFile(a);
+      // later file skips nothing of A's and has other dates: simulate skipped rows
+      const idB = await commitFile(fixture('others.csv'));
+      repo.imports.get(idB).rowsSkippedDuplicate = 5;
+      repo.imports.get(idB).dateFrom = new Date('2021-01-01T00:00:00Z');
+      repo.imports.get(idB).dateTo = new Date('2021-01-02T00:00:00Z');
+      await expect(rollback.execute(idA)).resolves.toMatchObject({
+        status: 'rolled_back',
+      });
+    });
+
+    it('an EARLIER import never blocks a later one', async () => {
+      const a = fixture('trading.csv');
+      const b = Buffer.concat([a, extraRow(4)]);
+      await commitFile(a);
+      const idB = await commitFile(b);
+      await expect(rollback.execute(idB)).resolves.toMatchObject({
+        status: 'rolled_back',
+      });
+    });
+  });
+
+  describe('byte-bounded batches', () => {
+    it('splits a statement once its payload bytes pass the cap', async () => {
+      const comment = 'x'.repeat(1900);
+      const rows = [];
+      for (let i = 0; i < 10; i++) {
+        rows.push(
+          `"2020-01-01 00:00:${String(i).padStart(2, '0')}","USDT","1","FundingFee","${comment}"`,
+        );
+      }
+      const buffer = Buffer.from(
+        '"date(UTC+0)","coin","amount","tag","comment"\n' +
+          rows.join('\n') +
+          '\n',
+      );
+      (commit as any).insertMaxBytes = 5000;
+      const p = await preview.execute(pionexId, upload(buffer), 1);
+      const view = await commit.execute(p.importId, { buffer });
+      expect(view.rowsImported).toBe(10);
+      expect(repo.insertBatches).toEqual([2, 2, 2, 2, 2]);
     });
   });
 });

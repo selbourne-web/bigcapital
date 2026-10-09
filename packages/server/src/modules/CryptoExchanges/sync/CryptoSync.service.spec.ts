@@ -184,6 +184,7 @@ suite('CryptoSyncService (integration, scratch DB)', () => {
     await db.schema.dropTableIfExists('crypto_sync_runs');
     await db.schema.dropTableIfExists('crypto_balance_snapshots');
     await db.schema.dropTableIfExists('crypto_raw_records');
+    await db.schema.dropTableIfExists('crypto_csv_imports');
     await db.schema.dropTableIfExists('crypto_connections');
     await migrations()[0].up(db);
     await migrations()[1].up(db);

@@ -10,6 +10,8 @@ export const CSV_PARSER_REGISTRY = 'CRYPTO_CSV_PARSER_REGISTRY';
 export const CSV_PREVIEW_REJECTED_LIMIT = 50;
 /** Raw records written per INSERT statement on commit. */
 export const CSV_INSERT_BATCH = 500;
+/** Max JSON payload bytes per INSERT statement (well under max_allowed_packet). */
+export const CSV_INSERT_MAX_BYTES = 4 * 1024 * 1024;
 /** Ids per `WHERE ... IN (...)` lookup. */
 export const CSV_LOOKUP_CHUNK = 1_000;
 /** Rows removed per DELETE statement on rollback. */

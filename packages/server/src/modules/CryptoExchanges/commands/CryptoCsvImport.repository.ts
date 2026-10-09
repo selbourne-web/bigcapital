@@ -3,6 +3,7 @@ import { Knex } from 'knex';
 import { TenantModelProxy } from '@/modules/System/models/TenantBaseModel';
 import { CryptoCsvImport } from '../models/CryptoCsvImport';
 import { CryptoRawRecord } from '../models/CryptoRawRecord';
+import { CryptoConnection } from '../models/CryptoConnection';
 import { CSV_DELETE_CHUNK, CSV_LOOKUP_CHUNK } from '../csv/csvImport.types';
 
 export interface CsvRawRow {
@@ -36,6 +37,55 @@ export class CryptoCsvImportRepository {
     @Inject(CryptoRawRecord.name)
     private readonly rawModel: TenantModelProxy<typeof CryptoRawRecord>,
   ) {}
+
+  /** Rows removed per DELETE on rollback (overridable in tests). */
+  protected deleteChunk = CSV_DELETE_CHUNK;
+
+  /**
+   * Row-locks the connection. Must be the FIRST statement of a commit or
+   * rollback transaction: imports of one connection are then serialised and
+   * every later (consistent) read sees the earlier import's commit. Returns
+   * false when the connection row does not exist.
+   */
+  async lockConnection(
+    connectionId: number,
+    trx: Knex.Transaction,
+  ): Promise<boolean> {
+    const rows = await trx(CryptoConnection.tableName)
+      .select('id')
+      .where('id', connectionId)
+      .forUpdate();
+    return rows.length > 0;
+  }
+
+  /**
+   * Committed imports of the connection that committed after `imp`, skipped
+   * rows as duplicates and cover an overlapping date range. They may rely on
+   * rows `imp` wrote, so `imp` must not be rolled back before them.
+   */
+  async findDependentImports(
+    imp: CryptoCsvImport,
+    trx: Knex.Transaction,
+  ): Promise<CryptoCsvImport[]> {
+    if (!imp.dateFrom || !imp.dateTo || !imp.committedAt) return [];
+    return this.importModel()
+      .query(trx)
+      .where({ connectionId: imp.connectionId, status: 'committed' })
+      .whereNot('id', imp.id)
+      .where('rowsSkippedDuplicate', '>', 0)
+      .where((b) =>
+        b
+          .where('committedAt', '>', imp.committedAt)
+          .orWhere((c) =>
+            c.where('committedAt', imp.committedAt).where('id', '>', imp.id),
+          ),
+      )
+      .whereNotNull('dateFrom')
+      .whereNotNull('dateTo')
+      .where('dateFrom', '<=', imp.dateTo)
+      .where('dateTo', '>=', imp.dateFrom)
+      .orderBy('id') as unknown as Promise<CryptoCsvImport[]>;
+  }
 
   /**
    * Runs `work` in a transaction that is awaited to commit or roll back (the
@@ -148,8 +198,15 @@ export class CryptoCsvImportRepository {
   /**
    * Multi-row `INSERT IGNORE`: rows whose (connection, type, id) key exists
    * are skipped by the database. Returns the rows actually inserted
-   * (`affectedRows`). INSERT IGNORE also downgrades other row errors to
-   * warnings, so the caller verifies the outcome (see commit).
+   * (`affectedRows`).
+   *
+   * INSERT IGNORE downgrades every row error (truncation, invalid characters,
+   * out-of-range values) to a warning, which would store altered data under
+   * the original payload hash. So the statement's warnings are read on the same
+   * connection: only duplicate-key (1062) warnings are allowed, and they must
+   * account for exactly the rows that were not inserted. Anything else throws
+   * (the caller's transaction then rolls back). Messages carry codes only,
+   * never row data.
    */
   async insertIgnoringDuplicates(
     rows: CsvRawRow[],
@@ -162,9 +219,26 @@ export class CryptoCsvImportRepository {
       .ignore()
       .toSQL()
       .toNative();
+    // Warnings are capped by max_error_count; a batch is at most a few
+    // hundred rows, so lift the cap for this session.
+    await trx.raw('SET SESSION max_error_count = 65535');
     const result: any = await trx.raw(native.sql, native.bindings as any[]);
     const header = Array.isArray(result) ? result[0] : result;
-    return Number(header?.affectedRows ?? header?.affected_rows ?? 0);
+    const inserted = Number(header?.affectedRows ?? header?.affected_rows ?? 0);
+
+    const warned: any = await trx.raw('SHOW WARNINGS');
+    const list: any[] = (Array.isArray(warned) ? warned[0] : warned) ?? [];
+    const codes = list.map((w) => Number(w.Code ?? w.code));
+    const other = [...new Set(codes.filter((c) => c !== 1062))];
+    const duplicates = codes.filter((c) => c === 1062).length;
+    if (other.length || inserted + duplicates !== rows.length) {
+      throw new Error(
+        `CSV import aborted: the database reported unexpected warnings (codes ${
+          other.join(',') || 'none'
+        }; inserted ${inserted}, duplicates ${duplicates}, expected ${rows.length})`,
+      );
+    }
+    return inserted;
   }
 
   countByImport(importId: number, trx: Knex.Transaction): Promise<number> {
@@ -204,7 +278,7 @@ export class CryptoCsvImportRepository {
           .query(trx)
           .select('id')
           .where({ importId, source: 'csv' })
-          .limit(CSV_DELETE_CHUNK)
+          .limit(this.deleteChunk)
       ).map((r) => r.id);
       if (!ids.length) return deleted;
       deleted += await this.rawModel()

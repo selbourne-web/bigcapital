@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { ClsService } from 'nestjs-cls';
+import { AuditLogService } from '@/modules/EE/AuditLogs/AuditLog.service';
+import { AbilitySubject } from '@/modules/Roles/Roles.types';
 import { cryptoEvents } from '../CryptoExchanges.events';
 import { CsvImportError } from '../csv/csv.types';
 import { CsvImportView } from '../csv/csvImport.types';
@@ -12,6 +14,7 @@ import { emitConnectionEvent } from './emitConnectionEvent';
 export class RollbackCryptoCsvImportService {
   constructor(
     private readonly imports: CryptoCsvImportRepository,
+    private readonly auditLog: AuditLogService,
     private readonly eventEmitter: EventEmitter2,
     private readonly cls: ClsService,
   ) {}
@@ -22,9 +25,14 @@ export class RollbackCryptoCsvImportService {
    * origin and stay.
    */
   async execute(importId: number): Promise<CsvImportView> {
-    if (!(await this.imports.findImport(importId))) throw importNotFound();
+    const preview = await this.imports.findImport(importId);
+    if (!preview) throw importNotFound();
 
     return this.imports.inTransaction(async (trx) => {
+      // FIRST statement: serialises imports per connection (see commit).
+      if (!(await this.imports.lockConnection(preview.connectionId, trx))) {
+        throw importNotFound();
+      }
       const locked = await this.imports.findImport(importId, trx, true);
       if (!locked) throw importNotFound();
       if (locked.status !== 'committed') {
@@ -34,8 +42,30 @@ export class RollbackCryptoCsvImportService {
           { status: locked.status },
         );
       }
-      await this.imports.deleteRawByImport(importId, trx);
+      const dependents = await this.imports.findDependentImports(locked, trx);
+      if (dependents.length) {
+        const ids = dependents.map((d) => d.id);
+        throw new CsvImportError(
+          'CSV_NOT_ROLLBACKABLE',
+          `Roll back the later import(s) first (${ids.join(', ')}): they skipped rows that this import wrote.`,
+          { status: locked.status, dependentImportIds: ids },
+        );
+      }
+      const removed = await this.imports.deleteRawByImport(importId, trx);
       await this.imports.patchImport(importId, { status: 'rolled_back' }, trx);
+      await this.auditLog.record({
+        trx,
+        action: 'csv_rolled_back',
+        subject: AbilitySubject.CryptoExchange,
+        subjectId: locked.connectionId,
+        metadata: {
+          importId,
+          exchange: locked.exchange,
+          reportType: locked.reportType,
+          rowsImported: locked.rowsImported,
+          rowsRemoved: removed,
+        },
+      });
       await emitConnectionEvent(
         this.eventEmitter,
         this.cls,

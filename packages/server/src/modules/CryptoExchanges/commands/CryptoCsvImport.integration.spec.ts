@@ -15,7 +15,7 @@ import { PreviewCryptoCsvImportService } from './PreviewCryptoCsvImport.service'
 import { CommitCryptoCsvImportService } from './CommitCryptoCsvImport.service';
 import { RollbackCryptoCsvImportService } from './RollbackCryptoCsvImport.service';
 import { GetCryptoCsvImportsService } from '../queries/GetCryptoCsvImports.service';
-import { FakeEvents, fakeCls } from './testFakes';
+import { FakeAudit, FakeEvents, fakeCls } from './testFakes';
 
 /**
  * Integration spec against a throwaway MariaDB database: real Objection models,
@@ -66,6 +66,7 @@ suite('Crypto CSV import (integration, scratch DB)', () => {
   let list: GetCryptoCsvImportsService;
   let csv: CsvImportService;
   let events: FakeEvents;
+  let audit: FakeAudit;
   let connectionId: number;
 
   const addConnection = async (extra: Record<string, unknown> = {}) => {
@@ -115,16 +116,19 @@ suite('Crypto CSV import (integration, scratch DB)', () => {
     );
     csv = new CsvImportService(new CsvParserRegistry(PIONEX_CSV_PARSERS));
     events = new FakeEvents();
+    audit = new FakeAudit();
     preview = new PreviewCryptoCsvImportService(connections, imports, csv);
     commit = new CommitCryptoCsvImportService(
       connections,
       imports,
       csv,
+      audit as any,
       events as any,
       fakeCls(),
     );
     rollback = new RollbackCryptoCsvImportService(
       imports,
+      audit as any,
       events as any,
       fakeCls(),
     );
