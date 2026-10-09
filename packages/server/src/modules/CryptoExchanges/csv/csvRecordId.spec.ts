@@ -1,4 +1,5 @@
 import { assignCsvRecordIds } from './csvRecordId';
+import { readCsv } from './CsvReader';
 import { CsvRecordInput } from './csv.types';
 
 const rec: CsvRecordInput = {
@@ -42,5 +43,22 @@ describe('assignCsvRecordIds', () => {
     expect(
       Math.max(...many.map((r) => r.exchangeRecordId.length)),
     ).toBeLessThanOrEqual(191);
+  });
+
+  it('hashes in header order even for integer-like headers', () => {
+    const read = readCsv(Buffer.from('b,1\nx,y\n'));
+    const [fromReader] = assignCsvRecordIds('p:1', [
+      { cells: read.rows[0].cells, record: rec },
+    ]);
+    const [explicit] = assignCsvRecordIds(
+      'p:1',
+      [{ cells: { ...read.rows[0].cells }, record: rec }],
+      read.headers,
+    );
+    const [reordered] = assignCsvRecordIds('p:1', [
+      { cells: { '1': 'y', b: 'x' }, record: rec },
+    ]);
+    expect(fromReader.exchangeRecordId).toBe(explicit.exchangeRecordId);
+    expect(fromReader.exchangeRecordId).not.toBe(reordered.exchangeRecordId);
   });
 });

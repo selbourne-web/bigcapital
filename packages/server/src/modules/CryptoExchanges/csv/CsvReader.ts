@@ -1,6 +1,6 @@
 import { parse } from 'csv-parse/sync';
 import { CSV_LIMITS } from '../CryptoExchanges.constants';
-import { CsvImportError, ReadCsvResult } from './csv.types';
+import { CSV_HEADER_ORDER, CsvImportError, ReadCsvResult } from './csv.types';
 
 interface ParsedEntry {
   record: string[];
@@ -8,6 +8,30 @@ interface ParsedEntry {
 }
 
 const LF = 0x0a;
+const CR = 0x0d;
+const RESERVED_HEADERS = new Set(['__proto__', 'constructor', 'prototype']);
+
+/**
+ * Line numbers are LF-based, so UTF-16 input and lone-CR line endings are
+ * refused (any CR not followed by LF, even inside a quoted cell).
+ */
+function assertSupportedEncoding(buffer: Buffer): void {
+  const utf16 =
+    buffer.length >= 2 &&
+    ((buffer[0] === 0xff && buffer[1] === 0xfe) ||
+      (buffer[0] === 0xfe && buffer[1] === 0xff));
+  if (utf16) {
+    throw new CsvImportError('CSV_MALFORMED', 'UTF-16 CSV is not supported');
+  }
+  for (let i = buffer.indexOf(CR); i !== -1; i = buffer.indexOf(CR, i + 1)) {
+    if (buffer[i + 1] !== LF) {
+      throw new CsvImportError(
+        'CSV_MALFORMED',
+        'CSV uses unsupported line endings (lone CR)',
+      );
+    }
+  }
+}
 
 /**
  * Bounded, synchronous CSV reader. The buffer is already capped in memory by
@@ -22,6 +46,8 @@ export function readCsv(buffer: Buffer): ReadCsvResult {
       `CSV file exceeds ${CSV_LIMITS.maxBytes} bytes`,
     );
   }
+
+  assertSupportedEncoding(buffer);
 
   let entries: ParsedEntry[];
   try {
@@ -60,6 +86,13 @@ export function readCsv(buffer: Buffer): ReadCsvResult {
   const headers = entries[0].record.map((h) => h.trim());
   if (new Set(headers).size !== headers.length) {
     throw new CsvImportError('CSV_MALFORMED', 'CSV header has duplicate names');
+  }
+  const reserved = headers.find((h) => RESERVED_HEADERS.has(h));
+  if (reserved !== undefined) {
+    throw new CsvImportError(
+      'CSV_MALFORMED',
+      `CSV header name "${reserved}" is not allowed`,
+    );
   }
   assertCellLengths(entries[0].record);
 
@@ -104,6 +137,9 @@ export function readCsv(buffer: Buffer): ReadCsvResult {
     headers.forEach((h, idx) => {
       cells[h] = record[idx];
     });
+    // Header order for record ids (integer-like keys would otherwise be
+    // enumerated first). Non-enumerable so it never leaks into comparisons.
+    Object.defineProperty(cells, CSV_HEADER_ORDER, { value: headers });
     rows.push({ line, cells });
   }
 

@@ -3,6 +3,9 @@ import {
   CryptoRecordType,
 } from '../CryptoExchanges.constants';
 
+/** Non-enumerable key on `cells` objects from readCsv: headers in file order. */
+export const CSV_HEADER_ORDER: unique symbol = Symbol('csvHeaderOrder');
+
 export interface CsvRecordInput {
   recordType: CryptoRecordType;
   occurredAt: Date;

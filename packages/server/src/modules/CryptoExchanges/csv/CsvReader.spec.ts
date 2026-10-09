@@ -71,4 +71,25 @@ describe('readCsv', () => {
       );
     }
   });
+
+  it('refuses UTF-16 input and lone-CR line endings, keeps CRLF/LF', () => {
+    const utf16 = Buffer.concat([
+      Buffer.from([0xff, 0xfe]),
+      Buffer.from('a,b\n1,2\n', 'utf16le'),
+    ]);
+    expect(() => readCsv(utf16)).toThrow(
+      expect.objectContaining({ code: 'CSV_MALFORMED' }),
+    );
+    expect(() => readCsv(Buffer.from('a,b\r1,2\r'))).toThrow(
+      expect.objectContaining({ code: 'CSV_MALFORMED' }),
+    );
+    expect(readCsv(Buffer.from('a,b\r\n1,2\r\n')).rows[0].line).toBe(2);
+    expect(readCsv(Buffer.from('a,b\n1,2\n')).rows[0].line).toBe(2);
+  });
+
+  it('rejects reserved header names such as __proto__', () => {
+    expect(() => readCsv(Buffer.from('__proto__,1,b\nx,y,z\n'))).toThrow(
+      expect.objectContaining({ code: 'CSV_MALFORMED' }),
+    );
+  });
 });
