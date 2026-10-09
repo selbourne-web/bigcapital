@@ -77,6 +77,10 @@ export const CRYPTO_SYNC_KINDS: readonly CryptoSyncKind[] = [
 /** Account type used for accounts created on behalf of a connection (current asset). */
 export const CRYPTO_ACCOUNT_TYPE = 'other-current-asset';
 
+export const CRYPTO_CSV_IMPORT_ERRORS = {
+  NOT_FOUND: 'CRYPTO_CSV_IMPORT_NOT_FOUND',
+} as const;
+
 export const CRYPTO_CONNECTION_ERRORS = {
   NOT_FOUND: 'CRYPTO_CONNECTION_NOT_FOUND',
   EXCHANGE_NOT_SUPPORTED: 'CRYPTO_EXCHANGE_NOT_SUPPORTED',

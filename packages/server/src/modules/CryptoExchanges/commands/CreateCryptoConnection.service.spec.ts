@@ -113,6 +113,7 @@ describe('CreateCryptoConnectionService', () => {
         'label',
         'lastError',
         'lastSyncAt',
+        'mode',
         'status',
       ].sort(),
     );

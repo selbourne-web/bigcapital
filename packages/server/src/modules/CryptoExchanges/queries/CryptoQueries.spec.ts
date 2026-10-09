@@ -79,6 +79,7 @@ describe('GetCryptoConnectionsService', () => {
         exchange: 'kraken',
         label: 'Kraken - Trading',
         status: 'active',
+        mode: 'api',
         keyHint: '7731',
         accountId: 12,
         lastSyncAt: row.lastSyncAt,

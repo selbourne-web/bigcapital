@@ -41,6 +41,15 @@ import { DeleteCryptoConnectionService } from './commands/DeleteCryptoConnection
 import { GetCryptoConnectionsService } from './queries/GetCryptoConnections.service';
 import { GetCryptoBalancesService } from './queries/GetCryptoBalances.service';
 import { GetCryptoSyncRunsService } from './queries/GetCryptoSyncRuns.service';
+import { GetCryptoCsvImportsService } from './queries/GetCryptoCsvImports.service';
+import { CryptoCsvImportRepository } from './commands/CryptoCsvImport.repository';
+import { PreviewCryptoCsvImportService } from './commands/PreviewCryptoCsvImport.service';
+import { CommitCryptoCsvImportService } from './commands/CommitCryptoCsvImport.service';
+import { RollbackCryptoCsvImportService } from './commands/RollbackCryptoCsvImport.service';
+import { CsvImportService } from './csv/CsvImport.service';
+import { CsvParserRegistry } from './csv/CsvParserRegistry';
+import { CSV_PARSER_REGISTRY } from './csv/csvImport.types';
+import { PIONEX_CSV_PARSERS } from './csv/parsers/pionex/pionex.parsers';
 
 /**
  * Tenant models. Registering `CryptoConnection` is also what activates the
@@ -89,6 +98,16 @@ export const cryptoExchangesProviders: Provider[] = [
   GetCryptoConnectionsService,
   GetCryptoBalancesService,
   GetCryptoSyncRunsService,
+  GetCryptoCsvImportsService,
+  CryptoCsvImportRepository,
+  PreviewCryptoCsvImportService,
+  CommitCryptoCsvImportService,
+  RollbackCryptoCsvImportService,
+  CsvImportService,
+  {
+    provide: CSV_PARSER_REGISTRY,
+    useFactory: () => new CsvParserRegistry([...PIONEX_CSV_PARSERS]),
+  },
   // CRYPTO_LIVE_EMITTER is provided globally by CryptoLiveModule (real Socket.IO emitter).
 ];
 

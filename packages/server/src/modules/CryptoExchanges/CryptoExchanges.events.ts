@@ -14,6 +14,11 @@ export const cryptoEvents = {
     deleted: 'crypto.connection.deleted',
     credentialsRotated: 'crypto.connection.credentials-rotated',
   },
+  /** CSV import lifecycle (no listener schedules anything from these). */
+  csvImport: {
+    committed: 'crypto.csv-import.committed',
+    rolledBack: 'crypto.csv-import.rolled-back',
+  },
 } as const;
 
 export interface CryptoConnectionEventPayload {

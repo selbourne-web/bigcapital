@@ -230,3 +230,159 @@ export const expectNoSecrets = (...values: unknown[]) => {
     expect(text).not.toContain(secret);
   }
 };
+
+/**
+ * In-memory stand-in for CryptoCsvImportRepository: a unique key on
+ * (connection, type, id) and a snapshot/restore transaction.
+ */
+export class FakeCsvImportRepo {
+  imports = new Map<number, any>();
+  raw: any[] = [];
+  private importSeq = 0;
+  private rawSeq = 0;
+  /** 1-based insert call that throws (inside the transaction). */
+  failOnInsertCall?: number;
+  insertBatches: number[] = [];
+  transactions = 0;
+
+  seedRaw(row: Partial<any>) {
+    this.raw.push({
+      id: ++this.rawSeq,
+      source: 'api',
+      importId: null,
+      payloadHash: 'h',
+      ...row,
+    });
+  }
+
+  inTransaction = async <T>(work: (trx: any) => Promise<T>): Promise<T> => {
+    this.transactions += 1;
+    const rawSnapshot = this.raw.map((r) => ({ ...r }));
+    const importSnapshot = new Map(
+      [...this.imports].map(([k, v]) => [k, { ...v }]),
+    );
+    try {
+      return await work({ fake: true });
+    } catch (error) {
+      this.raw = rawSnapshot;
+      this.imports = importSnapshot;
+      throw error;
+    }
+  };
+
+  findImport = async (id: number) => {
+    const row = this.imports.get(id);
+    return row ? { ...row } : undefined;
+  };
+  insertImport = async (values: any) => {
+    const row = {
+      id: ++this.importSeq,
+      rowsImported: 0,
+      rowsSkippedDuplicate: 0,
+      committedAt: null,
+      error: null,
+      ...values,
+    };
+    this.imports.set(row.id, row);
+    return { ...row };
+  };
+  patchImport = async (id: number, values: any) => {
+    this.imports.set(id, { ...this.imports.get(id), ...values });
+  };
+  markFailed = async (id: number, error: string) => {
+    const row = this.imports.get(id);
+    if (row?.status === 'previewed')
+      Object.assign(row, { status: 'failed', error });
+  };
+  listImports = async (connectionId: number, limit: number) =>
+    [...this.imports.values()]
+      .filter((r) => r.connectionId === connectionId)
+      .sort((a, b) => b.id - a.id)
+      .slice(0, limit)
+      .map((r) => ({ ...r }));
+  findCommittedByHash = async (
+    connectionId: number,
+    sha: string,
+    _trx?: any,
+    excludeId?: number,
+  ) =>
+    [...this.imports.values()].find(
+      (r) =>
+        r.connectionId === connectionId &&
+        r.fileSha256 === sha &&
+        r.status === 'committed' &&
+        r.id !== excludeId,
+    );
+  deleteStalePreviews = async (connectionId: number, before: Date) => {
+    for (const [id, r] of this.imports) {
+      if (
+        r.connectionId === connectionId &&
+        r.status === 'previewed' &&
+        r.createdAt < before
+      ) {
+        this.imports.delete(id);
+      }
+    }
+  };
+  findExistingIds = async (
+    connectionId: number,
+    recordType: string,
+    ids: string[],
+  ) => {
+    const wanted = new Set(ids);
+    return new Set(
+      this.raw
+        .filter(
+          (r) =>
+            r.connectionId === connectionId &&
+            r.recordType === recordType &&
+            wanted.has(r.exchangeRecordId),
+        )
+        .map((r) => r.exchangeRecordId),
+    );
+  };
+  countApiTrades = async (connectionId: number, from: Date, to: Date) =>
+    this.raw.filter(
+      (r) =>
+        r.connectionId === connectionId &&
+        r.source === 'api' &&
+        r.recordType === 'trade' &&
+        r.occurredAt >= from &&
+        r.occurredAt <= to,
+    ).length;
+  insertIgnoringDuplicates = async (rows: any[]) => {
+    this.insertBatches.push(rows.length);
+    if (this.failOnInsertCall === this.insertBatches.length) {
+      throw new Error('forced insert failure');
+    }
+    let inserted = 0;
+    for (const row of rows) {
+      const exists = this.raw.some(
+        (r) =>
+          r.connectionId === row.connectionId &&
+          r.recordType === row.recordType &&
+          r.exchangeRecordId === row.exchangeRecordId,
+      );
+      if (!exists) {
+        this.raw.push({ id: ++this.rawSeq, ...row });
+        inserted += 1;
+      }
+    }
+    return inserted;
+  };
+  countByImport = async (importId: number) =>
+    this.raw.filter((r) => r.importId === importId && r.source === 'csv')
+      .length;
+  countPresent = async (
+    connectionId: number,
+    recordType: string,
+    ids: string[],
+  ) => (await this.findExistingIds(connectionId, recordType, ids)).size;
+  deleteRawByImport = async (importId: number) => {
+    const before = this.raw.length;
+    this.raw = this.raw.filter(
+      (r) => !(r.importId === importId && r.source === 'csv'),
+    );
+    return before - this.raw.length;
+  };
+}

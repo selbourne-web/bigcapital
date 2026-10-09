@@ -40,6 +40,7 @@ export type CsvErrorCode =
   | 'CSV_TOO_LARGE'
   | 'CSV_FILE_CHANGED'
   | 'CSV_NOT_ROLLBACKABLE'
+  | 'CSV_NOT_COMMITTABLE'
   | 'CSV_MALFORMED';
 
 export class CsvImportError extends Error {
