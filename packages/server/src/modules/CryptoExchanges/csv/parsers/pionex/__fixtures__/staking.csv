@@ -1,0 +1,4 @@
+"date(UTC+0)","Received Quantity","Received Currency","Sent Quantity","Sent Currency","tag"
+"2026-01-01 00:00:00","0.001","SOL","","","issued_profit"
+"2026-01-01 00:00:00","0.001","SOL","","","issued_profit"
+"2026-01-02 00:00:00","","","0.5","SOL","redeem"
