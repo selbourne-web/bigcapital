@@ -8,14 +8,45 @@ export type CryptoExchangeId =
 
 export type CryptoConnectionStatus = 'active' | 'paused' | 'error';
 
-export type CryptoRecordType =
-  | 'trade'
-  | 'deposit'
-  | 'withdrawal'
-  | 'fee'
-  | 'reward'
+/**
+ * Raw record types. `record_type` is varchar(16): keep every name within it.
+ * `trade_summary` is a grouped view of fills already stored as `trade` (never
+ * posted to the ledger); `funding`, `adjustment` and `position` come from CSV
+ * reports.
+ */
+export const CRYPTO_RECORD_TYPES = [
+  'trade',
+  'deposit',
+  'withdrawal',
+  'fee',
+  'reward',
+  'trade_summary',
+  'funding',
+  'adjustment',
+  'position',
   /** Response that did not match the documented shape; stored so no data is lost. */
-  | 'unparsed';
+  'unparsed',
+] as const;
+
+export type CryptoRecordType = (typeof CRYPTO_RECORD_TYPES)[number];
+
+export type CryptoConnectionMode = 'api' | 'csv_only';
+
+export type CryptoRecordSource = 'api' | 'csv';
+
+export type CsvImportStatus =
+  | 'previewed'
+  | 'committed'
+  | 'rolled_back'
+  | 'failed';
+
+/** Bounds on untrusted CSV uploads. */
+export const CSV_LIMITS = {
+  maxBytes: 10 * 1024 * 1024,
+  maxRows: 200_000,
+  maxCellChars: 2_000,
+  maxFilenameChars: 255,
+} as const;
 
 export type CryptoSyncKind = 'initial' | 'incremental' | 'manual';
 

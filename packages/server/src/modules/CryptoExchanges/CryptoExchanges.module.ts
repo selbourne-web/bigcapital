@@ -16,6 +16,7 @@ import { CryptoConnection } from './models/CryptoConnection';
 import { CryptoRawRecord } from './models/CryptoRawRecord';
 import { CryptoBalanceSnapshot } from './models/CryptoBalanceSnapshot';
 import { CryptoSyncRun } from './models/CryptoSyncRun';
+import { CryptoCsvImport } from './models/CryptoCsvImport';
 import { CryptoVault } from './vault/CryptoVault.service';
 import { AdapterRegistry } from './adapters/AdapterRegistry';
 import { RateLimiter } from './sync/RateLimiter.service';
@@ -51,6 +52,7 @@ export const cryptoExchangeModels = [
   CryptoRawRecord,
   CryptoBalanceSnapshot,
   CryptoSyncRun,
+  CryptoCsvImport,
 ];
 const models = cryptoExchangeModels.map((model) => RegisterTenancyModel(model));
 

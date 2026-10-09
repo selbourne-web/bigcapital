@@ -1,6 +1,7 @@
 import { HistoryCoverage } from '../adapters/ExchangeAdapter';
 import { CryptoConnection } from '../models/CryptoConnection';
 import {
+  CryptoConnectionMode,
   CryptoConnectionStatus,
   CryptoExchangeId,
 } from '../CryptoExchanges.constants';
@@ -11,6 +12,7 @@ export interface CryptoConnectionView {
   exchange: CryptoExchangeId;
   label: string;
   status: CryptoConnectionStatus;
+  mode: CryptoConnectionMode;
   keyHint: string | null;
   accountId: number | null;
   lastSyncAt: Date | null;
@@ -29,6 +31,7 @@ export const toConnectionView = (
   exchange: c.exchange,
   label: c.label,
   status: c.status,
+  mode: c.mode ?? 'api',
   keyHint: c.keyHint ?? null,
   accountId: c.accountId ?? null,
   lastSyncAt: c.lastSyncAt ?? null,

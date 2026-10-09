@@ -1,4 +1,6 @@
 import {
+  CRYPTO_RECORD_TYPES,
+  CSV_LIMITS,
   CRYPTO_SYNC_PIONEX_QUEUE,
   CRYPTO_SYNC_QUEUE_NAMES,
   SUPPORTED_CRYPTO_EXCHANGES,
@@ -37,5 +39,34 @@ describe('crypto exchange constants (pieces 2a, 2b)', () => {
 
   it('still has no queue for CSV-only exchanges', () => {
     expect(() => queueNameFor('nexo')).toThrow(/nexo/);
+  });
+
+  it('knows the CSV-era record types and keeps every type within varchar(16)', () => {
+    expect(CRYPTO_RECORD_TYPES).toEqual(
+      expect.arrayContaining([
+        'trade',
+        'deposit',
+        'withdrawal',
+        'fee',
+        'reward',
+        'unparsed',
+        'trade_summary',
+        'funding',
+        'adjustment',
+        'position',
+      ]),
+    );
+    for (const t of CRYPTO_RECORD_TYPES) {
+      expect(t.length).toBeLessThanOrEqual(16);
+    }
+  });
+
+  it('bounds untrusted CSV input', () => {
+    expect(CSV_LIMITS).toEqual({
+      maxBytes: 10 * 1024 * 1024,
+      maxRows: 200_000,
+      maxCellChars: 2_000,
+      maxFilenameChars: 255,
+    });
   });
 });

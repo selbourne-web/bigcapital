@@ -49,6 +49,7 @@ import { CryptoConnection } from './models/CryptoConnection';
 import { CryptoRawRecord } from './models/CryptoRawRecord';
 import { CryptoBalanceSnapshot } from './models/CryptoBalanceSnapshot';
 import { CryptoSyncRun } from './models/CryptoSyncRun';
+import { CryptoCsvImport } from './models/CryptoCsvImport';
 
 const validKey = Buffer.alloc(32, 9).toString('base64');
 const config = (key: string | null) => ({
@@ -104,7 +105,7 @@ const compile = (key: string | null = validKey) =>
   }).compile();
 
 describe('CryptoExchangesModule wiring', () => {
-  it('registers all four tenant models under their Model.name tokens', () => {
+  it('registers all five tenant models under their Model.name tokens', () => {
     const imports = Reflect.getMetadata(
       MODULE_METADATA.IMPORTS,
       CryptoExchangesModule,
@@ -119,6 +120,7 @@ describe('CryptoExchangesModule wiring', () => {
         CryptoRawRecord.name,
         CryptoBalanceSnapshot.name,
         CryptoSyncRun.name,
+        CryptoCsvImport.name,
       ]),
     );
     expect(cryptoExchangeModels).toEqual([
@@ -126,6 +128,7 @@ describe('CryptoExchangesModule wiring', () => {
       CryptoRawRecord,
       CryptoBalanceSnapshot,
       CryptoSyncRun,
+      CryptoCsvImport,
     ]);
   });
 

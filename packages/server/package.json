@@ -83,6 +83,7 @@
     "cache-manager-redis-store": "^3.0.1",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.1",
+    "csv-parse": "6.2.1",
     "deepdash": "^5.3.9",
     "express-validator": "^7.2.0",
     "file-type": "^16.5.4",

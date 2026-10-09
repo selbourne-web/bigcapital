@@ -13,6 +13,7 @@ const connection = {
   exchange: 'kraken',
   label: 'Kraken - Trading',
   status: 'active',
+  mode: 'api',
   key_hint: '7731',
   account_id: 12,
   last_sync_at: '2026-10-05T10:00:00.000Z',

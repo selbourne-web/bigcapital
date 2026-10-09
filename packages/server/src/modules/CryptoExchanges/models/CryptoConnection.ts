@@ -1,5 +1,6 @@
 import { TenantBaseModel } from '@/modules/System/models/TenantBaseModel';
 import {
+  CryptoConnectionMode,
   CryptoConnectionStatus,
   CryptoExchangeId,
 } from '../CryptoExchanges.constants';
@@ -14,6 +15,8 @@ export class CryptoConnection extends TenantBaseModel {
   keyVersion: number;
   keyHint?: string | null;
   status: CryptoConnectionStatus;
+  /** `csv_only` connections have no API credentials and are fed by CSV imports. */
+  mode: CryptoConnectionMode;
   lastSyncAt?: Date | null;
   lastError?: string | null;
   accountId?: number | null;
