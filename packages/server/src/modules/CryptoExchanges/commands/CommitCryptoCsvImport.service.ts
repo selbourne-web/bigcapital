@@ -40,10 +40,6 @@ export class CommitCryptoCsvImportService {
   /** Payload bytes per INSERT statement (overridable in tests). */
   protected insertMaxBytes = CSV_INSERT_MAX_BYTES;
 
-  protected now(): Date {
-    return new Date();
-  }
-
   /**
    * Re-parses the re-sent file and writes its records, all or nothing. Rows
    * whose key already exists (an earlier import or the API) are skipped and
@@ -113,7 +109,7 @@ export class CommitCryptoCsvImportService {
         };
         for (const planned of plan.records) {
           const row = this.toRow(locked.connectionId, importId, planned);
-          const size = row.payload.length;
+          const size = Buffer.byteLength(row.payload, 'utf8');
           if (
             batch.length >= CSV_INSERT_BATCH ||
             (batch.length && bytes + size > this.insertMaxBytes)
@@ -133,7 +129,7 @@ export class CommitCryptoCsvImportService {
           trx,
         );
 
-        await this.imports.patchImport(
+        await this.imports.markCommitted(
           importId,
           {
             rowCount: plan.rowCount,
@@ -142,9 +138,6 @@ export class CommitCryptoCsvImportService {
             rowsRejected: plan.rejected.length,
             dateFrom: plan.dateFrom,
             dateTo: plan.dateTo,
-            status: 'committed',
-            committedAt: this.now(),
-            error: null,
           },
           trx,
         );

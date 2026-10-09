@@ -27,6 +27,7 @@ export class CryptoCsvImport extends TenantBaseModel {
   status: CsvImportStatus;
   error?: string | null;
   createdAt?: Date;
+  /** DATETIME(6): set by the database clock inside the commit transaction. */
   committedAt?: Date | null;
   uploadedBy?: number | null;
 

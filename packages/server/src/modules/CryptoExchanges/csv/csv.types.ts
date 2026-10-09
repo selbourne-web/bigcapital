@@ -41,6 +41,7 @@ export type CsvErrorCode =
   | 'CSV_FILE_CHANGED'
   | 'CSV_NOT_ROLLBACKABLE'
   | 'CSV_NOT_COMMITTABLE'
+  | 'CSV_BUSY'
   | 'CSV_MALFORMED';
 
 export class CsvImportError extends Error {

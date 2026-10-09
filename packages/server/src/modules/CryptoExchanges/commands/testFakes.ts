@@ -6,6 +6,7 @@ import { CryptoConnection } from '../models/CryptoConnection';
 import { KeyInspection } from '../adapters/ExchangeAdapter';
 import { CryptoConnectionValidators } from './CryptoConnectionValidators.service';
 import { CryptoConnectionRepository } from './CryptoConnection.repository';
+import { mapTransientDbError } from './CryptoCsvImport.repository';
 
 /** Distinctive fake secrets: assertions search every output for them. */
 export const FAKE_KEY = 'AKIA-DISTINCTIVE-KEY-7731';
@@ -244,6 +245,9 @@ export class FakeCsvImportRepo {
   failOnInsertCall?: number;
   insertBatches: number[] = [];
   transactions = 0;
+  /** Ordered log of lock-related calls. */
+  calls: string[] = [];
+  private commitSeq = 0;
 
   seedRaw(row: Partial<any>) {
     this.raw.push({
@@ -266,11 +270,14 @@ export class FakeCsvImportRepo {
     } catch (error) {
       this.raw = rawSnapshot;
       this.imports = importSnapshot;
-      throw error;
+      throw mapTransientDbError(error);
     }
   };
 
-  lockConnection = async () => true;
+  lockConnection = async () => {
+    this.calls.push('lockConnection');
+    return true;
+  };
   findDependentImports = async (imp: any) => {
     if (!imp.dateFrom || !imp.dateTo || !imp.committedAt) return [];
     return [...this.imports.values()]
@@ -280,9 +287,7 @@ export class FakeCsvImportRepo {
           r.status === 'committed' &&
           r.id !== imp.id &&
           r.rowsSkippedDuplicate > 0 &&
-          (r.committedAt > imp.committedAt ||
-            (r.committedAt.getTime() === imp.committedAt.getTime() &&
-              r.id > imp.id)) &&
+          r.committedAt > imp.committedAt &&
           r.dateFrom &&
           r.dateTo &&
           r.dateFrom <= imp.dateTo &&
@@ -291,7 +296,8 @@ export class FakeCsvImportRepo {
       .map((r) => ({ ...r }));
   };
 
-  findImport = async (id: number) => {
+  findImport = async (id: number, _trx?: any, lock = false) => {
+    this.calls.push(lock ? 'findImport:lock' : 'findImport');
     const row = this.imports.get(id);
     return row ? { ...row } : undefined;
   };
@@ -306,6 +312,16 @@ export class FakeCsvImportRepo {
     };
     this.imports.set(row.id, row);
     return { ...row };
+  };
+  /** committed_at follows commit order only (never ids or the test clock). */
+  markCommitted = async (id: number, values: any) => {
+    this.imports.set(id, {
+      ...this.imports.get(id),
+      ...values,
+      status: 'committed',
+      error: null,
+      committedAt: new Date(Date.UTC(2026, 9, 8) + ++this.commitSeq),
+    });
   };
   patchImport = async (id: number, values: any) => {
     this.imports.set(id, { ...this.imports.get(id), ...values });

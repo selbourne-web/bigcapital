@@ -34,7 +34,8 @@ exports.up = async function (knex) {
     table.string('status', 16).notNullable().defaultTo('previewed');
     table.text('error').nullable();
     table.dateTime('created_at').notNullable().defaultTo(knex.fn.now());
-    table.dateTime('committed_at').nullable();
+    // DATETIME(6): commits of one connection are totally ordered (rollback guard).
+    table.dateTime('committed_at', { precision: 6 }).nullable();
     table.integer('uploaded_by').unsigned().nullable();
     // Duplicate-file detection (committed only) lives in service logic, so a
     // rolled-back file can be imported again: no DB unique here.

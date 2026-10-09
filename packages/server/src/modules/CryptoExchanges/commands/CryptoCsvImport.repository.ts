@@ -1,10 +1,12 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { Knex } from 'knex';
+import { raw } from 'objection';
 import { TenantModelProxy } from '@/modules/System/models/TenantBaseModel';
 import { CryptoCsvImport } from '../models/CryptoCsvImport';
 import { CryptoRawRecord } from '../models/CryptoRawRecord';
 import { CryptoConnection } from '../models/CryptoConnection';
 import { CSV_DELETE_CHUNK, CSV_LOOKUP_CHUNK } from '../csv/csvImport.types';
+import { CsvImportError } from '../csv/csv.types';
 
 export interface CsvRawRow {
   connectionId: number;
@@ -16,6 +18,32 @@ export interface CsvRawRow {
   payloadHash: string;
   source: 'csv';
   importId: number;
+}
+
+/** ER_LOCK_WAIT_TIMEOUT (1205) and ER_LOCK_DEADLOCK (1213): retrying is safe. */
+export function isTransientDbError(error: unknown): boolean {
+  const e = error as {
+    code?: string;
+    errno?: number;
+    nativeError?: { code?: string; errno?: number };
+  };
+  const codes = [e?.code, e?.nativeError?.code];
+  const errnos = [e?.errno, e?.nativeError?.errno];
+  return (
+    codes.some(
+      (c) => c === 'ER_LOCK_WAIT_TIMEOUT' || c === 'ER_LOCK_DEADLOCK',
+    ) || errnos.some((n) => n === 1205 || n === 1213)
+  );
+}
+
+/** Transient DB errors become a retryable CSV_BUSY; everything else is untouched. */
+export function mapTransientDbError(error: unknown): unknown {
+  return isTransientDbError(error)
+    ? new CsvImportError(
+        'CSV_BUSY',
+        'The database was busy. Nothing was changed; please try again.',
+      )
+    : error;
 }
 
 const chunked = <T>(items: T[], size: number): T[][] => {
@@ -68,6 +96,10 @@ export class CryptoCsvImportRepository {
     trx: Knex.Transaction,
   ): Promise<CryptoCsvImport[]> {
     if (!imp.dateFrom || !imp.dateTo || !imp.committedAt) return [];
+    // Compared in SQL against the stored DATETIME(6): a JS Date would truncate
+    // to milliseconds.
+    const mine = () =>
+      this.importModel().query(trx).select('committedAt').findById(imp.id);
     return this.importModel()
       .query(trx)
       .where({ connectionId: imp.connectionId, status: 'committed' })
@@ -75,9 +107,9 @@ export class CryptoCsvImportRepository {
       .where('rowsSkippedDuplicate', '>', 0)
       .where((b) =>
         b
-          .where('committedAt', '>', imp.committedAt)
+          .where('committedAt', '>', mine())
           .orWhere((c) =>
-            c.where('committedAt', imp.committedAt).where('id', '>', imp.id),
+            c.where('committedAt', '=', mine()).where('id', '>', imp.id),
           ),
       )
       .whereNotNull('dateFrom')
@@ -92,8 +124,35 @@ export class CryptoCsvImportRepository {
    * shared UnitOfWork does not await either), so callers can rely on the
    * outcome being final when this resolves.
    */
-  inTransaction<T>(work: (trx: Knex.Transaction) => Promise<T>): Promise<T> {
-    return this.rawModel().knex().transaction(work);
+  async inTransaction<T>(
+    work: (trx: Knex.Transaction) => Promise<T>,
+  ): Promise<T> {
+    try {
+      return await this.rawModel().knex().transaction(work);
+    } catch (error) {
+      throw mapTransientDbError(error);
+    }
+  }
+
+  /**
+   * Marks the import committed. `committed_at` is the database clock at
+   * microsecond precision, taken inside the connection-locked transaction, so
+   * commits of one connection are strictly ordered.
+   */
+  async markCommitted(
+    id: number,
+    values: Partial<CryptoCsvImport>,
+    trx: Knex.Transaction,
+  ): Promise<void> {
+    await this.importModel()
+      .query(trx)
+      .findById(id)
+      .patch({
+        ...values,
+        status: 'committed',
+        committedAt: raw('NOW(6)') as any,
+        error: null,
+      });
   }
 
   /** `lock` takes a row lock; only meaningful inside a transaction. */
@@ -226,8 +285,17 @@ export class CryptoCsvImportRepository {
     const header = Array.isArray(result) ? result[0] : result;
     const inserted = Number(header?.affectedRows ?? header?.affected_rows ?? 0);
 
+    // @@warning_count and SHOW WARNINGS do not reset the diagnostics area.
+    const counted: any = await trx.raw('SELECT @@warning_count AS c');
+    const countRow = (Array.isArray(counted) ? counted[0] : counted)?.[0];
+    const total = Number(countRow?.c ?? countRow?.C ?? Number.NaN);
     const warned: any = await trx.raw('SHOW WARNINGS');
     const list: any[] = (Array.isArray(warned) ? warned[0] : warned) ?? [];
+    if (!Number.isFinite(total) || total !== list.length) {
+      throw new Error(
+        `CSV import aborted: the database warning list is incomplete (${list.length} of ${total})`,
+      );
+    }
     const codes = list.map((w) => Number(w.Code ?? w.code));
     const other = [...new Set(codes.filter((c) => c !== 1062))];
     const duplicates = codes.filter((c) => c === 1062).length;

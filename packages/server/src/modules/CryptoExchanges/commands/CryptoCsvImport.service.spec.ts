@@ -263,7 +263,7 @@ describe('Crypto CSV import services (unit, fakes)', () => {
         rowsRejected: 0,
         dateFrom: '2020-01-02T03:04:05.000Z',
       });
-      expect(view.committedAt).toBe(clock.toISOString());
+      expect(view.committedAt).toMatch(/^2026-10-08T/);
       expect(repo.raw).toHaveLength(2);
       for (const row of repo.raw) {
         expect(row).toMatchObject({
@@ -695,6 +695,159 @@ describe('Crypto CSV import services (unit, fakes)', () => {
       const view = await commit.execute(p.importId, { buffer });
       expect(view.rowsImported).toBe(10);
       expect(repo.insertBatches).toEqual([2, 2, 2, 2, 2]);
+    });
+  });
+
+  describe('lock ordering and transient errors', () => {
+    it('commit and rollback lock the connection before locking the import', async () => {
+      const buffer = fixture('trading.csv');
+      const p = await preview.execute(pionexId, upload(buffer), 1);
+      repo.calls = [];
+      await commit.execute(p.importId, { buffer });
+      const c = repo.calls;
+      expect(c.indexOf('lockConnection')).toBeGreaterThanOrEqual(0);
+      expect(c.indexOf('lockConnection')).toBeLessThan(
+        c.indexOf('findImport:lock'),
+      );
+
+      repo.calls = [];
+      await rollback.execute(p.importId);
+      const r = repo.calls;
+      expect(r.indexOf('lockConnection')).toBeLessThan(
+        r.indexOf('findImport:lock'),
+      );
+    });
+
+    const lockTimeout = () =>
+      Object.assign(new Error('Lock wait timeout exceeded'), {
+        code: 'ER_LOCK_WAIT_TIMEOUT',
+        errno: 1205,
+      });
+
+    it('a lock timeout during commit is retryable (CSV_BUSY) and leaves the import previewed', async () => {
+      const buffer = fixture('trading.csv');
+      const p = await preview.execute(pionexId, upload(buffer), 1);
+      const original = repo.lockConnection;
+      repo.lockConnection = async () => {
+        throw lockTimeout();
+      };
+      await expect(
+        commit.execute(p.importId, { buffer }),
+      ).rejects.toMatchObject({
+        code: 'CSV_BUSY',
+      });
+      expect(repo.imports.get(p.importId).status).toBe('previewed');
+      expect(repo.imports.get(p.importId).error).toBeNull();
+      expect(repo.raw).toHaveLength(0);
+
+      // and it can simply be retried
+      repo.lockConnection = original;
+      const view = await commit.execute(p.importId, { buffer });
+      expect(view.status).toBe('committed');
+    });
+
+    it('a deadlock during the inserts is retryable and leaves the import previewed', async () => {
+      const buffer = fixture('trading.csv');
+      const p = await preview.execute(pionexId, upload(buffer), 1);
+      repo.insertIgnoringDuplicates = async () => {
+        throw Object.assign(new Error('Deadlock found'), {
+          nativeError: { code: 'ER_LOCK_DEADLOCK', errno: 1213 },
+        });
+      };
+      await expect(
+        commit.execute(p.importId, { buffer }),
+      ).rejects.toMatchObject({
+        code: 'CSV_BUSY',
+      });
+      expect(repo.imports.get(p.importId).status).toBe('previewed');
+    });
+
+    it('a lock timeout during rollback leaves the import committed', async () => {
+      const buffer = fixture('trading.csv');
+      const p = await preview.execute(pionexId, upload(buffer), 1);
+      await commit.execute(p.importId, { buffer });
+      repo.lockConnection = async () => {
+        throw lockTimeout();
+      };
+      await expect(rollback.execute(p.importId)).rejects.toMatchObject({
+        code: 'CSV_BUSY',
+      });
+      expect(repo.imports.get(p.importId).status).toBe('committed');
+      expect(repo.raw).toHaveLength(2);
+    });
+  });
+
+  describe('archived connections', () => {
+    it('allows rolling back an import after the connection was archived', async () => {
+      const buffer = fixture('trading.csv');
+      const p = await preview.execute(pionexId, upload(buffer), 1);
+      await commit.execute(p.importId, { buffer });
+      connections.rows.get(pionexId).deletedAt = new Date();
+
+      const view = await rollback.execute(p.importId);
+
+      expect(view.status).toBe('rolled_back');
+      expect(repo.raw).toHaveLength(0);
+    });
+
+    it('still refuses preview and commit on an archived connection', async () => {
+      const buffer = fixture('trading.csv');
+      const p = await preview.execute(pionexId, upload(buffer), 1);
+      connections.rows.get(pionexId).deletedAt = new Date();
+      await expect(
+        preview.execute(pionexId, upload(fixture('staking.csv')), 1),
+      ).rejects.toMatchObject({ errorType: 'CRYPTO_CONNECTION_NOT_FOUND' });
+      await expect(
+        commit.execute(p.importId, { buffer }),
+      ).rejects.toMatchObject({
+        errorType: 'CRYPTO_CONNECTION_NOT_FOUND',
+      });
+      expect(repo.raw).toHaveLength(0);
+    });
+  });
+
+  describe('commit order drives the rollback guard', () => {
+    it('B previewed first but committed second still depends on A (ids follow preview order)', async () => {
+      const a = fixture('trading.csv');
+      const extra =
+        '"2020-01-04 00:00:00","1","2","3","BUY","TEST_USDT","0.1","TEST","Spot","s_x4"\n';
+      const b = Buffer.concat([a, Buffer.from(extra)]);
+      const pb = await preview.execute(pionexId, upload(b), 1); // lower id
+      const pa = await preview.execute(pionexId, upload(a), 1); // higher id
+      expect(pb.importId).toBeLessThan(pa.importId);
+      await commit.execute(pa.importId, { buffer: a }); // commits first
+      const vb = await commit.execute(pb.importId, { buffer: b });
+      expect(vb.rowsSkippedDuplicate).toBe(2);
+
+      const error = await rollback.execute(pa.importId).catch((e) => e);
+      expect(error.code).toBe('CSV_NOT_ROLLBACKABLE');
+      expect(error.details.dependentImportIds).toEqual([pb.importId]);
+
+      // B (committed later, lower id) is not blocked by A
+      await rollback.execute(pb.importId);
+      await rollback.execute(pa.importId);
+      expect(repo.raw).toHaveLength(0);
+    });
+  });
+
+  describe('byte-bounded batches with non-ASCII text', () => {
+    it('measures UTF-8 bytes, not characters', async () => {
+      const comment = '\u00e9'.repeat(1900); // 1,900 chars, 3,800 bytes
+      const rows = [];
+      for (let i = 0; i < 4; i++) {
+        rows.push(
+          `"2020-01-01 00:00:0${i}","USDT","1","FundingFee","${comment}"`,
+        );
+      }
+      const buffer = Buffer.from(
+        '"date(UTC+0)","coin","amount","tag","comment"\n' +
+          rows.join('\n') +
+          '\n',
+      );
+      (commit as any).insertMaxBytes = 5000; // 2 rows fit by characters, 1 by bytes
+      const p = await preview.execute(pionexId, upload(buffer), 1);
+      await commit.execute(p.importId, { buffer });
+      expect(repo.insertBatches).toEqual([1, 1, 1, 1]);
     });
   });
 });

@@ -519,4 +519,91 @@ suite('Crypto CSV import (integration, production knex mapper)', () => {
     expect(audit.rows.map((r) => r.action)).toEqual(['csv_imported']);
     expect(await rawRows()).toHaveLength(2);
   });
+
+  it('commit order, not preview order, drives the guard (B previewed first, A committed first, same second)', async () => {
+    const a = fixture('trading.csv');
+    const b = Buffer.concat([a, extraRow(4)]);
+    const pb = await preview.execute(connectionId, upload(b), 1); // lower id
+    const pa = await preview.execute(connectionId, upload(a), 1); // higher id
+    expect(pb.importId).toBeLessThan(pa.importId);
+
+    await commit.execute(pa.importId, { buffer: a });
+    const vb = await commit.execute(pb.importId, { buffer: b }); // back-to-back
+    expect(vb.rowsSkippedDuplicate).toBe(2);
+
+    const [ra] = await db('crypto_csv_imports').where({ id: pa.importId });
+    const [rb] = await db('crypto_csv_imports').where({ id: pb.importId });
+    // microsecond column: stored strictly after, even inside one second
+    const [[order]] = await plain.raw(
+      'select (b.COMMITTED_AT > a.COMMITTED_AT) as later from CRYPTO_CSV_IMPORTS a, CRYPTO_CSV_IMPORTS b where a.ID = ? and b.ID = ?',
+      [pa.importId, pb.importId],
+    );
+    expect(Number(order.later)).toBe(1);
+    expect(ra.committedAt).toBeTruthy();
+    expect(rb.committedAt).toBeTruthy();
+
+    const error = await rollback.execute(pa.importId).catch((e) => e);
+    expect(error).toMatchObject({
+      code: 'CSV_NOT_ROLLBACKABLE',
+      details: { dependentImportIds: [pb.importId] },
+    });
+    expect(await rawRows()).toHaveLength(3);
+
+    await rollback.execute(pb.importId); // B is not blocked by A
+    await rollback.execute(pa.importId);
+    expect(await rawRows()).toHaveLength(0);
+  });
+
+  it('aborts rather than passes when the warning list is truncated by a tiny max_error_count', async () => {
+    const [importId] = await db('crypto_csv_imports').insert({
+      connectionId,
+      exchange: 'pionex',
+      reportType: 'x',
+      originalFilename: 'x.csv',
+      fileSha256: 'd'.repeat(64),
+      status: 'previewed',
+    });
+    const mk = (id: string) => ({
+      connectionId,
+      recordType: 'trade',
+      exchangeRecordId: id,
+      occurredAt: new Date('2020-01-01T00:00:00Z'),
+      payload: '{}',
+      payloadHash: 'h'.repeat(64),
+      source: 'csv' as const,
+      importId,
+    });
+    const seed = await db.transaction();
+    await imports.insertIgnoringDuplicates([mk('a'), mk('b'), mk('c')], seed);
+    await seed.commit();
+
+    const trx = await db.transaction();
+    // a transaction whose SET SESSION max_error_count is forced down to 1
+    const squeezed: any = new Proxy(trx, {
+      get(target: any, prop) {
+        if (prop === 'raw') {
+          return (sql: string, ...rest: any[]) =>
+            target.raw(
+              /^SET SESSION max_error_count/.test(sql)
+                ? 'SET SESSION max_error_count = 1'
+                : sql,
+              ...rest,
+            );
+        }
+        return Reflect.get(target, prop, target);
+      },
+    });
+    try {
+      await expect(
+        imports.insertIgnoringDuplicates(
+          [mk('a'), mk('b'), mk('c'), mk('d')],
+          squeezed,
+        ),
+      ).rejects.toThrow(/CSV import aborted/);
+    } finally {
+      await trx.raw('SET SESSION max_error_count = 64');
+      await trx.rollback();
+    }
+    expect(await rawRows()).toHaveLength(3);
+  });
 });
