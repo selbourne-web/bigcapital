@@ -29,6 +29,7 @@ import {
   cryptoSyncLockKey,
 } from '../CryptoExchanges.constants';
 import { redactSecrets } from '../utils/redact';
+import { computePayloadHash } from '../utils/payloadHash';
 import { RateLimiter } from './RateLimiter.service';
 import {
   MAX_KNOWN_ASSETS,
@@ -681,9 +682,7 @@ export class CryptoSyncService {
           occurredAt: r.occurredAt,
           // Written through knex, which does not serialize JSON columns for us.
           payload: JSON.stringify(r.payload),
-          payloadHash: createHash('sha256')
-            .update(JSON.stringify(r.payload))
-            .digest('hex'),
+          payloadHash: computePayloadHash(r.payload),
         }));
       if (!rows.length) continue;
       try {
