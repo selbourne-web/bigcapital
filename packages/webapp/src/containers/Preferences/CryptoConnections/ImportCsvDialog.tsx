@@ -7,7 +7,7 @@ import {
   FormGroup,
   Intent,
 } from '@blueprintjs/core';
-import React, { useEffect, useId, useState } from 'react';
+import React, { useEffect, useId, useRef, useState } from 'react';
 import { describeCryptoError } from './AddConnectionDialog';
 import styles from './CryptoConnections.module.scss';
 import { AppToaster } from '@/components';
@@ -93,6 +93,36 @@ export function ImportCsvDialog({
   );
 }
 
+/** Failures after which the previewed file/import can no longer be committed. */
+const STALE_PREVIEW_CODES = new Set([
+  'CSV_FILE_CHANGED',
+  'CSV_NOT_COMMITTABLE',
+  'CSV_DUPLICATE_FILE',
+  'CSV_FORMAT_UNRECOGNIZED',
+  'CSV_DERIVED_EXPORT_REFUSED',
+  'CSV_MALFORMED',
+  'CSV_TOO_LARGE',
+  'CRYPTO_CSV_IMPORT_NOT_FOUND',
+  'FILE_UNREADABLE',
+]);
+
+const fileUnreadable = () =>
+  new CryptoApiError({
+    status: 0,
+    code: 'FILE_UNREADABLE',
+    message: 'The file could not be read. Choose it again.',
+  });
+
+/** True when the browser can still read the chosen file (not moved, deleted or locked). */
+const canReadFile = async (file: File): Promise<boolean> => {
+  try {
+    await file.slice(0, 1).arrayBuffer();
+    return true;
+  } catch {
+    return false;
+  }
+};
+
 function ImportCsvForm({
   connection,
   onClose,
@@ -105,18 +135,40 @@ function ImportCsvForm({
   const uid = useId();
   const previewMutation = usePreviewCryptoCsv();
   const commitMutation = useCommitCryptoCsv();
+  const previewHeading = useRef<HTMLHeadingElement>(null);
 
   const [file, setFile] = useState<File | null>(null);
+  // Changing the key remounts the file input so the same file can be re-chosen.
+  const [inputKey, setInputKey] = useState(0);
   const [fileError, setFileError] = useState<string | null>(null);
   const [preview, setPreview] = useState<CryptoCsvPreview | null>(null);
   const [result, setResult] = useState<CryptoCsvImport | null>(null);
   const [failure, setFailure] = useState<CryptoApiError | null>(null);
+  const [announcement, setAnnouncement] = useState('');
 
   const isPending = previewMutation.isPending || commitMutation.isPending;
   useEffect(() => {
     onBusyChange(isPending);
     return () => onBusyChange(false);
   }, [isPending, onBusyChange]);
+
+  // Move focus to the preview heading once it exists.
+  useEffect(() => {
+    if (preview) previewHeading.current?.focus();
+  }, [preview]);
+
+  const resetFile = () => {
+    setFile(null);
+    setFileError(null);
+    setPreview(null);
+    setAnnouncement('');
+    setInputKey((key) => key + 1);
+  };
+
+  const handleFailure = (error: CryptoApiError) => {
+    setFailure(error);
+    if (STALE_PREVIEW_CODES.has(error.code)) resetFile();
+  };
 
   const handleFileChange = (event: React.FormEvent<HTMLInputElement>) => {
     const next = event.currentTarget.files?.[0] ?? null;
@@ -125,10 +177,12 @@ function ImportCsvForm({
     // A different file invalidates any earlier preview.
     setPreview(null);
     setFailure(null);
+    setAnnouncement('');
   };
 
-  const handlePreview = (event: React.FormEvent) => {
+  const handlePreview = async (event: React.FormEvent) => {
     event.preventDefault();
+    if (isPending) return;
     const problem = validateCsvFile(file);
     setFileError(problem);
     if (problem || !file) {
@@ -138,21 +192,39 @@ function ImportCsvForm({
       return;
     }
     setFailure(null);
+    if (!(await canReadFile(file))) {
+      handleFailure(fileUnreadable());
+      return;
+    }
     previewMutation.mutate(
       { connectionId: connection.id, file },
       {
-        onSuccess: setPreview,
-        onError: (error) => {
+        onSuccess: (next) => {
+          setPreview(next);
+          setAnnouncement(
+            `Preview ready: ${next.importable} of ${next.rowCount} rows will be imported, ${next.rejectedCount} rejected.`,
+          );
+        },
+        onError: async (error) => {
+          // A rejected fetch can also mean the file vanished while uploading.
+          if (error.code === 'NETWORK_ERROR' && !(await canReadFile(file))) {
+            handleFailure(fileUnreadable());
+            return;
+          }
           setPreview(null);
-          setFailure(error);
+          handleFailure(error);
         },
       },
     );
   };
 
-  const handleConfirm = () => {
-    if (!preview || !file) return;
+  const handleConfirm = async () => {
+    if (isPending || !preview || !file) return;
     setFailure(null);
+    if (!(await canReadFile(file))) {
+      handleFailure(fileUnreadable());
+      return;
+    }
     commitMutation.mutate(
       { importId: preview.importId, file },
       {
@@ -163,23 +235,25 @@ function ImportCsvForm({
             intent: Intent.SUCCESS,
           });
         },
-        onError: setFailure,
+        onError: async (error) => {
+          if (error.code === 'NETWORK_ERROR' && !(await canReadFile(file))) {
+            handleFailure(fileUnreadable());
+            return;
+          }
+          handleFailure(error);
+        },
       },
     );
   };
 
-  const failureCallout = failure && (
-    <Callout intent={Intent.DANGER} role="alert" className={styles.help}>
-      {describeCryptoError(failure)}
-    </Callout>
-  );
+  const fileHelpId = `${uid}-file-help`;
 
-  // Done: summary announced to assistive tech.
-  if (result) {
-    return (
-      <>
-        <div className={Classes.DIALOG_BODY}>
-          <div role="status" aria-live="polite">
+  return (
+    <form onSubmit={handlePreview} noValidate>
+      <div className={Classes.DIALOG_BODY}>
+        {/* Persistent live regions: mounted empty, filled after the event. */}
+        <div role="status" aria-live="polite">
+          {result && (
             <Callout intent={Intent.SUCCESS} icon="tick-circle">
               <p className={styles.resultLine}>
                 Imported {result.rowsImported} of {result.rowCount} rows from{' '}
@@ -191,85 +265,98 @@ function ImportCsvForm({
                 {formatDateRange(result.dateFrom, result.dateTo)}.
               </p>
             </Callout>
-          </div>
+          )}
+          <span className={styles.srOnly}>{announcement}</span>
+        </div>
+        <div role="alert">
+          {failure && (
+            <Callout intent={Intent.DANGER} className={styles.help}>
+              {describeCryptoError(failure)}
+            </Callout>
+          )}
+        </div>
+
+        {result ? (
           <p className={styles.note}>
             You can undo this from the import history of {connection.label}{' '}
             (Roll back).
           </p>
-        </div>
-        <div className={Classes.DIALOG_FOOTER}>
-          <div className={Classes.DIALOG_FOOTER_ACTIONS}>
-            <Button intent={Intent.PRIMARY} onClick={onClose} autoFocus>
-              Done
-            </Button>
-          </div>
-        </div>
-      </>
-    );
-  }
+        ) : (
+          <>
+            <Callout icon="info-sign" className={styles.help}>
+              <p>
+                Import a report you exported from{' '}
+                {exchangeLabel(connection.exchange)} to fill in history the API
+                cannot return. You will see a preview first; nothing is saved
+                until you confirm.
+              </p>
+            </Callout>
 
-  return (
-    <form onSubmit={handlePreview} noValidate>
-      <div className={Classes.DIALOG_BODY}>
-        <Callout icon="info-sign" className={styles.help}>
-          <p>
-            Import a report you exported from{' '}
-            {exchangeLabel(connection.exchange)} to fill in history the API
-            cannot return. You will see a preview first; nothing is saved until
-            you confirm.
-          </p>
-        </Callout>
+            <FormGroup
+              label="CSV file (up to 10 MB)"
+              labelFor={`${uid}-file`}
+              intent={fileError ? Intent.DANGER : Intent.NONE}
+              helperText={
+                fileError ? <span id={fileHelpId}>{fileError}</span> : undefined
+              }
+            >
+              <FileInput
+                key={inputKey}
+                fill
+                disabled={isPending}
+                text={file ? file.name : 'Choose a .csv file...'}
+                hasSelection={!!file}
+                inputProps={{
+                  id: `${uid}-file`,
+                  accept: '.csv,text/csv',
+                  'aria-invalid': !!fileError,
+                  'aria-describedby': fileError ? fileHelpId : undefined,
+                }}
+                onInputChange={handleFileChange}
+              />
+            </FormGroup>
 
-        <FormGroup
-          label="CSV file (up to 10 MB)"
-          labelFor={`${uid}-file`}
-          intent={fileError ? Intent.DANGER : Intent.NONE}
-          helperText={fileError ?? undefined}
-        >
-          <FileInput
-            fill
-            disabled={isPending}
-            text={file ? file.name : 'Choose a .csv file...'}
-            hasSelection={!!file}
-            inputProps={{
-              id: `${uid}-file`,
-              accept: '.csv,text/csv',
-              'aria-invalid': !!fileError,
-            }}
-            onInputChange={handleFileChange}
-          />
-        </FormGroup>
-
-        {preview && <PreviewSummary preview={preview} />}
-        {failureCallout}
+            {preview && (
+              <PreviewSummary preview={preview} headingRef={previewHeading} />
+            )}
+          </>
+        )}
       </div>
 
       <div className={Classes.DIALOG_FOOTER}>
         <div className={Classes.DIALOG_FOOTER_ACTIONS}>
-          <Button onClick={onClose} disabled={isPending}>
-            Cancel
-          </Button>
-          {preview ? (
-            <Button
-              intent={Intent.PRIMARY}
-              icon="import"
-              loading={commitMutation.isPending}
-              disabled={preview.importable === 0 || previewMutation.isPending}
-              onClick={handleConfirm}
-            >
-              {preview.importable === 0
-                ? 'Nothing to import'
-                : `Import ${preview.importable} rows`}
+          {result ? (
+            <Button intent={Intent.PRIMARY} onClick={onClose} autoFocus>
+              Done
             </Button>
           ) : (
-            <Button
-              type="submit"
-              intent={Intent.PRIMARY}
-              loading={previewMutation.isPending}
-              disabled={!file || !!fileError}
-            >
-              Preview
-            </Button>
+            <>
+              <Button onClick={onClose} disabled={isPending}>
+                Cancel
+              </Button>
+              {preview ? (
+                <Button
+                  intent={Intent.PRIMARY}
+                  icon="import"
+                  loading={commitMutation.isPending}
+                  disabled={preview.importable === 0}
+                  onClick={handleConfirm}
+                >
+                  {preview.importable === 0
+                    ? 'Nothing to import'
+                    : `Import ${preview.importable} rows`}
+                </Button>
+              ) : (
+                <Button
+                  type="submit"
+                  intent={Intent.PRIMARY}
+                  loading={previewMutation.isPending}
+                  disabled={!file || !!fileError}
+                >
+                  Preview
+                </Button>
+              )}
+            </>
           )}
         </div>
       </div>
@@ -278,11 +365,19 @@ function ImportCsvForm({
 }
 
 /** Counts, date range and rejected lines from the server preview. No file contents. */
-function PreviewSummary({ preview }: { preview: CryptoCsvPreview }) {
+function PreviewSummary({
+  preview,
+  headingRef,
+}: {
+  preview: CryptoCsvPreview;
+  headingRef: React.Ref<HTMLHeadingElement>;
+}) {
   const types = Object.entries(preview.byType);
   return (
-    <div className={styles.preview} role="status" aria-live="polite">
-      <h5 className={styles.previewTitle}>Preview of {preview.filename}</h5>
+    <div className={styles.preview}>
+      <h5 ref={headingRef} tabIndex={-1} className={styles.previewTitle}>
+        Preview of {preview.filename}
+      </h5>
       <dl className={styles.stats}>
         <div>
           <dt>Rows in file</dt>

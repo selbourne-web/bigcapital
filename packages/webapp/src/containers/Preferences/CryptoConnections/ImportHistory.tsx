@@ -67,13 +67,21 @@ export function ImportHistory({
     );
   };
 
-  const dependents = (failure?.dependentImportIds ?? []).map((id) => {
-    const found = imports.find((item) => item.id === id);
-    return found ? `${found.filename} (#${id})` : `#${id}`;
-  });
+  const failureText = failure ? describeCryptoError(failure) : '';
+  // Only name dependents the server message does not already list.
+  const dependents = (failure?.dependentImportIds ?? [])
+    .filter((id) => !new RegExp('\\b' + id + '\\b').test(failureText))
+    .map((id) => {
+      const found = imports.find((item) => item.id === id);
+      return found ? `${found.filename} (#${id})` : `#${id}`;
+    });
 
   return (
-    <div className={styles.history} aria-label="CSV import history">
+    <div
+      className={styles.history}
+      role="region"
+      aria-label="CSV import history"
+    >
       {query.isLoading && (
         <div className={styles.loading} role="status" aria-label="Loading">
           <Spinner size={18} />
@@ -96,7 +104,7 @@ export function ImportHistory({
           className={styles.help}
           icon="warning-sign"
         >
-          {describeCryptoError(failure)}
+          {failureText}
           {dependents.length > 0 && (
             <> Later imports: {dependents.join(', ')}.</>
           )}
@@ -138,6 +146,7 @@ export function ImportHistory({
                     minimal
                     intent={Intent.DANGER}
                     icon="undo"
+                    aria-label={`Roll back ${item.filename}`}
                     onClick={() => {
                       setFailure(null);
                       setTarget(item);
@@ -159,7 +168,7 @@ export function ImportHistory({
         cancelButtonText="Cancel"
         confirmButtonText="Roll back import"
         loading={rollback.isPending}
-        canEscapeKeyCancel
+        canEscapeKeyCancel={!rollback.isPending}
         onCancel={() => setTarget(null)}
         onConfirm={handleConfirm}
       >

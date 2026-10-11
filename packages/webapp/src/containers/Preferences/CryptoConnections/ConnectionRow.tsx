@@ -154,19 +154,6 @@ export function ConnectionRow({
               ? `: ${connection.historyCoverage.note.replace(/\.+$/, '')}`
               : ''}
             .
-            {csvCapable && canImport && (
-              <>
-                {' '}
-                <Button
-                  small
-                  minimal
-                  intent={Intent.PRIMARY}
-                  onClick={() => setImportOpen(true)}
-                >
-                  Import CSV
-                </Button>
-              </>
-            )}
           </p>
         )}
         {isError && connection.lastError && (
@@ -222,7 +209,12 @@ export function ConnectionRow({
           </>
         )}
         {csvCapable && canImport && (
-          <Button small icon="import" onClick={() => setImportOpen(true)}>
+          <Button
+            small
+            icon="import"
+            aria-label={`Import CSV for ${connection.label}`}
+            onClick={() => setImportOpen(true)}
+          >
             Import CSV
           </Button>
         )}
@@ -231,6 +223,7 @@ export function ConnectionRow({
             small
             minimal
             icon="history"
+            aria-label={`${historyOpen ? 'Hide' : 'Show'} import history for ${connection.label}`}
             aria-expanded={historyOpen}
             aria-controls={`csv-history-${connection.id}`}
             onClick={() => setHistoryOpen((open) => !open)}
