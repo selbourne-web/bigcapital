@@ -415,4 +415,12 @@ describe('CSV import endpoints over HTTP (real multer interceptor)', () => {
     ) as any;
     expect(stored.originalFilename).toBe(res.json.filename);
   });
+  it('keeps a non-ASCII filename intact (UTF-8, not latin1)', async () => {
+    const res = await post(
+      previewPath(),
+      multipart([csvPart(fixture('trading.csv'), 'récap-币安.csv')]),
+    );
+    expect(res.status).toBe(201);
+    expect(res.json.filename).toBe('récap-币安.csv');
+  });
 });

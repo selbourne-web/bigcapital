@@ -55,7 +55,9 @@ export function CsvUploadInterceptor(): Type<NestInterceptor> {
     storage: memoryStorage(),
     limits: { fileSize: CSV_LIMITS.maxBytes, files: 1, fields: 5, parts: 6 },
     fileFilter: csvFileFilter as any,
-  });
+    // Browsers send the filename as UTF-8; multer's default (latin1) garbles it.
+    defParamCharset: 'utf8',
+  } as any);
 
   class CsvUpload extends Base {
     /** Marker so route metadata can be asserted to hold THIS interceptor. */
