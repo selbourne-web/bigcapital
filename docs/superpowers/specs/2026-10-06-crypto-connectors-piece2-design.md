@@ -79,7 +79,7 @@ The connections page shows, per connection, a "History limited" notice when the 
 ### 5.1 Model (tenant DB, new migration; existing migrations are not edited)
 
 - `crypto_connections.mode` (`api` | `csv_only`, default `api`); `csv_only` connections store no credentials (credential columns are already nullable or become nullable in the migration, verified in planning). `api+csv` is simply an `api` connection that also has imports.
-- `crypto_csv_imports`: id, connection_id, exchange, report_type, original_filename, file_sha256, row_count, rows_imported, rows_skipped_duplicate, rows_rejected, date_from, date_to, status (`previewed` | `committed` | `failed`), error, created_at, committed_at, uploaded_by.
+- `crypto_csv_imports`: id, connection_id, exchange, report_type, original_filename, file_sha256, row_count, rows_imported, rows_skipped_duplicate, rows_rejected, date_from, date_to, status (`previewed` | `committed` | `failed` | `rolled_back`; `rolled_back` was added in the plan so a rolled-back file is distinguishable and can be imported again), error, created_at, committed_at, uploaded_by.
 - `crypto_raw_records` gains `source` (`api` | `csv`, default `api`) and nullable `import_id` (FK to `crypto_csv_imports`). The idempotency key remains `(connection_id, record_type, exchange_record_id)`. For CSV rows `exchange_record_id` is the exchange's own id column when the export has one; otherwise a deterministic hash of the normalized row fields prefixed `csv:`.
 - Re-uploading the same file (same `file_sha256`) is refused with a clear message; overlapping files de-duplicate by record id.
 
@@ -98,7 +98,7 @@ One parser module per exchange and report type, each with: header signature, row
 | Exchange | Report type (header signature) | Notes |
 |---|---|---|
 | Pionex | `trading` (date, executed_qty, amount, price, side, symbol, fee, fee_coin, market_type, tax_id) | Spot and futures fills; `tax_id` groups fills. |
-| Pionex | `raw-trading-details` (adds order_type, state) | Overlaps `trading`; both stored, de-duplicated by natural key (timestamp, symbol, side, qty, price). Open question 7. |
+| Pionex | `raw-trading-details` (adds order_type, state) | Superseded by ruling 1: `trading` maps to `trade_summary` (a summary row, not a fill) and `raw-trading-details` FILLED rows map to `trade`, so the two do not share a record type and no cross de-duplication is done; non-FILLED rows become `unparsed` (ruling 2). |
 | Pionex | `staking` (Received/Sent Quantity and Currency, tag) | Hourly staking income; very high row count. |
 | Pionex | `others` (coin, amount, tag, comment) | Funding fees and other adjustments (tag values kept raw). |
 | Pionex | `convert`, `deposit-withdraw`, `dust-collector`, `structured-products`, `position_futures` | Header-only in the sample (no rows) except `position_futures`; signatures recognized, row semantics finalized when real rows exist. |
