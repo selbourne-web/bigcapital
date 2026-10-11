@@ -491,11 +491,11 @@ export class CryptoExchangesController {
   @ApiResponse(
     res(
       503,
-      'CSV_BUSY: another import is being written; retry after the Retry-After seconds.' +
+      'CSV_BUSY: the database was busy (lock wait or deadlock); nothing was changed. Retry after the Retry-After seconds.' +
         ERROR_NOTE,
       EXAMPLES.csvError(
         'CSV_BUSY',
-        'Another import is in progress for this connection. Try again shortly.',
+        'The database was busy. Nothing was changed; please try again.',
       ),
     ),
   )
