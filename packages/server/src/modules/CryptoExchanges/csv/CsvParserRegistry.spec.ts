@@ -1,5 +1,10 @@
 import { CsvParserRegistry } from './CsvParserRegistry';
 import { CsvParser } from './csv.types';
+import { NEXO_CSV_PARSERS } from './parsers/nexo/nexo.parsers';
+import { NEXO_FUTURES_HEADERS } from './parsers/nexo/nexoFutures.parser';
+import { NEXO_TRANSACTIONS_HEADERS } from './parsers/nexo/nexoTransactions.parser';
+import { OTHERS_HEADERS } from './parsers/pionex/pionexOthers.parser';
+import { PIONEX_CSV_PARSERS } from './parsers/pionex/pionex.parsers';
 
 const mk = (over: Partial<CsvParser>): CsvParser => ({
   id: 'pionex:x',
@@ -56,6 +61,36 @@ describe('CsvParserRegistry', () => {
         code: 'CSV_DERIVED_EXPORT_REFUSED',
         message: 'derived export',
       }),
+    );
+  });
+});
+
+describe('CsvParserRegistry with Pionex and Nexo parsers', () => {
+  const reg = new CsvParserRegistry([
+    ...PIONEX_CSV_PARSERS,
+    ...NEXO_CSV_PARSERS,
+  ]);
+
+  it('resolves the Nexo transactions header for nexo', () => {
+    expect(reg.resolve('nexo', [...NEXO_TRANSACTIONS_HEADERS]).id).toBe(
+      'nexo:transactions',
+    );
+  });
+  it('resolves the Nexo futures header for nexo', () => {
+    expect(reg.resolve('nexo', [...NEXO_FUTURES_HEADERS]).id).toBe(
+      'nexo:futures',
+    );
+  });
+  it('refuses a Nexo file on a pionex connection', () => {
+    for (const h of [NEXO_TRANSACTIONS_HEADERS, NEXO_FUTURES_HEADERS]) {
+      expect(() => reg.resolve('pionex', [...h])).toThrow(
+        expect.objectContaining({ code: 'CSV_FORMAT_UNRECOGNIZED' }),
+      );
+    }
+  });
+  it('refuses a Pionex file on the nexo connection', () => {
+    expect(() => reg.resolve('nexo', [...OTHERS_HEADERS])).toThrow(
+      expect.objectContaining({ code: 'CSV_FORMAT_UNRECOGNIZED' }),
     );
   });
 });

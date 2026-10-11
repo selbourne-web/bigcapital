@@ -1,5 +1,8 @@
 import { CsvParser } from '../../csv.types';
+import { NEXO_FUTURES_PARSER } from './nexoFutures.parser';
 import { NEXO_TRANSACTIONS_PARSER } from './nexoTransactions.parser';
 
-/** Task 3 appends the futures parser. */
-export const NEXO_CSV_PARSERS: CsvParser[] = [NEXO_TRANSACTIONS_PARSER];
+export const NEXO_CSV_PARSERS: CsvParser[] = [
+  NEXO_TRANSACTIONS_PARSER,
+  NEXO_FUTURES_PARSER,
+];

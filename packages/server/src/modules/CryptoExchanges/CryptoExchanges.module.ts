@@ -49,6 +49,7 @@ import { RollbackCryptoCsvImportService } from './commands/RollbackCryptoCsvImpo
 import { CsvImportService } from './csv/CsvImport.service';
 import { CsvParserRegistry } from './csv/CsvParserRegistry';
 import { CSV_PARSER_REGISTRY } from './csv/csvImport.types';
+import { NEXO_CSV_PARSERS } from './csv/parsers/nexo/nexo.parsers';
 import { PIONEX_CSV_PARSERS } from './csv/parsers/pionex/pionex.parsers';
 
 /**
@@ -106,7 +107,8 @@ export const cryptoExchangesProviders: Provider[] = [
   CsvImportService,
   {
     provide: CSV_PARSER_REGISTRY,
-    useFactory: () => new CsvParserRegistry([...PIONEX_CSV_PARSERS]),
+    useFactory: () =>
+      new CsvParserRegistry([...PIONEX_CSV_PARSERS, ...NEXO_CSV_PARSERS]),
   },
   // CRYPTO_LIVE_EMITTER is provided globally by CryptoLiveModule (real Socket.IO emitter).
 ];
