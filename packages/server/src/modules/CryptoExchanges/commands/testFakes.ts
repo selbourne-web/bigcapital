@@ -313,7 +313,7 @@ export class FakeCsvImportRepo {
     this.imports.set(row.id, row);
     return { ...row };
   };
-  /** committed_at follows commit order only (never ids or the test clock). */
+  /** committed_at follows commit order only (never ids or the test clock); the real repository uses the app clock, see CryptoCsvImport.repository.spec.ts. */
   markCommitted = async (id: number, values: any) => {
     this.imports.set(id, {
       ...this.imports.get(id),

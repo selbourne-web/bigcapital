@@ -479,7 +479,6 @@ suite('Crypto CSV import (integration, production knex mapper)', () => {
       const a = fixture('trading.csv');
       const b = Buffer.concat([a, extraRow(4)]);
       const first = await previewAndCommit(a);
-      await new Promise((r) => setTimeout(r, 1100)); // committed_at has 1s resolution
       const second = await previewAndCommit(b);
       expect(second.view.rowsSkippedDuplicate).toBe(2);
 

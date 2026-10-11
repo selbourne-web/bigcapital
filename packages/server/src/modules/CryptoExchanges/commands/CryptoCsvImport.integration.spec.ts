@@ -484,4 +484,73 @@ suite('Crypto CSV import (integration, scratch DB)', () => {
       expect(await rawRows()).toHaveLength(0);
     });
   });
+
+  describe('committed_at (application clock)', () => {
+    const committedAt = async (id: number) =>
+      (await CryptoCsvImport.query().findById(id)).committedAt as Date;
+
+    it('is strictly increasing per connection within one millisecond and across a clock step back', async () => {
+      const instants = [
+        Date.UTC(2026, 9, 8, 12, 0, 0, 500),
+        Date.UTC(2026, 9, 8, 12, 0, 0, 500), // same millisecond
+        Date.UTC(2026, 9, 8, 11, 0, 0, 0), // clock stepped back an hour
+      ];
+      let i = 0;
+      jest
+        .spyOn(imports as any, 'now')
+        .mockImplementation(() => new Date(instants[i++]));
+      const ids: number[] = [];
+      for (const n of [1, 2, 3]) {
+        const { p } = await previewAndCommit(rawTradingCsv(n));
+        ids.push(p.importId);
+      }
+      const times = await Promise.all(ids.map(committedAt));
+      expect(times.map((t) => t.getTime())).toEqual([
+        instants[0],
+        instants[0] + 1,
+        instants[0] + 2,
+      ]);
+    });
+
+    it('round-trips the driver when the process timezone differs from the DB session timezone', async () => {
+      const previousTz = process.env.TZ;
+      const tzDb = knex({
+        client: 'mysql2',
+        connection: modelDb.client.config.connection,
+        pool: {
+          min: 1,
+          max: 1,
+          afterCreate: (conn: any, done: any) =>
+            conn.query("SET time_zone = '+00:00'", (err: any) =>
+              done(err, conn),
+            ),
+        },
+        ...knexSnakeCaseMappers(),
+      });
+      try {
+        process.env.TZ = 'America/New_York';
+        CryptoCsvImport.knex(tzDb);
+        CryptoConnection.knex(tzDb);
+        CryptoRawRecord.knex(tzDb);
+        // Precondition: the hazard is real here (DB clock is read back shifted).
+        const [[row]] = (await tzDb.raw('SELECT NOW(6) AS n')) as any;
+        const offsetMs = Math.abs(Date.now() - new Date(row.n).getTime());
+        expect(offsetMs).toBeGreaterThan(3_000_000);
+
+        const written = new Date(Date.UTC(2026, 9, 8, 20, 9, 5, 123));
+        jest.spyOn(imports as any, 'now').mockImplementation(() => written);
+        const { p } = await previewAndCommit(rawTradingCsv(2));
+        expect((await committedAt(p.importId)).getTime()).toBe(
+          written.getTime(),
+        );
+      } finally {
+        process.env.TZ = previousTz;
+        if (previousTz === undefined) delete process.env.TZ;
+        CryptoCsvImport.knex(modelDb);
+        CryptoConnection.knex(modelDb);
+        CryptoRawRecord.knex(modelDb);
+        await tzDb.destroy();
+      }
+    });
+  });
 });

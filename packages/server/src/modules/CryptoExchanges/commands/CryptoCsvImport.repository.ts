@@ -1,6 +1,5 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { Knex } from 'knex';
-import { raw } from 'objection';
 import { TenantModelProxy } from '@/modules/System/models/TenantBaseModel';
 import { CryptoCsvImport } from '../models/CryptoCsvImport';
 import { CryptoRawRecord } from '../models/CryptoRawRecord';
@@ -134,23 +133,48 @@ export class CryptoCsvImportRepository {
     }
   }
 
+  /** Application clock (overridable in tests). */
+  protected now = (): Date => new Date();
+
   /**
-   * Marks the import committed. `committed_at` is the database clock at
-   * microsecond precision, taken inside the connection-locked transaction, so
-   * commits of one connection are strictly ordered.
+   * Marks the import committed. `committed_at` is written from the application
+   * clock, never the database clock: a JS Date round-trips the mysql driver
+   * whatever the DB session and node timezones are (NOW() is read back as
+   * local time, so a UTC DB session and a non-UTC node shifted it by the
+   * offset). It is max(now, newest committed_at of this connection + 1ms),
+   * computed inside the connection-locked transaction, so commits of one
+   * connection are strictly increasing even within one millisecond or after a
+   * clock step back.
    */
   async markCommitted(
     id: number,
     values: Partial<CryptoCsvImport>,
     trx: Knex.Transaction,
   ): Promise<void> {
+    const own: any = await this.importModel()
+      .query(trx)
+      .select('connectionId')
+      .findById(id);
+    const newest: any = own
+      ? await this.importModel()
+          .query(trx)
+          .where('connectionId', own.connectionId)
+          .max('committedAt as newest')
+          .first()
+      : undefined;
+    const clock = this.now();
+    const last = newest?.newest ? new Date(newest.newest) : null;
+    const committedAt =
+      last && !Number.isNaN(last.getTime()) && last.getTime() >= clock.getTime()
+        ? new Date(last.getTime() + 1)
+        : clock;
     await this.importModel()
       .query(trx)
       .findById(id)
       .patch({
         ...values,
         status: 'committed',
-        committedAt: raw('NOW(6)') as any,
+        committedAt,
         error: null,
       });
   }
