@@ -9,6 +9,7 @@ import { CsvImportError } from '../csv/csv.types';
 import {
   CSV_INSERT_BATCH,
   CSV_INSERT_MAX_BYTES,
+  CSV_PREVIEW_TTL_MS,
   CsvImportView,
   CsvPlannedRecord,
 } from '../csv/csvImport.types';
@@ -37,6 +38,11 @@ export class CommitCryptoCsvImportService {
     private readonly cls: ClsService,
   ) {}
 
+  /** Application clock (overridable in tests). */
+  protected now(): Date {
+    return new Date();
+  }
+
   /** Payload bytes per INSERT statement (overridable in tests). */
   protected insertMaxBytes = CSV_INSERT_MAX_BYTES;
 
@@ -52,7 +58,7 @@ export class CommitCryptoCsvImportService {
   ): Promise<CsvImportView> {
     const preview = await this.imports.findImport(importId);
     if (!preview) throw importNotFound();
-    this.assertCommittable(preview.status);
+    this.assertCommittable(preview);
 
     const connection = await this.connections.findById(preview.connectionId);
     if (!connection) throw connectionNotFound();
@@ -80,7 +86,7 @@ export class CommitCryptoCsvImportService {
         }
         const locked = await this.imports.findImport(importId, trx, true);
         if (!locked) throw importNotFound();
-        this.assertCommittable(locked.status);
+        this.assertCommittable(locked);
         if (
           await this.imports.findCommittedByHash(
             locked.connectionId,
@@ -175,12 +181,28 @@ export class CommitCryptoCsvImportService {
     }
   }
 
-  private assertCommittable(status: string): void {
-    if (status !== 'previewed') {
+  private assertCommittable(row: {
+    status: string;
+    createdAt?: Date | null;
+  }): void {
+    if (row.status !== 'previewed') {
       throw new CsvImportError(
         'CSV_NOT_COMMITTABLE',
         'Only a previewed import can be committed.',
-        { status },
+        { status: row.status },
+      );
+    }
+    // A preview lives CSV_PREVIEW_TTL_MS; an older one is stale and may already
+    // be purged by a newer preview.
+    if (
+      row.createdAt &&
+      this.now().getTime() - new Date(row.createdAt).getTime() >
+        CSV_PREVIEW_TTL_MS
+    ) {
+      throw new CsvImportError(
+        'CSV_NOT_COMMITTABLE',
+        'This preview has expired. Upload the file and preview it again.',
+        { status: row.status, expired: true },
       );
     }
   }

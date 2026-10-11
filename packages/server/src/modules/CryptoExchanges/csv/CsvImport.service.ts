@@ -20,6 +20,10 @@ export function sanitizeFilename(name: unknown): string {
     .pop()!
     // eslint-disable-next-line no-control-regex
     .replace(/[\u0000-\u001f\u007f-\u009f‎‏‪-‮⁦-⁩]/g, '')
+    // The tenant schema is utf8 (3-byte): a 4-byte character (emoji, rare CJK)
+    // would fail or corrupt the insert. Replaced before the length cut so a
+    // surrogate pair is never split.
+    .replace(/[\u{10000}-\u{10FFFF}]/gu, '_')
     .trim();
   return (base || 'upload.csv').slice(0, CSV_LIMITS.maxFilenameChars);
 }

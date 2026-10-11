@@ -241,6 +241,40 @@ describe('Crypto CSV import services (unit, fakes)', () => {
       expect(sanitizeFilename('')).toBe('upload.csv');
       expect(sanitizeFilename('a'.repeat(400))).toHaveLength(255);
     });
+
+    it('replaces 4-byte characters in the filename so the utf8 column can store it', async () => {
+      expect(sanitizeFilename('trades \u{1F600}.csv')).toBe('trades _.csv');
+      const long = '\u{1F600}'.repeat(300);
+      const cut = sanitizeFilename(long);
+      expect(cut).toHaveLength(255);
+      expect(cut).not.toMatch(/[\ud800-\udfff]/);
+      const p = await preview.execute(
+        pionexId,
+        upload(fixture('trading.csv'), '\u{1F4B0}trades.csv'),
+        1,
+      );
+      expect(p.filename).toBe('_trades.csv');
+      expect(repo.imports.get(p.importId).originalFilename).toBe('_trades.csv');
+    });
+
+    it('refuses a file with a 4-byte character at preview, naming the line, creating no row', async () => {
+      const text = fixture('trading.csv').toString('utf8').split('\n');
+      text[1] = text[1].replace(/,"?[^,]*"?$/, ',"note \u{1F600} SECRETCELL"');
+      let error: any;
+      try {
+        await preview.execute(
+          pionexId,
+          upload(Buffer.from(text.join('\n'))),
+          1,
+        );
+      } catch (e) {
+        error = e;
+      }
+      expect(error).toMatchObject({ code: 'CSV_MALFORMED' });
+      expect(error.message).toContain('line 2');
+      expect(error.message).not.toContain('SECRETCELL');
+      expect(repo.imports.size).toBe(0);
+    });
   });
 
   describe('commit', () => {
@@ -331,6 +365,31 @@ describe('Crypto CSV import services (unit, fakes)', () => {
       ).rejects.toMatchObject({ code: 'CSV_FILE_CHANGED' });
       expect(repo.raw).toHaveLength(0);
       expect(repo.imports.get(p.importId).status).toBe('previewed');
+    });
+
+    it('refuses a preview older than 24h (CSV_NOT_COMMITTABLE) and writes nothing', async () => {
+      const buffer = fixture('trading.csv');
+      const p = await preview.execute(pionexId, upload(buffer), 1);
+      clock = new Date(clock.getTime() + 24 * 60 * 60 * 1000); // exactly 24h: still valid
+      await expect(
+        commit.execute(p.importId, { buffer }),
+      ).resolves.toMatchObject({ status: 'committed' });
+
+      const q = await preview.execute(
+        pionexId,
+        upload(fixture('staking.csv')),
+        1,
+      );
+      clock = new Date(clock.getTime() + 24 * 60 * 60 * 1000 + 1000);
+      const before = repo.raw.length;
+      await expect(
+        commit.execute(q.importId, { buffer: fixture('staking.csv') }),
+      ).rejects.toMatchObject({
+        code: 'CSV_NOT_COMMITTABLE',
+        message: expect.stringContaining('preview it again'),
+      });
+      expect(repo.raw).toHaveLength(before);
+      expect(repo.imports.get(q.importId).status).toBe('previewed');
     });
 
     it('refuses an already committed, rolled back or unknown import', async () => {

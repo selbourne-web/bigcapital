@@ -33,6 +33,46 @@ function assertSupportedEncoding(buffer: Buffer): void {
   }
 }
 
+const QUOTE = 0x22;
+const COMMA = 0x2c;
+
+/**
+ * Cheap single pass before csv-parse: no record may be larger than
+ * `maxRecordBytes` or have more than `maxColumns` columns, so a 10 MB file of
+ * commas cannot become ~10M empty cells. Quote state is tracked (an escaped
+ * `""` toggles twice), so newlines and commas inside quoted cells do not count.
+ * Reports no file content.
+ */
+function assertRecordShape(buffer: Buffer): void {
+  let inQuotes = false;
+  let commas = 0;
+  let start = 0;
+  for (let i = 0; i < buffer.length; i++) {
+    const b = buffer[i];
+    if (b === QUOTE) {
+      inQuotes = !inQuotes;
+    } else if (!inQuotes) {
+      if (b === COMMA) {
+        if (++commas >= CSV_LIMITS.maxColumns) {
+          throw new CsvImportError(
+            'CSV_MALFORMED',
+            `CSV has a record with more than ${CSV_LIMITS.maxColumns} columns`,
+          );
+        }
+      } else if (b === LF) {
+        commas = 0;
+        start = i + 1;
+      }
+    }
+    if (i - start >= CSV_LIMITS.maxRecordBytes && !inQuotes) {
+      throw new CsvImportError(
+        'CSV_MALFORMED',
+        `CSV has a record larger than ${CSV_LIMITS.maxRecordBytes} bytes`,
+      );
+    }
+  }
+}
+
 /**
  * Bounded, synchronous CSV reader. The buffer is already capped in memory by
  * the caller; the byte cap is still checked first, before any parsing.
@@ -48,6 +88,7 @@ export function readCsv(buffer: Buffer): ReadCsvResult {
   }
 
   assertSupportedEncoding(buffer);
+  assertRecordShape(buffer);
 
   let entries: ParsedEntry[];
   try {
@@ -61,6 +102,9 @@ export function readCsv(buffer: Buffer): ReadCsvResult {
       info: true,
       // header record + maxRows data rows + one extra to detect overflow
       to: CSV_LIMITS.maxRows + 2,
+      // Backstop for the parser's own buffer (it counts field text only, not
+      // delimiters; assertRecordShape bounds those before parsing).
+      max_record_size: CSV_LIMITS.maxRecordBytes,
     }) as unknown as ParsedEntry[];
   } catch (error) {
     const code = (error as { code?: string }).code;
@@ -68,7 +112,9 @@ export function readCsv(buffer: Buffer): ReadCsvResult {
       'CSV_MALFORMED',
       code === 'CSV_QUOTE_NOT_CLOSED'
         ? 'CSV contains an unterminated quoted field'
-        : 'CSV could not be parsed',
+        : code === 'CSV_MAX_RECORD_SIZE'
+          ? `CSV has a record larger than ${CSV_LIMITS.maxRecordBytes} bytes`
+          : 'CSV could not be parsed',
       { parserCode: code },
     );
   }
@@ -95,6 +141,7 @@ export function readCsv(buffer: Buffer): ReadCsvResult {
     );
   }
   assertCellLengths(entries[0].record);
+  assertNoAstral(entries[0].record, 1);
 
   const rows: ReadCsvResult['rows'] = [];
   const rejected: ReadCsvResult['rejected'] = [];
@@ -133,6 +180,7 @@ export function readCsv(buffer: Buffer): ReadCsvResult {
       });
       continue;
     }
+    assertNoAstral(record, line);
     const cells: Record<string, string> = {};
     headers.forEach((h, idx) => {
       cells[h] = record[idx];
@@ -144,6 +192,28 @@ export function readCsv(buffer: Buffer): ReadCsvResult {
   }
 
   return { headers, rows, rejected };
+}
+
+const ASTRAL = /[\u{10000}-\u{10FFFF}]/u;
+
+/**
+ * The tenant schema is utf8 (3-byte). A 4-byte character (emoji, rare CJK) in
+ * stored data makes MariaDB drop or reject it, and the commit's warning check
+ * would then abort with a generic error. Refusing the file at preview names the
+ * line instead. The file is refused rather than escaped so record ids and
+ * payload hashes (derived from the exact cell text) are never altered; ids can
+ * also come straight from a cell, which escaping the payload would not cover.
+ * Only the line number is reported, never cell content.
+ */
+function assertNoAstral(record: string[], line: number): void {
+  for (const cell of record) {
+    if (ASTRAL.test(cell)) {
+      throw new CsvImportError(
+        'CSV_MALFORMED',
+        `CSV line ${line} contains a character (such as an emoji) that cannot be stored. Remove it and upload the file again.`,
+      );
+    }
+  }
 }
 
 function assertCellLengths(record: string[]): void {

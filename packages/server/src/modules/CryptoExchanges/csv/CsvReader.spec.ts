@@ -87,6 +87,82 @@ describe('readCsv', () => {
     expect(readCsv(Buffer.from('a,b\n1,2\n')).rows[0].line).toBe(2);
   });
 
+  describe('pathological input limits', () => {
+    const expectMalformed = (buffer: Buffer) => {
+      let error: any;
+      try {
+        readCsv(buffer);
+      } catch (e) {
+        error = e;
+      }
+      expect(error).toMatchObject({ code: 'CSV_MALFORMED' });
+      return error.message as string;
+    };
+
+    it('refuses 10 MB of commas quickly without echoing content', () => {
+      const started = Date.now();
+      expectMalformed(Buffer.from(','.repeat(10 * 1024 * 1024 - 1) + '\n'));
+      expect(Date.now() - started).toBeLessThan(5000);
+    });
+
+    it('refuses a record larger than the record cap', () => {
+      const message = expectMalformed(
+        Buffer.from(`a,b\n${'x'.repeat(CSV_LIMITS.maxRecordBytes + 10)},2\n`),
+      );
+      expect(message).not.toContain('xxxx');
+    });
+
+    it('refuses a header, and a data record, with more than the column cap', () => {
+      const wide = Array.from(
+        { length: CSV_LIMITS.maxColumns + 1 },
+        (_, i) => `c${i}`,
+      );
+      expect(expectMalformed(Buffer.from(wide.join(',') + '\n1\n'))).toContain(
+        'columns',
+      );
+      expectMalformed(Buffer.from(`a,b\n${wide.map(() => 'Z').join(',')}\n`));
+    });
+
+    it('accepts exactly the column cap', () => {
+      const names = Array.from(
+        { length: CSV_LIMITS.maxColumns },
+        (_, i) => `c${i}`,
+      );
+      expect(readCsv(Buffer.from(names.join(',') + '\n')).headers).toHaveLength(
+        CSV_LIMITS.maxColumns,
+      );
+    });
+  });
+
+  describe('4-byte characters (tenant schema is utf8)', () => {
+    const run = (text: string) => {
+      try {
+        readCsv(Buffer.from(text));
+      } catch (e: any) {
+        return e;
+      }
+      return undefined;
+    };
+
+    it('refuses an emoji in a stored cell naming the line, never echoing the cell', () => {
+      const e = run('a,b\n1,2\n3,note \u{1F600} secret\n');
+      expect(e).toMatchObject({ code: 'CSV_MALFORMED' });
+      expect(e.message).toContain('line 3');
+      expect(e.message).not.toContain('secret');
+      expect(e.message).not.toContain('\u{1F600}');
+    });
+
+    it('uses the physical line after a multi-line quoted cell, and covers the header', () => {
+      expect(run('a,b\n"x\ny",2\n3,\u{20000}\n').message).toContain('line 4');
+      expect(run('a,\u{1F600}\n1,2\n').message).toContain('line 1');
+    });
+
+    it('accepts BMP text (accents, CJK, symbols)', () => {
+      const r = readCsv(Buffer.from('a,b\né中,€☃\n'));
+      expect(r.rows[0].cells.b).toBe('€☃');
+    });
+  });
+
   it('rejects reserved header names such as __proto__', () => {
     expect(() => readCsv(Buffer.from('__proto__,1,b\nx,y,z\n'))).toThrow(
       expect.objectContaining({ code: 'CSV_MALFORMED' }),

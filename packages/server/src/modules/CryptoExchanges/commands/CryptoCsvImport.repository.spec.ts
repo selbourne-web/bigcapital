@@ -95,6 +95,54 @@ describe('CryptoCsvImportRepository (unit)', () => {
       expect(log[0]).toMatch(/max_error_count/);
     });
 
+    it('a failed insert rethrows only code and errno, never the SQL or row data', async () => {
+      const { trx } = makeTrx({ affected: 0, total: 0, warnings: [] });
+      const original = trx.raw;
+      trx.raw = async (sql: string, bindings?: unknown[]) => {
+        if (sql === 'INSERT-SQL') {
+          throw Object.assign(
+            new Error(
+              "insert into `crypto_raw_records` values ('SECRET-PAYLOAD') - Got a packet bigger than 'max_allowed_packet' bytes",
+            ),
+            { code: 'ER_NET_PACKET_TOO_LARGE', errno: 1153, sql: 'SECRET-SQL' },
+          );
+        }
+        return original(sql, bindings);
+      };
+      const error: any = await repo
+        .insertIgnoringDuplicates([row(1)] as any, trx)
+        .then(
+          () => undefined,
+          (e) => e,
+        );
+      expect(error.message).toContain('ER_NET_PACKET_TOO_LARGE');
+      expect(JSON.stringify(error) + error.message + error.stack).not.toMatch(
+        /SECRET|insert into/,
+      );
+      expect(error).toMatchObject({
+        code: 'ER_NET_PACKET_TOO_LARGE',
+        errno: 1153,
+      });
+    });
+
+    it('a transient insert failure still maps to CSV_BUSY with a clean message', async () => {
+      const { trx } = makeTrx({ affected: 0, total: 0, warnings: [] });
+      trx.raw = async () => {
+        throw Object.assign(new Error('insert ... SECRET-PAYLOAD'), {
+          code: 'ER_LOCK_DEADLOCK',
+          errno: 1213,
+        });
+      };
+      const busy = makeRepo(async () => {
+        await repo.insertIgnoringDuplicates([row(1)] as any, trx);
+      });
+      await expect(busy.inTransaction(async () => 1)).rejects.toMatchObject({
+        code: 'CSV_BUSY',
+        message:
+          'The database was busy. Nothing was changed; please try again.',
+      });
+    });
+
     it('aborts when the warning list is shorter than the warning count (truncated)', async () => {
       const { trx } = makeTrx({ affected: 1, total: 3, warnings: [1062] });
       await expect(

@@ -864,6 +864,9 @@ export class CryptoSyncService {
         .query()
         .select('id', 'payload')
         .where('connectionId', connection.id)
+        // API rows only: a large CSV import must not crowd API-learned assets
+        // out of the bounded scan window.
+        .where('source', 'api')
         .whereNot('recordType', 'unparsed')
         .modify((q) => {
           if (beforeId !== undefined) q.where('id', '<', beforeId);

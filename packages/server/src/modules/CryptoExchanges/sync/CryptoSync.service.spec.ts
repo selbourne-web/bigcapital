@@ -38,6 +38,9 @@ const suite = dbName ? describe : describe.skip;
 const migrations = () => [
   require('../../../database/tenant/migrations/20261004000000_create_crypto_exchange_tables'),
   require('../../../database/tenant/migrations/20261004000100_add_sync_state_to_crypto_connections'),
+  require('../../../database/tenant/migrations/20261004000200_add_deleted_at_to_crypto_connections'),
+  require('../../../database/tenant/migrations/20261007000000_add_key_expires_at_to_crypto_connections'),
+  require('../../../database/tenant/migrations/20261008000000_create_crypto_csv_imports'),
 ];
 
 const API_KEY = 'AKIA-DISTINCTIVE-KEY-7731';
@@ -186,8 +189,7 @@ suite('CryptoSyncService (integration, scratch DB)', () => {
     await db.schema.dropTableIfExists('crypto_raw_records');
     await db.schema.dropTableIfExists('crypto_csv_imports');
     await db.schema.dropTableIfExists('crypto_connections');
-    await migrations()[0].up(db);
-    await migrations()[1].up(db);
+    for (const m of migrations()) await m.up(db);
     for (const model of [
       CryptoConnection,
       CryptoRawRecord,
@@ -206,8 +208,7 @@ suite('CryptoSyncService (integration, scratch DB)', () => {
 
   afterAll(async () => {
     if (db) {
-      await migrations()[1].down(db);
-      await migrations()[0].down(db);
+      for (const m of [...migrations()].reverse()) await m.down(db);
       await db.destroy();
       await modelDb.destroy();
     }
@@ -932,6 +933,35 @@ suite('CryptoSyncService (integration, scratch DB)', () => {
       'DOGE',
       'ETH',
     ]);
+  });
+
+  it('knownAssets scans only source=api rows: a newer CSV import never crowds API assets out', async () => {
+    const service = make();
+    adapter.pages = { start: { records: [rec(1, { coin: 'APICOIN' })] } };
+    await service.syncConnection(connectionId, 'initial', ORG);
+
+    // A big, newer CSV import (more rows than the whole scan window) whose
+    // payloads carry assets of their own.
+    const csvRows = Array.from({ length: 10_050 }, (_, i) => ({
+      connection_id: connectionId,
+      record_type: 'trade_summary',
+      exchange_record_id: `csv-${i}`,
+      occurred_at: new Date(Date.UTC(2020, 0, 1)),
+      payload: JSON.stringify({ coin: i === 0 ? 'CSVCOIN' : 'FILLER' }),
+      payload_hash: String(i).padStart(64, '0'),
+      source: 'csv',
+    }));
+    for (let i = 0; i < csvRows.length; i += 500) {
+      await db('crypto_raw_records').insert(csvRows.slice(i, i + 500));
+    }
+
+    adapter.queries = [];
+    adapter.pages = { start: { records: [] } };
+    await service.syncConnection(connectionId, 'incremental', ORG);
+    const known = adapter.queries[0].knownAssets ?? [];
+    expect(known).toContain('APICOIN');
+    expect(known).not.toContain('CSVCOIN');
+    expect(known).not.toContain('FILLER');
   });
 
   it('records the run row and updates last_sync_at / clears last_error on success', async () => {

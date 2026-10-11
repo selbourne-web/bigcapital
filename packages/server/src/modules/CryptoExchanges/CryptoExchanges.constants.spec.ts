@@ -66,6 +66,8 @@ describe('crypto exchange constants (pieces 2a, 2b)', () => {
       maxBytes: 10 * 1024 * 1024,
       maxRows: 200_000,
       maxCellChars: 2_000,
+      maxRecordBytes: 256 * 1024,
+      maxColumns: 200,
       maxFilenameChars: 255,
     });
   });

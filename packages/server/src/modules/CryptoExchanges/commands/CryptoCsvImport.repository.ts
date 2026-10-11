@@ -45,6 +45,27 @@ export function mapTransientDbError(error: unknown): unknown {
     : error;
 }
 
+/** A fresh error carrying only the driver's code/errno: no SQL, bindings or row data. */
+export function sanitizedDbError(error: unknown): Error {
+  const e = error as {
+    code?: unknown;
+    errno?: unknown;
+    nativeError?: { code?: unknown; errno?: unknown };
+  };
+  const code = e?.code ?? e?.nativeError?.code;
+  const errno = e?.errno ?? e?.nativeError?.errno;
+  const safeCode = typeof code === 'string' ? code.slice(0, 64) : undefined;
+  const safeErrno = typeof errno === 'number' ? errno : undefined;
+  const out = new Error(
+    `CSV import aborted: the database rejected the insert (${
+      safeCode ?? 'unknown code'
+    }${safeErrno !== undefined ? `, errno ${safeErrno}` : ''})`,
+  );
+  if (safeCode !== undefined) (out as any).code = safeCode;
+  if (safeErrno !== undefined) (out as any).errno = safeErrno;
+  return out;
+}
+
 const chunked = <T>(items: T[], size: number): T[][] => {
   const out: T[][] = [];
   for (let i = 0; i < items.length; i += size)
@@ -305,7 +326,15 @@ export class CryptoCsvImportRepository {
     // Warnings are capped by max_error_count; a batch is at most a few
     // hundred rows, so lift the cap for this session.
     await trx.raw('SET SESSION max_error_count = 65535');
-    const result: any = await trx.raw(native.sql, native.bindings as any[]);
+    let result: any;
+    try {
+      result = await trx.raw(native.sql, native.bindings as any[]);
+    } catch (error) {
+      // knex puts the interpolated SQL, bindings (row payloads) in err.message.
+      // Rethrow a generic error that keeps only the code and errno (the
+      // transient 1205/1213 -> CSV_BUSY mapping reads those).
+      throw sanitizedDbError(error);
+    }
     const header = Array.isArray(result) ? result[0] : result;
     const inserted = Number(header?.affectedRows ?? header?.affected_rows ?? 0);
 

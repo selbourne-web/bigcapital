@@ -285,31 +285,19 @@ suite('Crypto CSV import (integration, production knex mapper)', () => {
   });
 
   describe('warnings are never swallowed (INSERT IGNORE)', () => {
-    it('a 4-byte character (emoji) is stored losslessly or the commit fails closed: never altered', async () => {
+    it('a 4-byte character (emoji) is refused at preview with a clear message: no import row, no raw rows', async () => {
       const buffer = othersCsv(['fine', 'party 🎉 time', 'also fine']);
-      const p = await preview.execute(connectionId, upload(buffer), 1);
-      const outcome = await commit.execute(p.importId, { buffer }).then(
-        () => 'stored',
-        () => 'refused',
-      );
-      const rows = await rawRows();
-      if (outcome === 'stored') {
-        expect(rows).toHaveLength(3);
-        const texts = rows.map((r) =>
-          typeof r.payload === 'string' ? r.payload : JSON.stringify(r.payload),
+      const error: any = await preview
+        .execute(connectionId, upload(buffer), 1)
+        .then(
+          () => undefined,
+          (e) => e,
         );
-        expect(texts.some((t) => t.includes('🎉'))).toBe(true);
-        for (const r of rows) {
-          const payload =
-            typeof r.payload === 'string' ? JSON.parse(r.payload) : r.payload;
-          expect(r.payloadHash).toBe(computePayloadHash(payload));
-        }
-      } else {
-        expect(rows).toHaveLength(0);
-        const [imp] = await db('crypto_csv_imports').where({ id: p.importId });
-        expect(imp.status).toBe('failed');
-        expect(audit.rows).toHaveLength(0);
-      }
+      expect(error).toMatchObject({ code: 'CSV_MALFORMED' });
+      expect(error.message).toMatch(/line \d+/);
+      expect(error.message).not.toContain('party');
+      expect(await rawRows()).toHaveLength(0);
+      expect(await db('crypto_csv_imports')).toHaveLength(0);
     });
 
     it('a value longer than its column cannot be truncated through the insert helper', async () => {

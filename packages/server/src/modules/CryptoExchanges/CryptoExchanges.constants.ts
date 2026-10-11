@@ -45,6 +45,9 @@ export const CSV_LIMITS = {
   maxBytes: 10 * 1024 * 1024,
   maxRows: 200_000,
   maxCellChars: 2_000,
+  /** Largest single record the parser will buffer, in bytes. */
+  maxRecordBytes: 256 * 1024,
+  maxColumns: 200,
   maxFilenameChars: 255,
 } as const;
 
