@@ -6,7 +6,10 @@ import {
 } from '@nestjs/common';
 import { Response } from 'express';
 import { ServiceError } from '@/modules/Items/ServiceError';
-import { CRYPTO_CONNECTION_ERRORS as ERRORS } from './CryptoExchanges.constants';
+import {
+  CRYPTO_CONNECTION_ERRORS as ERRORS,
+  CRYPTO_CSV_IMPORT_ERRORS,
+} from './CryptoExchanges.constants';
 import {
   ExchangeAuthError,
   ExchangeError,
@@ -15,6 +18,7 @@ import {
   ExchangeSchemaError,
   KeyHasExtraPermissionsError,
 } from './adapters/errors';
+import { CsvErrorCode, CsvImportError } from './csv/csv.types';
 import { CryptoManualSyncThrottledException } from './sync/CryptoSyncRequest.service';
 
 /** Conflicts with the connection's current state (the commands raise them as plain 400s). */
@@ -23,6 +27,25 @@ const CONFLICT_ERRORS: ReadonlySet<string> = new Set([
   ERRORS.ACCOUNT_MAPPING_CONFLICT,
   ERRORS.IN_ERROR,
   ERRORS.CONNECTION_PAUSED,
+]);
+
+/** HTTP status of every CSV import error code (exhaustive: a new code fails to compile). */
+export const CSV_ERROR_STATUS: Record<CsvErrorCode, number> = {
+  CSV_FORMAT_UNRECOGNIZED: HttpStatus.UNPROCESSABLE_ENTITY,
+  CSV_DERIVED_EXPORT_REFUSED: HttpStatus.UNPROCESSABLE_ENTITY,
+  CSV_MALFORMED: HttpStatus.UNPROCESSABLE_ENTITY,
+  CSV_DUPLICATE_FILE: HttpStatus.CONFLICT,
+  CSV_FILE_CHANGED: HttpStatus.CONFLICT,
+  CSV_NOT_ROLLBACKABLE: HttpStatus.CONFLICT,
+  CSV_NOT_COMMITTABLE: HttpStatus.CONFLICT,
+  CSV_TOO_LARGE: HttpStatus.PAYLOAD_TOO_LARGE,
+  CSV_BUSY: HttpStatus.SERVICE_UNAVAILABLE,
+};
+const CSV_BUSY_RETRY_AFTER_SECONDS = 5;
+
+/** A missing import is a 404 like the other NOT_FOUND ServiceErrors. */
+const NOT_FOUND_ERRORS: ReadonlySet<string> = new Set([
+  CRYPTO_CSV_IMPORT_ERRORS.NOT_FOUND,
 ]);
 
 /**
@@ -36,7 +59,12 @@ const CONFLICT_ERRORS: ReadonlySet<string> = new Set([
  *    `userMessage`; the raw exchange text never leaves the server.
  *  - Manual sync throttle: 429 + `Retry-After`.
  */
-@Catch(ExchangeError, ServiceError, CryptoManualSyncThrottledException)
+@Catch(
+  ExchangeError,
+  ServiceError,
+  CryptoManualSyncThrottledException,
+  CsvImportError,
+)
 export class CryptoExchangeExceptionFilter implements ExceptionFilter {
   catch(exception: unknown, host: ArgumentsHost) {
     const response = host.switchToHttp().getResponse<Response>();
@@ -53,10 +81,37 @@ export class CryptoExchangeExceptionFilter implements ExceptionFilter {
       return;
     }
 
+    if (exception instanceof CsvImportError) {
+      // `{ code, message }` only (plus the ids blocking a rollback): never
+      // row contents, a stack, or the raw file name.
+      const status =
+        CSV_ERROR_STATUS[exception.code] ?? HttpStatus.UNPROCESSABLE_ENTITY;
+      const body: Record<string, unknown> = {
+        code: exception.code,
+        message: exception.message,
+      };
+      const dependents = exception.details?.dependentImportIds;
+      if (
+        exception.code === 'CSV_NOT_ROLLBACKABLE' &&
+        Array.isArray(dependents)
+      ) {
+        body.dependentImportIds = dependents
+          .map((id) => Number(id))
+          .filter((id) => Number.isSafeInteger(id));
+      }
+      if (exception.code === 'CSV_BUSY') {
+        response.setHeader('Retry-After', String(CSV_BUSY_RETRY_AFTER_SECONDS));
+      }
+      response.status(status).json(body);
+      return;
+    }
+
     if (exception instanceof ServiceError) {
-      const status = CONFLICT_ERRORS.has(exception.errorType)
-        ? HttpStatus.CONFLICT
-        : exception.getStatus();
+      const status = NOT_FOUND_ERRORS.has(exception.errorType)
+        ? HttpStatus.NOT_FOUND
+        : CONFLICT_ERRORS.has(exception.errorType)
+          ? HttpStatus.CONFLICT
+          : exception.getStatus();
       response.status(status).json({
         errors: [
           {

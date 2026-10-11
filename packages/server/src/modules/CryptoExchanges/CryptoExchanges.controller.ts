@@ -12,10 +12,19 @@ import {
   Post,
   Query,
   Req,
+  UploadedFile,
   UseFilters,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
-import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBody,
+  ApiConsumes,
+  ApiOperation,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
+import { ClsService } from 'nestjs-cls';
 import { ApiCommonHeaders } from '@/common/decorators/ApiCommonHeaders';
 import { AuthorizationGuard } from '@/modules/Roles/Authorization.guard';
 import { PermissionGuard } from '@/modules/Roles/Permission.guard';
@@ -38,6 +47,30 @@ import { GetCryptoConnectionsService } from './queries/GetCryptoConnections.serv
 import { GetCryptoBalancesService } from './queries/GetCryptoBalances.service';
 import { GetCryptoSyncRunsService } from './queries/GetCryptoSyncRuns.service';
 import { CryptoSyncRequestService } from './sync/CryptoSyncRequest.service';
+import { CsvImportError } from './csv/csv.types';
+import { CsvUploadInterceptor } from './csv/csvUpload.interceptor';
+import { PreviewCryptoCsvImportService } from './commands/PreviewCryptoCsvImport.service';
+import { CommitCryptoCsvImportService } from './commands/CommitCryptoCsvImport.service';
+import { RollbackCryptoCsvImportService } from './commands/RollbackCryptoCsvImport.service';
+import { GetCryptoCsvImportsService } from './queries/GetCryptoCsvImports.service';
+
+type UploadedCsv = { buffer?: Buffer; originalname?: string };
+
+/** The uploaded file, or 422 CSV_FORMAT_UNRECOGNIZED when the part is missing. */
+const requireCsv = (file?: UploadedCsv) => {
+  if (!file?.buffer) {
+    throw new CsvImportError('CSV_FORMAT_UNRECOGNIZED', 'No file uploaded');
+  }
+  return { buffer: file.buffer, originalname: String(file.originalname ?? '') };
+};
+
+const csvUploadBody = {
+  schema: {
+    type: 'object',
+    required: ['file'],
+    properties: { file: { type: 'string', format: 'binary' } },
+  },
+};
 
 /**
  * REST API of the crypto exchange connectors (`/api/crypto`).
@@ -66,6 +99,11 @@ export class CryptoExchangesController {
     private readonly rotateCredentials: RotateCryptoCredentialsService,
     private readonly deleteConnection: DeleteCryptoConnectionService,
     private readonly syncRequests: CryptoSyncRequestService,
+    private readonly previewCsv: PreviewCryptoCsvImportService,
+    private readonly commitCsv: CommitCryptoCsvImportService,
+    private readonly rollbackCsv: RollbackCryptoCsvImportService,
+    private readonly listCsvImports: GetCryptoCsvImportsService,
+    private readonly cls: ClsService,
   ) {}
 
   @Get('connections')
@@ -325,5 +363,207 @@ export class CryptoExchangesController {
   @ApiResponse(res(200, 'Sync runs; snake_case keys.', EXAMPLES.syncRuns))
   cryptoSyncRuns(@Query() query: GetCryptoSyncRunsQueryDto) {
     return this.getSyncRuns.execute(query);
+  }
+
+  @Post('connections/:id/imports')
+  @RequirePermission(Action.Create, AbilitySubject.CryptoExchange)
+  @UseInterceptors(CsvUploadInterceptor())
+  @ApiConsumes('multipart/form-data')
+  @ApiBody(csvUploadBody)
+  @ApiOperation({
+    summary:
+      'Upload an exchange CSV report and preview what importing it would do (nothing is stored yet).',
+    description:
+      'Multipart field `file`, one .csv up to 10 MB, held in memory only. Needs Create on CryptoExchange. The preview is valid for 24 hours; commit it by re-sending the same file.',
+  })
+  @ApiResponse(res(201, 'The preview; snake_case keys.', EXAMPLES.csvPreview))
+  @ApiResponse(
+    res(
+      404,
+      'Unknown or archived connection.',
+      EXAMPLES.serviceError(
+        'CRYPTO_CONNECTION_NOT_FOUND',
+        'Crypto connection not found.',
+        404,
+      ),
+    ),
+  )
+  @ApiResponse(
+    res(
+      409,
+      'CSV_DUPLICATE_FILE: this exact file was already imported for the connection.' +
+        ERROR_NOTE,
+      EXAMPLES.csvError(
+        'CSV_DUPLICATE_FILE',
+        'This file has already been imported for this connection.',
+      ),
+    ),
+  )
+  @ApiResponse(
+    res(
+      413,
+      'CSV_TOO_LARGE: the file is over 10 MB.' + ERROR_NOTE,
+      EXAMPLES.csvError(
+        'CSV_TOO_LARGE',
+        'The file is larger than the 10 MB limit.',
+      ),
+    ),
+  )
+  @ApiResponse(
+    res(
+      422,
+      'CSV_FORMAT_UNRECOGNIZED (no file, not a .csv, or an unknown report), CSV_DERIVED_EXPORT_REFUSED or CSV_MALFORMED.' +
+        ERROR_NOTE,
+      EXAMPLES.csvError(
+        'CSV_FORMAT_UNRECOGNIZED',
+        'Upload a .csv file exported from the exchange.',
+      ),
+    ),
+  )
+  previewCryptoCsv(
+    @Param('id', ParseIntPipe) id: number,
+    @UploadedFile() file?: UploadedCsv,
+  ) {
+    return this.previewCsv.execute(
+      id,
+      requireCsv(file),
+      Number(this.cls.get('userId')),
+    );
+  }
+
+  @Post('imports/:importId/commit')
+  @HttpCode(HttpStatus.OK)
+  @RequirePermission(Action.Create, AbilitySubject.CryptoExchange)
+  @UseInterceptors(CsvUploadInterceptor())
+  @ApiConsumes('multipart/form-data')
+  @ApiBody(csvUploadBody)
+  @ApiOperation({
+    summary:
+      'Commit a previewed import by re-sending the same file (all or nothing).',
+    description:
+      'Multipart field `file`. The file must be byte-identical to the previewed one. Needs Create on CryptoExchange.',
+  })
+  @ApiResponse(
+    res(200, 'The committed import; snake_case keys.', EXAMPLES.csvImport),
+  )
+  @ApiResponse(
+    res(
+      404,
+      'Unknown import or archived connection.',
+      EXAMPLES.serviceError(
+        'CRYPTO_CSV_IMPORT_NOT_FOUND',
+        'CSV import not found.',
+        404,
+      ),
+    ),
+  )
+  @ApiResponse(
+    res(
+      409,
+      'CSV_FILE_CHANGED (different bytes than previewed) or CSV_NOT_COMMITTABLE (already committed or rolled back).' +
+        ERROR_NOTE,
+      EXAMPLES.csvError(
+        'CSV_FILE_CHANGED',
+        'The file differs from the one that was previewed. Upload and preview it again.',
+      ),
+    ),
+  )
+  @ApiResponse(
+    res(
+      413,
+      'CSV_TOO_LARGE.' + ERROR_NOTE,
+      EXAMPLES.csvError(
+        'CSV_TOO_LARGE',
+        'The file is larger than the 10 MB limit.',
+      ),
+    ),
+  )
+  @ApiResponse(
+    res(
+      422,
+      'CSV_FORMAT_UNRECOGNIZED or CSV_MALFORMED.' + ERROR_NOTE,
+      EXAMPLES.csvError(
+        'CSV_FORMAT_UNRECOGNIZED',
+        'Upload a .csv file exported from the exchange.',
+      ),
+    ),
+  )
+  @ApiResponse(
+    res(
+      503,
+      'CSV_BUSY: another import is being written; retry after the Retry-After seconds.' +
+        ERROR_NOTE,
+      EXAMPLES.csvError(
+        'CSV_BUSY',
+        'Another import is in progress for this connection. Try again shortly.',
+      ),
+    ),
+  )
+  commitCryptoCsv(
+    @Param('importId', ParseIntPipe) importId: number,
+    @UploadedFile() file?: UploadedCsv,
+  ) {
+    return this.commitCsv.execute(importId, requireCsv(file));
+  }
+
+  @Get('connections/:id/imports')
+  @RequirePermission(Action.View, AbilitySubject.CryptoExchange)
+  @ApiOperation({
+    summary: 'CSV import history of a connection, newest first.',
+  })
+  @ApiResponse(res(200, 'The imports; snake_case keys.', [EXAMPLES.csvImport]))
+  @ApiResponse(
+    res(
+      404,
+      'Unknown or archived connection.',
+      EXAMPLES.serviceError(
+        'CRYPTO_CONNECTION_NOT_FOUND',
+        'Crypto connection not found.',
+        404,
+      ),
+    ),
+  )
+  listCryptoCsvImports(@Param('id', ParseIntPipe) id: number) {
+    return this.listCsvImports.execute(id);
+  }
+
+  @Delete('imports/:importId')
+  @RequirePermission(Action.Delete, AbilitySubject.CryptoExchange)
+  @ApiOperation({
+    summary:
+      'Roll back a committed import (removes exactly the rows it wrote).',
+    description: 'Needs Delete on CryptoExchange.',
+  })
+  @ApiResponse(
+    res(200, 'The rolled-back import; snake_case keys.', {
+      ...EXAMPLES.csvImport,
+      status: 'rolled_back',
+    }),
+  )
+  @ApiResponse(
+    res(
+      404,
+      'Unknown import.',
+      EXAMPLES.serviceError(
+        'CRYPTO_CSV_IMPORT_NOT_FOUND',
+        'CSV import not found.',
+        404,
+      ),
+    ),
+  )
+  @ApiResponse(
+    res(
+      409,
+      'CSV_NOT_ROLLBACKABLE: not committed, or later imports skipped rows this one wrote (dependentImportIds lists them; roll those back first).' +
+        ERROR_NOTE,
+      EXAMPLES.csvError(
+        'CSV_NOT_ROLLBACKABLE',
+        'Roll back the later import(s) first (13): they skipped rows that this import wrote.',
+        { dependentImportIds: [13] },
+      ),
+    ),
+  )
+  rollbackCryptoCsv(@Param('importId', ParseIntPipe) importId: number) {
+    return this.rollbackCsv.execute(importId);
   }
 }

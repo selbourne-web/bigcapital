@@ -20,8 +20,15 @@ import { REQUIRED_PERMISSION_KEY } from '@/modules/Roles/RequirePermission.decor
 import { AbilitySubject } from '@/modules/Roles/Roles.types';
 import { ValidationPipe } from '@/common/pipes/ClassValidation.pipe';
 import { CryptoExchangesController } from './CryptoExchanges.controller';
-import { CryptoExchangeExceptionFilter } from './CryptoExchanges.filter';
-import { CRYPTO_CONNECTION_ERRORS as ERRORS } from './CryptoExchanges.constants';
+import {
+  CryptoExchangeExceptionFilter,
+  CSV_ERROR_STATUS,
+} from './CryptoExchanges.filter';
+import {
+  CRYPTO_CONNECTION_ERRORS as ERRORS,
+  CRYPTO_CSV_IMPORT_ERRORS,
+} from './CryptoExchanges.constants';
+import { CsvErrorCode, CsvImportError } from './csv/csv.types';
 import {
   ExchangeAuthError,
   ExchangeNetworkError,
@@ -77,6 +84,11 @@ const makeMocks = () => ({
     selfHeal: jest.fn(async () => undefined),
     requestManualSync: jest.fn(async () => undefined),
   },
+  csvPreview: { execute: jest.fn(async () => ({ importId: 5 })) },
+  csvCommit: { execute: jest.fn(async () => ({ id: 5 })) },
+  csvRollback: { execute: jest.fn(async () => ({ id: 5 })) },
+  csvList: { execute: jest.fn(async () => [{ id: 5 }]) },
+  cls: { get: jest.fn((key: string) => (key === 'userId' ? 42 : undefined)) },
 });
 
 const makeController = (mocks = makeMocks()) => ({
@@ -90,6 +102,11 @@ const makeController = (mocks = makeMocks()) => ({
     mocks.rotate as any,
     mocks.remove as any,
     mocks.sync as any,
+    mocks.csvPreview as any,
+    mocks.csvCommit as any,
+    mocks.csvRollback as any,
+    mocks.csvList as any,
+    mocks.cls as any,
   ),
 });
 
@@ -155,6 +172,25 @@ describe('CryptoExchangesController routing and permissions', () => {
     ],
     ['cryptoBalances', RequestMethod.GET, 'balances', 'View'],
     ['cryptoSyncRuns', RequestMethod.GET, 'sync-runs', 'View'],
+    [
+      'previewCryptoCsv',
+      RequestMethod.POST,
+      'connections/:id/imports',
+      'Create',
+    ],
+    [
+      'commitCryptoCsv',
+      RequestMethod.POST,
+      'imports/:importId/commit',
+      'Create',
+    ],
+    [
+      'listCryptoCsvImports',
+      RequestMethod.GET,
+      'connections/:id/imports',
+      'View',
+    ],
+    ['rollbackCryptoCsv', RequestMethod.DELETE, 'imports/:importId', 'Delete'],
   ];
   const proto = CryptoExchangesController.prototype as any;
   const guard = new PermissionGuard(new Reflector());
@@ -165,7 +201,7 @@ describe('CryptoExchangesController routing and permissions', () => {
       getClass: () => CryptoExchangesController,
     }) as any;
 
-  it('lives under /crypto and has exactly the eight documented handlers', () => {
+  it('lives under /crypto and has exactly the twelve documented handlers', () => {
     expect(Reflect.getMetadata(PATH_METADATA, CryptoExchangesController)).toBe(
       'crypto',
     );
@@ -516,6 +552,139 @@ describe('CryptoExchangeExceptionFilter', () => {
         code: 'ATTESTATION_REQUIRED',
       }).getResponse(),
     ).toEqual({ code: 'ATTESTATION_REQUIRED' });
+  });
+});
+
+describe('CSV import endpoints: delegation', () => {
+  const file = { buffer: Buffer.from('a,b\n1,2\n'), originalname: 'x.csv' };
+
+  it('preview passes the connection id, the file and the CLS user id', async () => {
+    const { controller, mocks } = makeController();
+    await controller.previewCryptoCsv(7, file);
+    expect(mocks.csvPreview.execute).toHaveBeenCalledWith(
+      7,
+      { buffer: file.buffer, originalname: 'x.csv' },
+      42,
+    );
+  });
+
+  it('commit, list and rollback delegate their ids', async () => {
+    const { controller, mocks } = makeController();
+    await controller.commitCryptoCsv(5, file);
+    expect(mocks.csvCommit.execute).toHaveBeenCalledWith(5, {
+      buffer: file.buffer,
+      originalname: 'x.csv',
+    });
+    await controller.listCryptoCsvImports(7);
+    expect(mocks.csvList.execute).toHaveBeenCalledWith(7);
+    await controller.rollbackCryptoCsv(5);
+    expect(mocks.csvRollback.execute).toHaveBeenCalledWith(5);
+  });
+
+  it('a missing file part is CSV_FORMAT_UNRECOGNIZED before any service runs', () => {
+    const { controller, mocks } = makeController();
+    expect(() => controller.previewCryptoCsv(7, undefined)).toThrow(
+      CsvImportError,
+    );
+    expect(() => controller.commitCryptoCsv(5, undefined)).toThrow(
+      expect.objectContaining({ code: 'CSV_FORMAT_UNRECOGNIZED' }),
+    );
+    expect(mocks.csvPreview.execute).not.toHaveBeenCalled();
+    expect(mocks.csvCommit.execute).not.toHaveBeenCalled();
+  });
+
+  it('commit answers 200 and the upload routes use the CSV interceptor', () => {
+    const proto = CryptoExchangesController.prototype as any;
+    expect(Reflect.getMetadata(HTTP_CODE_METADATA, proto.commitCryptoCsv)).toBe(
+      200,
+    );
+    for (const name of ['previewCryptoCsv', 'commitCryptoCsv']) {
+      expect(Reflect.getMetadata('__interceptors__', proto[name])).toHaveLength(
+        1,
+      );
+    }
+    expect(
+      Reflect.getMetadata('__interceptors__', proto.listCryptoCsvImports),
+    ).toBeUndefined();
+  });
+});
+
+describe('CryptoExchangeExceptionFilter: CSV import errors', () => {
+  const codes: Array<[CsvErrorCode, number]> = [
+    ['CSV_FORMAT_UNRECOGNIZED', 422],
+    ['CSV_DERIVED_EXPORT_REFUSED', 422],
+    ['CSV_MALFORMED', 422],
+    ['CSV_DUPLICATE_FILE', 409],
+    ['CSV_FILE_CHANGED', 409],
+    ['CSV_NOT_ROLLBACKABLE', 409],
+    ['CSV_NOT_COMMITTABLE', 409],
+    ['CSV_TOO_LARGE', 413],
+    ['CSV_BUSY', 503],
+  ];
+
+  it('covers every CsvErrorCode', () => {
+    expect(Object.keys(CSV_ERROR_STATUS).sort()).toEqual(
+      codes.map(([c]) => c).sort(),
+    );
+  });
+
+  it.each(codes)(
+    'maps %s to HTTP %i with a stable { code, message } body',
+    (code, status) => {
+      const err = new CsvImportError(code, 'Friendly message.', {
+        secretRow: 'ROW-CONTENT',
+        line: 3,
+      });
+      const res = mapError(err);
+      expect(res.code).toBe(status);
+      expect(res.body).toEqual({ code, message: 'Friendly message.' });
+      const json = JSON.stringify(res.body);
+      expect(json).not.toContain('ROW-CONTENT');
+      expect(json).not.toContain('stack');
+      expect(json).not.toContain(' at ');
+    },
+  );
+
+  it('CSV_BUSY carries Retry-After; other codes do not', () => {
+    expect(mapError(new CsvImportError('CSV_BUSY', 'busy')).headers).toEqual({
+      'Retry-After': '5',
+    });
+    expect(
+      mapError(new CsvImportError('CSV_TOO_LARGE', 'big')).headers,
+    ).toEqual({});
+  });
+
+  it('CSV_NOT_ROLLBACKABLE exposes dependentImportIds (numbers only); other codes never do', () => {
+    const res = mapError(
+      new CsvImportError('CSV_NOT_ROLLBACKABLE', 'Roll back later ones.', {
+        dependentImportIds: [13, '14', 'x', 2.5],
+      }),
+    );
+    expect(res.body).toEqual({
+      code: 'CSV_NOT_ROLLBACKABLE',
+      message: 'Roll back later ones.',
+      dependentImportIds: [13, 14],
+    });
+    const other = mapError(
+      new CsvImportError('CSV_FILE_CHANGED', 'changed', {
+        dependentImportIds: [1],
+      }),
+    );
+    expect(other.body).toEqual({
+      code: 'CSV_FILE_CHANGED',
+      message: 'changed',
+    });
+  });
+
+  it('maps a missing import ServiceError to 404', () => {
+    const res = mapError(
+      new ServiceError(
+        CRYPTO_CSV_IMPORT_ERRORS.NOT_FOUND,
+        'CSV import not found.',
+      ),
+    );
+    expect(res.code).toBe(404);
+    expect(res.body.errors[0].type).toBe('CRYPTO_CSV_IMPORT_NOT_FOUND');
   });
 });
 

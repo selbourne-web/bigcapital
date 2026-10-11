@@ -265,6 +265,10 @@ describe('crypto Swagger documentation', () => {
     ['syncCryptoConnection', ['202', '404', '409', '429']],
     ['cryptoBalances', ['200']],
     ['cryptoSyncRuns', ['200']],
+    ['previewCryptoCsv', ['201', '404', '409', '413', '422']],
+    ['commitCryptoCsv', ['200', '404', '409', '413', '422', '503']],
+    ['listCryptoCsvImports', ['200', '404']],
+    ['rollbackCryptoCsv', ['200', '404', '409']],
   ])('%s documents responses %j', (name, expected) => {
     expect(statuses(name)).toEqual(expect.arrayContaining(expected));
   });
