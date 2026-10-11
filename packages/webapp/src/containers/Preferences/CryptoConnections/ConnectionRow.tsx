@@ -1,9 +1,14 @@
 import { Button, Icon, Intent, Tag } from '@blueprintjs/core';
-import React from 'react';
+import React, { useState } from 'react';
 import { describeCryptoError } from './AddConnectionDialog';
 import styles from './CryptoConnections.module.scss';
+import { ImportCsvDialog } from './ImportCsvDialog';
+import { ImportHistory } from './ImportHistory';
 import { AppToaster } from '@/components';
-import { exchangeLabel } from '@/containers/Crypto/exchanges';
+import {
+  exchangeLabel,
+  supportsCsvImport,
+} from '@/containers/Crypto/exchanges';
 import {
   useSyncCryptoConnection,
   useUpdateCryptoConnection,
@@ -18,6 +23,8 @@ interface ConnectionRowProps {
   accountMissing: boolean;
   canEdit: boolean;
   canDelete: boolean;
+  /** Create permission: uploading a CSV. */
+  canImport?: boolean;
   onRotate: (connection: CryptoConnection) => void;
   onDelete: (connection: CryptoConnection) => void;
 }
@@ -63,11 +70,15 @@ export function ConnectionRow({
   accountMissing,
   canEdit,
   canDelete,
+  canImport = false,
   onRotate,
   onDelete,
 }: ConnectionRowProps) {
   const sync = useSyncCryptoConnection();
   const update = useUpdateCryptoConnection();
+  const [importOpen, setImportOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const csvCapable = supportsCsvImport(connection.exchange);
 
   const status = STATUS_TAG[connection.status] ?? {
     text: String(connection.status),
@@ -143,6 +154,19 @@ export function ConnectionRow({
               ? `: ${connection.historyCoverage.note.replace(/\.+$/, '')}`
               : ''}
             .
+            {csvCapable && canImport && (
+              <>
+                {' '}
+                <Button
+                  small
+                  minimal
+                  intent={Intent.PRIMARY}
+                  onClick={() => setImportOpen(true)}
+                >
+                  Import CSV
+                </Button>
+              </>
+            )}
           </p>
         )}
         {isError && connection.lastError && (
@@ -197,6 +221,23 @@ export function ConnectionRow({
             )}
           </>
         )}
+        {csvCapable && canImport && (
+          <Button small icon="import" onClick={() => setImportOpen(true)}>
+            Import CSV
+          </Button>
+        )}
+        {csvCapable && (
+          <Button
+            small
+            minimal
+            icon="history"
+            aria-expanded={historyOpen}
+            aria-controls={`csv-history-${connection.id}`}
+            onClick={() => setHistoryOpen((open) => !open)}
+          >
+            {historyOpen ? 'Hide import history' : 'Import history'}
+          </Button>
+        )}
         {canDelete && (
           <Button
             small
@@ -209,6 +250,19 @@ export function ConnectionRow({
           </Button>
         )}
       </div>
+
+      {csvCapable && historyOpen && (
+        <div id={`csv-history-${connection.id}`} className={styles.rowFull}>
+          <ImportHistory connectionId={connection.id} canRollback={canDelete} />
+        </div>
+      )}
+      {csvCapable && (
+        <ImportCsvDialog
+          isOpen={importOpen}
+          onClose={() => setImportOpen(false)}
+          connection={connection}
+        />
+      )}
     </li>
   );
 }

@@ -46,6 +46,12 @@ const NO_PASSPHRASE = new Set<string>(['pionex']);
 export const needsPassphrase = (value: string): boolean =>
   !NO_PASSPHRASE.has(value);
 
+/** Exchanges that accept CSV report imports (history their API cannot return). */
+export const CSV_IMPORT_EXCHANGES: readonly string[] = ['pionex'];
+
+export const supportsCsvImport = (exchange: string): boolean =>
+  CSV_IMPORT_EXCHANGES.includes(exchange);
+
 const titleCase = (value: string) =>
   value
     .split('_')

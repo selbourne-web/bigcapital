@@ -119,3 +119,93 @@
     margin-bottom: 0;
   }
 }
+
+// Full-width block under a row (import history).
+.rowFull {
+  flex: 1 1 100%;
+}
+
+.resultLine {
+  margin: 0 0 4px;
+}
+
+.preview {
+  margin-bottom: 12px;
+}
+
+.previewTitle {
+  margin: 0 0 8px;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 8px;
+  margin: 0 0 8px;
+
+  > div {
+    padding: 8px 10px;
+    border: 1px solid #dcdcdc;
+    border-radius: 8px;
+
+    :global(.bp4-dark) & {
+      border-color: rgba(255, 255, 255, 0.15);
+    }
+  }
+
+  dt {
+    font-size: 11px;
+    color: #727272;
+  }
+
+  dd {
+    margin: 2px 0 0;
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--color-primary, #800000);
+  }
+}
+
+.rejected {
+  margin-top: 8px;
+
+  ul {
+    margin: 4px 0 0;
+    padding-left: 18px;
+    max-height: 120px;
+    overflow-y: auto;
+    font-size: 12px;
+  }
+}
+
+.history {
+  margin: 0 0 4px;
+  padding-left: 12px;
+  border-left: 2px solid var(--color-primary, #800000);
+}
+
+.historyList {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+}
+
+.historyItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  padding: 8px 0;
+  overflow-wrap: anywhere;
+
+  & + & {
+    border-top: 1px solid #dcdcdc;
+
+    :global(.bp4-dark) & {
+      border-top-color: rgba(255, 255, 255, 0.15);
+    }
+  }
+}

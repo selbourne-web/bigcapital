@@ -51,6 +51,29 @@ export const describeCryptoError = (error: unknown): string => {
         : 'A sync was requested a moment ago. Try again shortly.';
     case 'ATTESTATION_REQUIRED':
       return 'The exchange cannot confirm this key is read-only. Confirm it below to continue.';
+    case 'CSV_FORMAT_UNRECOGNIZED':
+      return 'This is not a .csv report this import supports. Export the report again from the exchange and try again.';
+    case 'CSV_DERIVED_EXPORT_REFUSED':
+      return 'This looks like a summary calculated from other reports. Import the original report instead, so nothing is counted twice.';
+    case 'CSV_MALFORMED':
+      return 'The file could not be read as a CSV report. Export it again from the exchange without editing it, then retry.';
+    case 'CSV_DUPLICATE_FILE':
+      return 'This exact file was already imported for this connection.';
+    case 'CSV_TOO_LARGE':
+      return 'The file is larger than the 10 MB limit. Export a shorter date range and import it in parts.';
+    case 'CSV_FILE_CHANGED':
+      return 'The file is different from the one that was previewed. Choose it again and preview it before importing.';
+    case 'CSV_NOT_COMMITTABLE':
+      return 'This import was already completed or rolled back. Choose the file again to start a new import.';
+    case 'CSV_BUSY':
+      return error.retryAfterSeconds
+        ? `Another import is being written. Try again in ${error.retryAfterSeconds} seconds.`
+        : 'Another import is being written. Try again in a few seconds.';
+    case 'CSV_NOT_ROLLBACKABLE':
+      // The server names the later imports that must be rolled back first.
+      return error.message;
+    case 'CRYPTO_CSV_IMPORT_NOT_FOUND':
+      return 'That import no longer exists. Refresh the list and try again.';
     case 'NETWORK_ERROR':
     case 'INVALID_RESPONSE':
     default:

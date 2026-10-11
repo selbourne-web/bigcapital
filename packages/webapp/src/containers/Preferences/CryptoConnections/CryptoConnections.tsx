@@ -229,6 +229,7 @@ function CryptoConnectionsPreferences({
                   }
                   canEdit={canEdit}
                   canDelete={canDelete}
+                  canImport={canCreate}
                   onRotate={setRotateTarget}
                   onDelete={setDeleteTarget}
                 />

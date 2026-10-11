@@ -48,6 +48,10 @@ export const CRYPTO_QUERY_KEYS = {
     ] as const,
   syncRunsAll: (org?: string | null) =>
     ['crypto', org ?? null, 'sync-runs'] as const,
+  csvImports: (org?: string | null, connectionId?: number) =>
+    ['crypto', org ?? null, 'csv-imports', connectionId ?? null] as const,
+  csvImportsAll: (org?: string | null) =>
+    ['crypto', org ?? null, 'csv-imports'] as const,
 };
 
 // ---------------------------------------------------------------------------
@@ -116,6 +120,66 @@ export interface CryptoSyncRun {
   errors: CryptoSyncRunError[] | null;
   startedAt: string | null;
   finishedAt: string | null;
+}
+
+export type CryptoCsvImportStatus =
+  | 'previewed'
+  | 'committed'
+  | 'rolled_back'
+  | 'failed'
+  | string;
+
+/** One row of a connection's CSV import history. */
+export interface CryptoCsvImport {
+  id: number;
+  connectionId: number;
+  reportType: string;
+  filename: string;
+  rowCount: number;
+  rowsImported: number;
+  rowsSkippedDuplicate: number;
+  rowsRejected: number;
+  dateFrom: string | null;
+  dateTo: string | null;
+  status: CryptoCsvImportStatus;
+  createdAt: string;
+  committedAt: string | null;
+}
+
+/** What importing a CSV would do; nothing is stored until it is committed. */
+export interface CryptoCsvPreview {
+  importId: number;
+  connectionId: number;
+  exchange: string;
+  reportType: string;
+  filename: string;
+  rowCount: number;
+  /** Rows that would be written now. */
+  importable: number;
+  alreadyImported: number;
+  rejectedCount: number;
+  /** First rejected rows only (line number and reason, never cell contents). */
+  rejected: Array<{ line: number; reason: string }>;
+  byType: Record<string, number>;
+  dateFrom: string | null;
+  dateTo: string | null;
+  /** API trade records already stored inside the file's date range. */
+  apiOverlap: number;
+}
+
+export interface PreviewCryptoCsvInput {
+  connectionId: number;
+  file: File;
+}
+
+export interface CommitCryptoCsvInput {
+  importId: number;
+  /** Must be the very file that was previewed. */
+  file: File;
+}
+
+export interface RollbackCryptoCsvInput {
+  importId: number;
 }
 
 export interface CreateCryptoConnectionInput {
@@ -213,6 +277,44 @@ export const mapCryptoSyncRun = (raw: Raw): CryptoSyncRun => ({
   finishedAt: raw.finished_at ?? null,
 });
 
+export const mapCryptoCsvImport = (raw: Raw): CryptoCsvImport => ({
+  id: Number(raw.id),
+  connectionId: Number(raw.connection_id),
+  reportType: String(raw.report_type ?? ''),
+  filename: String(raw.filename ?? ''),
+  rowCount: Number(raw.row_count ?? 0),
+  rowsImported: Number(raw.rows_imported ?? 0),
+  rowsSkippedDuplicate: Number(raw.rows_skipped_duplicate ?? 0),
+  rowsRejected: Number(raw.rows_rejected ?? 0),
+  dateFrom: raw.date_from ?? null,
+  dateTo: raw.date_to ?? null,
+  status: raw.status,
+  createdAt: raw.created_at,
+  committedAt: raw.committed_at ?? null,
+});
+
+export const mapCryptoCsvPreview = (raw: Raw): CryptoCsvPreview => ({
+  importId: Number(raw.import_id),
+  connectionId: Number(raw.connection_id),
+  exchange: String(raw.exchange ?? ''),
+  reportType: String(raw.report_type ?? ''),
+  filename: String(raw.filename ?? ''),
+  rowCount: Number(raw.row_count ?? 0),
+  importable: Number(raw.importable ?? 0),
+  alreadyImported: Number(raw.already_imported ?? 0),
+  rejectedCount: Number(raw.rejected_count ?? 0),
+  rejected: ((raw.rejected ?? []) as Raw[]).map((r) => ({
+    line: Number(r.line),
+    reason: String(r.reason ?? ''),
+  })),
+  byType: Object.fromEntries(
+    Object.entries((raw.by_type ?? {}) as Raw).map(([k, v]) => [k, Number(v)]),
+  ),
+  dateFrom: raw.date_from ?? null,
+  dateTo: raw.date_to ?? null,
+  apiOverlap: Number(raw.api_overlap ?? 0),
+});
+
 // ---------------------------------------------------------------------------
 // Errors
 // ---------------------------------------------------------------------------
@@ -231,6 +333,8 @@ export class CryptoApiError extends Error {
   readonly permissions?: string[];
   readonly warnings?: string[];
   readonly retryAfterSeconds?: number;
+  /** CSV_NOT_ROLLBACKABLE: later imports that must be rolled back first. */
+  readonly dependentImportIds?: number[];
 
   constructor(init: {
     status: number;
@@ -239,6 +343,7 @@ export class CryptoApiError extends Error {
     permissions?: string[];
     warnings?: string[];
     retryAfterSeconds?: number;
+    dependentImportIds?: number[];
   }) {
     super(init.message);
     this.name = 'CryptoApiError';
@@ -247,6 +352,7 @@ export class CryptoApiError extends Error {
     this.permissions = init.permissions;
     this.warnings = init.warnings;
     this.retryAfterSeconds = init.retryAfterSeconds;
+    this.dependentImportIds = init.dependentImportIds;
   }
 }
 
@@ -287,6 +393,15 @@ export const parseCryptoError = (
     ? b.warnings.filter((w: unknown): w is string => typeof w === 'string')
     : undefined;
 
+  // Error bodies bypass the serializer: camelCase on the wire.
+  const dependentRaw = b.dependentImportIds ?? b.dependent_import_ids;
+  const dependentImportIds = Array.isArray(dependentRaw)
+    ? dependentRaw.filter(
+        (id: unknown): id is number =>
+          typeof id === 'number' && Number.isFinite(id),
+      )
+    : undefined;
+
   let retryAfterSeconds: number | undefined;
   if (typeof b.retryAfterSeconds === 'number') {
     retryAfterSeconds = b.retryAfterSeconds;
@@ -301,6 +416,7 @@ export const parseCryptoError = (
     permissions,
     warnings,
     retryAfterSeconds,
+    dependentImportIds,
   });
 };
 
@@ -326,14 +442,23 @@ async function cryptoRequest(
     headers['organization-id'] = String(auth.organizationId);
   const locale = getCookie('locale');
   if (locale) headers['Accept-Language'] = locale;
-  if (body !== undefined) headers['content-type'] = 'application/json';
+  // FormData: the browser sets the multipart content-type (with boundary).
+  const isForm = typeof FormData !== 'undefined' && body instanceof FormData;
+  if (body !== undefined && !isForm) {
+    headers['content-type'] = 'application/json';
+  }
 
   let response: Response;
   try {
     response = await fetch(`/api/crypto${path}`, {
       method,
       headers,
-      body: body === undefined ? undefined : JSON.stringify(body),
+      body:
+        body === undefined
+          ? undefined
+          : isForm
+            ? (body as FormData)
+            : JSON.stringify(body),
     });
   } catch {
     // Deliberately no cause: the request body may hold credentials.
@@ -436,6 +561,25 @@ export function useCryptoSyncRuns(
         )) as Raw[]
       ).map(mapCryptoSyncRun);
     },
+  });
+}
+
+export function useCryptoCsvImports(
+  connectionId: number,
+  options?: QueryOptions<CryptoCsvImport[]>,
+) {
+  const auth = useCryptoAuth();
+  return useQuery<CryptoCsvImport[], CryptoApiError>({
+    ...options,
+    queryKey: CRYPTO_QUERY_KEYS.csvImports(auth.organizationId, connectionId),
+    queryFn: async () =>
+      (
+        (await cryptoRequest(
+          auth,
+          'GET',
+          `/connections/${connectionId}/imports`,
+        )) as Raw[]
+      ).map(mapCryptoCsvImport),
   });
 }
 
@@ -546,5 +690,88 @@ export function useSyncCryptoConnection() {
       client.invalidateQueries({
         queryKey: CRYPTO_QUERY_KEYS.syncRunsAll(auth.organizationId),
       }),
+  });
+}
+
+// ---------------------------------------------------------------------------
+// CSV import (preview -> commit -> optional rollback)
+// ---------------------------------------------------------------------------
+
+const csvForm = (file: File) => {
+  const form = new FormData();
+  form.append('file', file);
+  return form;
+};
+
+/** Refetch what a committed or rolled-back import changes. */
+function useInvalidateCsvImport() {
+  const client = useQueryClient();
+  const { organizationId } = useCryptoAuth();
+  return () => {
+    client.invalidateQueries({
+      queryKey: CRYPTO_QUERY_KEYS.csvImportsAll(organizationId),
+    });
+    client.invalidateQueries({
+      queryKey: CRYPTO_QUERY_KEYS.balances(organizationId),
+    });
+    client.invalidateQueries({
+      queryKey: CRYPTO_QUERY_KEYS.connections(organizationId),
+    });
+  };
+}
+
+/** Uploads the file and returns what importing it would do. Stores nothing. */
+export function usePreviewCryptoCsv() {
+  const auth = useCryptoAuth();
+  const client = useQueryClient();
+  return useMutation<CryptoCsvPreview, CryptoApiError, PreviewCryptoCsvInput>({
+    mutationFn: async ({ connectionId, file }) =>
+      mapCryptoCsvPreview(
+        await cryptoRequest(
+          auth,
+          'POST',
+          `/connections/${connectionId}/imports`,
+          csvForm(file),
+        ),
+      ),
+    gcTime: 0,
+    onSuccess: () =>
+      client.invalidateQueries({
+        queryKey: CRYPTO_QUERY_KEYS.csvImportsAll(auth.organizationId),
+      }),
+  });
+}
+
+/** Commits a previewed import by re-sending the same file. */
+export function useCommitCryptoCsv() {
+  const auth = useCryptoAuth();
+  const invalidate = useInvalidateCsvImport();
+  return useMutation<CryptoCsvImport, CryptoApiError, CommitCryptoCsvInput>({
+    mutationFn: async ({ importId, file }) =>
+      mapCryptoCsvImport(
+        await cryptoRequest(
+          auth,
+          'POST',
+          `/imports/${importId}/commit`,
+          csvForm(file),
+        ),
+      ),
+    gcTime: 0,
+    onSuccess: invalidate,
+  });
+}
+
+/** Rolls back a committed import. 409 CSV_NOT_ROLLBACKABLE carries `dependentImportIds`. */
+export function useRollbackCryptoCsv() {
+  const auth = useCryptoAuth();
+  const invalidate = useInvalidateCsvImport();
+  return useMutation<CryptoCsvImport, CryptoApiError, RollbackCryptoCsvInput>({
+    mutationFn: async ({ importId }) =>
+      mapCryptoCsvImport(
+        await cryptoRequest(auth, 'DELETE', `/imports/${importId}`),
+      ),
+    onSuccess: invalidate,
+    // A refused rollback may mean the list is stale.
+    onError: invalidate,
   });
 }
