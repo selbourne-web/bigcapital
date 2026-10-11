@@ -24,6 +24,10 @@ export const CRYPTO_RECORD_TYPES = [
   'funding',
   'adjustment',
   'position',
+  /** Internal move between a venue's own wallets. */
+  'transfer',
+  /** Loan / credit-line activity. */
+  'credit',
   /** Response that did not match the documented shape; stored so no data is lost. */
   'unparsed',
 ] as const;

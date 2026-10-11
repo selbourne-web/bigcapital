@@ -1,6 +1,34 @@
 import { isDecimal } from '../../../adapters/shared';
 import { CsvParser, CsvRowResult } from '../../csv.types';
-import { CryptoRecordType } from '../../../CryptoExchanges.constants';
+import {
+  firstBadDecimal,
+  importParser as importParserFor,
+  isSignedDecimal,
+  rawPayload,
+  record,
+  reject,
+  safe,
+  sameHeaders,
+} from '../csv.shared';
+
+// Generic helpers live in ../csv.shared; re-exported so Pionex imports are unchanged.
+export {
+  firstBadDecimal,
+  isSignedDecimal,
+  rawPayload,
+  record,
+  reject,
+  safe,
+  sameHeaders,
+};
+
+export function importParser(
+  reportType: string,
+  headers: readonly string[],
+  parseRow: CsvParser['parseRow'],
+): CsvParser {
+  return importParserFor('pionex', reportType, headers, parseRow);
+}
 
 export const DERIVED_EXPORT_REFUSE_REASON =
   'Derived export in a third-party format; import the original Pionex reports instead.';
@@ -29,44 +57,8 @@ export function parseUtc(value: unknown): Date | null {
   return date;
 }
 
-export const isSignedDecimal = (v: unknown): v is string =>
-  typeof v === 'string' && /^-?\d+(\.\d+)?$/.test(v);
-
 export const isPositiveDecimal = (v: unknown): boolean =>
   isDecimal(v) && /[1-9]/.test(v);
-
-export const reject = (reason: string): CsvRowResult => ({
-  kind: 'reject',
-  reason,
-});
-
-export const record = (
-  recordType: CryptoRecordType,
-  occurredAt: Date,
-  payload: Record<string, unknown>,
-): CsvRowResult => ({
-  kind: 'record',
-  record: { recordType, occurredAt, payload },
-});
-
-/** Every raw cell under its original header name, as a plain object. */
-export const rawPayload = (
-  row: Record<string, string>,
-  extra: Record<string, unknown> = {},
-): Record<string, unknown> => ({ ...row, ...extra, source: 'csv' });
-
-export const sameHeaders = (a: string[], b: readonly string[]): boolean =>
-  a.length === b.length && a.every((h, i) => h === b[i]);
-
-/** First column whose value is not a decimal string, or null. */
-export function firstBadDecimal(
-  row: Record<string, string>,
-  columns: readonly string[],
-  signed = false,
-): string | null {
-  const ok = signed ? isSignedDecimal : isDecimal;
-  return columns.find((c) => !ok(row[c])) ?? null;
-}
 
 const MAX_SYMBOL_LENGTH = 64;
 
@@ -95,32 +87,6 @@ export function splitSymbol(
 export const isSymbolReject = (
   v: ReturnType<typeof splitSymbol>,
 ): v is CsvRowResult => 'kind' in v;
-
-/** Wraps a parseRow so an unexpected throw becomes a reject. */
-export function safe(fn: CsvParser['parseRow']): CsvParser['parseRow'] {
-  return (row, ctx) => {
-    try {
-      return fn(row, ctx);
-    } catch {
-      return reject('Row could not be parsed');
-    }
-  };
-}
-
-export function importParser(
-  reportType: string,
-  headers: readonly string[],
-  parseRow: CsvParser['parseRow'],
-): CsvParser {
-  return {
-    id: `pionex:${reportType}`,
-    exchange: 'pionex',
-    reportType,
-    disposition: 'import',
-    matches: (h) => sameHeaders(h, headers),
-    parseRow,
-  };
-}
 
 export function refuseParser(
   reportType: string,
