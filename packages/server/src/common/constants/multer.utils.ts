@@ -23,9 +23,14 @@ export function transformException(
     case multerExceptions.LIMIT_UNEXPECTED_FILE:
     case multerExceptions.LIMIT_PART_COUNT:
     case multerExceptions.MISSING_FIELD_NAME:
+    case multerExceptions.LIMIT_FIELD_NESTING:
+    case multerExceptions.LIMIT_FIELD_ARRAY_INDEX:
+    case multerExceptions.INVALID_FIELD_NAME:
       if (error.field) {
         return new BadRequestException(`${error.message} - ${error.field}`);
       }
+      return new BadRequestException(error.message);
+    case multerExceptions.STREAM_DESTROYED:
       return new BadRequestException(error.message);
     case busboyExceptions.MULTIPART_BOUNDARY_NOT_FOUND:
       return new BadRequestException(error.message);

@@ -33,6 +33,20 @@ describe('CsvParserRegistry', () => {
     expect(message).not.toContain('h20');
   });
 
+  it('truncates each echoed header to 100 characters', () => {
+    const reg = new CsvParserRegistry([mk({})]);
+    const long = 'x'.repeat(5000);
+    try {
+      reg.resolve('pionex', [long, 'b']);
+      throw new Error('expected a throw');
+    } catch (e: any) {
+      expect(e.code).toBe('CSV_FORMAT_UNRECOGNIZED');
+      expect(e.message).toContain('x'.repeat(100) + '...');
+      expect(e.message).not.toContain('x'.repeat(101));
+      expect(e.message.length).toBeLessThan(400);
+    }
+  });
+
   it('refuses derived exports with the refuse reason', () => {
     const reg = new CsvParserRegistry([
       mk({ disposition: 'refuse', refuseReason: 'derived export' }),

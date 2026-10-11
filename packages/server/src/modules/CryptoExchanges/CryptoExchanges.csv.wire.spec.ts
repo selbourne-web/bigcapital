@@ -1,4 +1,4 @@
-import { createServer, Server } from 'http';
+import { createServer, request, Server } from 'http';
 import { AddressInfo } from 'net';
 import { readFileSync } from 'fs';
 import { join } from 'path';
@@ -181,7 +181,9 @@ describe('CSV import endpoints over HTTP (real multer interceptor)', () => {
           body,
         });
       } catch (error) {
-        if (attempt >= 3) throw error;
+        const code = (error as any)?.cause?.code;
+        if (attempt >= 3 || !['ECONNRESET', 'EPIPE'].includes(code))
+          throw error;
       }
     }
     const text = await res.text();
@@ -197,7 +199,7 @@ describe('CSV import endpoints over HTTP (real multer interceptor)', () => {
   const csvPart = (data: Buffer, filename = 'trades.csv', type = 'text/csv') =>
     ({ name: 'file', filename, type, data }) as Part;
 
-  it('previews a valid file: 201 with counts, snake-free camel view, no row payloads', async () => {
+  it('previews a valid file: 201 with counts (service-level camelCase view), no row payloads', async () => {
     const res = await post(
       previewPath(),
       multipart([csvPart(rawTradingCsv(3, 2))]),
@@ -284,7 +286,7 @@ describe('CSV import endpoints over HTTP (real multer interceptor)', () => {
     expect(Object.keys(res.json).sort()).toEqual(['code', 'message']);
     expect(previewSpy).not.toHaveBeenCalled();
     expect(CSV_LIMITS.maxBytes).toBe(10 * 1024 * 1024);
-  });
+  }, 30_000);
 
   it.each([
     ['an .exe', 'malware.exe', 'application/octet-stream'],
@@ -342,6 +344,60 @@ describe('CSV import endpoints over HTTP (real multer interceptor)', () => {
     expect(json.json.code).toBe('CSV_FORMAT_UNRECOGNIZED');
   });
 
+  it.each([
+    [
+      'a, a[b] and __proto__ extra fields',
+      [
+        { name: 'a', data: '1' },
+        { name: 'a[b]', data: '2' },
+        { name: '__proto__', data: '3' },
+      ],
+    ],
+    [
+      'deeply nested / huge-index field names',
+      [
+        { name: 'a[b][c][d][e][f][g][h][i][j][k]', data: '1' },
+        { name: 'a[99999999999]', data: '1' },
+      ],
+    ],
+    ['an empty field name', [{ name: '', data: '1' }]],
+  ])('%s never produce a 5xx', async (_label, extra) => {
+    const res = await post(
+      previewPath(),
+      multipart([...(extra as Part[]), csvPart(rawTradingCsv(1))]),
+    );
+    expect(res.status).toBeLessThan(500);
+    if (res.status !== 201) {
+      expect(res.status).toBe(422);
+      expect(res.json.code).toBe('CSV_FORMAT_UNRECOGNIZED');
+    }
+  });
+
+  it('survives a client that aborts mid-upload and keeps serving', async () => {
+    const full = multipart([csvPart(rawTradingCsv(50))]);
+    await new Promise<void>((resolve) => {
+      const req = request(
+        base + previewPath(),
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': `multipart/form-data; boundary=${BOUNDARY}`,
+            'Content-Length': String(full.length),
+          },
+        },
+        () => resolve(),
+      );
+      req.on('error', () => resolve());
+      req.write(full.subarray(0, Math.floor(full.length / 2)));
+      setTimeout(() => req.destroy(), 50);
+    });
+    await new Promise((r) => setTimeout(r, 100));
+    const ok = await post(
+      previewPath(),
+      multipart([csvPart(rawTradingCsv(1))]),
+    );
+    expect(ok.status).toBe(201);
+  });
   it('stores a sanitized filename (separators and control characters removed, max 255)', async () => {
     const nasty = `..\\..\\etc/pass‮wd${'x'.repeat(400)}.csv`;
     const res = await post(

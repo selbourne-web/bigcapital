@@ -599,9 +599,9 @@ describe('CSV import endpoints: delegation', () => {
       200,
     );
     for (const name of ['previewCryptoCsv', 'commitCryptoCsv']) {
-      expect(Reflect.getMetadata('__interceptors__', proto[name])).toHaveLength(
-        1,
-      );
+      const interceptors = Reflect.getMetadata('__interceptors__', proto[name]);
+      expect(interceptors).toHaveLength(1);
+      expect(interceptors[0].isCsvUpload).toBe(true);
     }
     expect(
       Reflect.getMetadata('__interceptors__', proto.listCryptoCsvImports),

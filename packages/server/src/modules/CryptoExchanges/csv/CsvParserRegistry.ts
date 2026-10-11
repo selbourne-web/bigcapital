@@ -11,7 +11,10 @@ export class CsvParserRegistry {
       (p) => p.exchange === exchange && p.matches(headers),
     );
     if (!match) {
-      const shown = headers.slice(0, MAX_HEADERS_IN_MESSAGE).join(', ');
+      const shown = headers
+        .slice(0, MAX_HEADERS_IN_MESSAGE)
+        .map((h) => (h.length > 100 ? `${h.slice(0, 100)}...` : h))
+        .join(', ');
       const more =
         headers.length > MAX_HEADERS_IN_MESSAGE
           ? ` (+${headers.length - MAX_HEADERS_IN_MESSAGE} more)`

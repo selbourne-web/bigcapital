@@ -7,6 +7,7 @@ import {
 import { ExcludeNullInterceptor } from '@/interceptors/ExcludeNull.interceptor';
 import { CryptoExchangesController } from './CryptoExchanges.controller';
 import { toConnectionView } from './commands/CryptoConnectionView';
+import { toCsvImportView } from './commands/CryptoCsvImportView';
 import { buildBalancesView } from './queries/GetCryptoBalances.service';
 import { toRunView } from './queries/GetCryptoSyncRuns.service';
 
@@ -289,5 +290,72 @@ describe('crypto Swagger documentation', () => {
         ]);
       }
     }
+  });
+});
+
+describe('CSV import wire format (real SerializeInterceptor)', () => {
+  it('the import view is snake_case', async () => {
+    const out = await wire(
+      toCsvImportView({
+        id: 12,
+        connectionId: 1,
+        reportType: 'raw-trading-details',
+        originalFilename: 'trades.csv',
+        rowCount: 120,
+        rowsImported: 118,
+        rowsSkippedDuplicate: 0,
+        rowsRejected: 2,
+        dateFrom: new Date('2026-01-02T08:00:00Z'),
+        dateTo: null,
+        status: 'committed',
+        createdAt: new Date('2026-10-08T10:00:00Z'),
+        committedAt: null,
+      } as any),
+    );
+    expect(out).toMatchObject({
+      id: 12,
+      connection_id: 1,
+      report_type: 'raw-trading-details',
+      row_count: 120,
+      rows_imported: 118,
+      rows_skipped_duplicate: 0,
+      rows_rejected: 2,
+      date_from: '2026-01-02T08:00:00.000Z',
+      date_to: null,
+      created_at: '2026-10-08T10:00:00.000Z',
+      committed_at: null,
+    });
+    expect(Object.keys(out).some((k) => /[A-Z]/.test(k))).toBe(false);
+  });
+
+  it('the preview is snake_case, including by_type keys and the rejected list', async () => {
+    const out = await wire({
+      importId: 12,
+      connectionId: 1,
+      exchange: 'pionex',
+      reportType: 'raw-trading-details',
+      filename: 'trades.csv',
+      fileSha256: 'abc',
+      rowCount: 5,
+      importable: 3,
+      alreadyImported: 0,
+      rejectedCount: 2,
+      rejected: [{ line: 14, reason: 'Bad decimal' }],
+      byType: { trade_summary: 3 },
+      dateFrom: null,
+      dateTo: null,
+      apiOverlap: 0,
+    });
+    expect(out).toMatchObject({
+      import_id: 12,
+      file_sha256: 'abc',
+      row_count: 5,
+      already_imported: 0,
+      rejected_count: 2,
+      by_type: { trade_summary: 3 },
+      api_overlap: 0,
+      rejected: [{ line: 14, reason: 'Bad decimal' }],
+    });
+    expect(Object.keys(out).some((k) => /[A-Z]/.test(k))).toBe(false);
   });
 });

@@ -58,6 +58,8 @@ export function CsvUploadInterceptor(): Type<NestInterceptor> {
   });
 
   class CsvUpload extends Base {
+    /** Marker so route metadata can be asserted to hold THIS interceptor. */
+    static readonly isCsvUpload = true;
     async intercept(
       context: ExecutionContext,
       next: CallHandler,
@@ -74,6 +76,23 @@ export function CsvUploadInterceptor(): Type<NestInterceptor> {
         // Too many files, an unexpected field name, a broken multipart body:
         // multer's 400s become the one stable code instead of leaking its text.
         if (error instanceof HttpException && error.getStatus() === 400) {
+          throw new CsvImportError(
+            'CSV_FORMAT_UNRECOGNIZED',
+            'Upload exactly one .csv file in the `file` field.',
+          );
+        }
+        // Any other multer / busboy failure (unknown MulterError code, a
+        // raw busboy error) is the same client mistake, never a 500.
+        const e = error as { name?: string; code?: unknown; message?: string };
+        if (
+          e?.name === 'MulterError' ||
+          (typeof e?.code === 'string' &&
+            /^(LIMIT_|INVALID_FIELD|STREAM_)/.test(e.code)) ||
+          (e?.name === 'Error' &&
+            /^(Multipart|Malformed part|Unexpected end|Unexpected field)/.test(
+              String(e.message),
+            ))
+        ) {
           throw new CsvImportError(
             'CSV_FORMAT_UNRECOGNIZED',
             'Upload exactly one .csv file in the `file` field.',
