@@ -1,0 +1,17 @@
+Transaction,Type,Credit Line,Input Currency,Input Amount,Output Currency,Output Amount,USD Equivalent,Fee,Fee Currency,Details,Date / Time (UTC)
+NXTtest0000000000000000A01,Interest,,USDT,0.12345678,USDT,0.12345678,$0.12,-,-,"approved / USDT Interest Earned",2024-03-05 04:05:06
+NXTtest0000000000000000A02,Interest,Classic,xUSD,-1.5,xUSD,1.5,$1.50,-,-,"approved / Interest",2024-03-05 03:05:06
+NXTtest0000000000000000A03,Interest,,USDT,-0.25,-,0,$0.25,-,-,"approved / Interest",2024-03-04 03:00:00
+NXTtest0000000000000000A04,Interest,,USDT,0,-,0,$0.00,-,-,"approved / Interest",2024-03-04 02:00:00
+NXTtest0000000000000000A05,Exchange,,USDT,-100,SOL,0.5,$100.00,0.1,USDT,"approved / Exchange USDT to SOL",2024-03-03 12:00:00
+NXTtest0000000000000000A06,Deposit To Exchange,,USD,50,USDX,49.5,$50.00,0.5,USD,"approved / USD Top Up",2024-03-02 12:00:00
+NXTtest0000000000000000A07,Top up Crypto,,SOL,2,SOL,2,$300.00,-,-,"completed",2024-03-02 11:00:00
+NXTtest0000000000000000A08,Withdrawal,,SOL,-1,SOL,0.99,$150.00,0.01,SOL,"approved / SOL withdrawal",2024-03-01 11:00:00
+NXTtest0000000000000000A09,Transfer To Advanced,,USDT,-20,USDT,20,$20.00,-,-,"approved / Transfer from Savings Wallet to Futures Wallet",2024-03-01 10:00:00
+NXTtest0000000000000000A10,Locking Term Deposit,,NEXO,-10,NEXO,10,$12.00,-,-,"approved / Term Deposit",2024-02-28 10:00:00
+NXTtest0000000000000000A11,Loan Withdrawal,,USDX,-500,USDT,500,$500.00,-,-,"approved / Loan for Jane Example",2024-02-27 10:00:00
+NXTtest0000000000000000A12,Manual Repayment,,USDT,25,-,0,$25.00,-,-,"approved / Crypto Repayment",2024-02-26 10:00:00
+NXTtest0000000000000000A13,Dividend,,NEXO,1.25,NEXO,1.25,$1.50,-,-,"approved / Loyalty Dividend",2024-02-25 10:00:00
+NXTtest0000000000000000A14,Advanced Trading Add Bonus Funds,,USDT,5,-,0,$5.00,-,-,"approved / Bonus",2024-02-24 10:00:00
+NXTtest0000000000000000A15,Exchange Cashback,,NEXO,0.5,NEXO,0.5,$0.60,-,-,"approved / 0.5% on top of your Exchange transaction",2024-02-23 10:00:00
+NXTtest0000000000000000A16,Brand New Type,,USDT,1,USDT,1,$1.00,-,-,"approved / Something",2024-02-22 10:00:00
