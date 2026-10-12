@@ -53,6 +53,7 @@
   "pnpm": {
     "overrides": {
       "multer": "2.4.0",
+      "@aws-sdk/lib-storage@<3.1142.0": "3.1142.0",
       "@babel/core@>=7.0.0 <7.29.6": "7.29.7",
       "@babel/runtime@<7.26.10": "7.29.7",
       "@babel/runtime-corejs3@<7.26.10": "7.29.7",
@@ -71,7 +72,6 @@
       "engine.io@>=6.0.0 <6.6.10": "6.6.11",
       "fast-loops@<1.1.4": "1.1.4",
       "fast-uri@>=3.0.0 <3.1.8": "3.1.8",
-      "fast-xml-parser@>=4.0.0 <4.5.5": "4.5.7",
       "flatted@<3.4.2": "3.4.4",
       "follow-redirects@<1.16.0": "1.16.0",
       "form-data@>=4.0.0 <4.0.6": "4.0.6",

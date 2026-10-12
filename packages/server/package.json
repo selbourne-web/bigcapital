@@ -34,8 +34,8 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.128.0",
-    "@aws-sdk/client-s3": "^3.576.0",
-    "@aws-sdk/s3-request-presigner": "^3.583.0",
+    "@aws-sdk/client-s3": "^3.1142.0",
+    "@aws-sdk/s3-request-presigner": "^3.1142.0",
     "@bigcapital/email-components": "workspace:*",
     "@bigcapital/pdf-templates": "workspace:*",
     "@bigcapital/sdk-ts": "workspace:*",
@@ -130,7 +130,7 @@
     "reflect-metadata": "^0.2.0",
     "remeda": "^2.19.2",
     "rxjs": "^7.8.1",
-    "sanitize-html": "2.17.5",
+    "sanitize-html": "2.17.7",
     "serialize-interceptor": "^1.1.7",
     "socket.io": "^4.8.4",
     "strategy": "^1.1.1",
@@ -178,8 +178,12 @@
     "rootDir": "src",
     "testRegex": ".*\\.spec\\.ts$",
     "transform": {
+      "/node_modules/.+/(htmlparser2|domhandler|domutils|domelementtype|dom-serializer|entities)/.+\\.js$": "<rootDir>/../test/jest-esm-transform.js",
       "^.+\\.(t|j)s$": "ts-jest"
     },
+    "transformIgnorePatterns": [
+      "/node_modules/(?!(\\.pnpm|htmlparser2|domhandler|domutils|domelementtype|dom-serializer|entities)/)"
+    ],
     "collectCoverageFrom": [
       "**/*.(t|j)s"
     ],

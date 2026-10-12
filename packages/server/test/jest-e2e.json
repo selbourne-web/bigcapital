@@ -6,8 +6,12 @@
   "setupFiles": ["<rootDir>/setup.ts"],
   "testTimeout": 120000,
   "transform": {
+    "/node_modules/.+/(htmlparser2|domhandler|domutils|domelementtype|dom-serializer|entities)/.+\\.js$": "<rootDir>/jest-esm-transform.js",
     "^.+\\.(t|j)s$": "ts-jest"
   },
+  "transformIgnorePatterns": [
+    "/node_modules/(?!(\\.pnpm|htmlparser2|domhandler|domutils|domelementtype|dom-serializer|entities)/)"
+  ],
   "moduleNameMapper": {
     "^@/(.*)$": "<rootDir>/../src/$1"
   },
