@@ -35,6 +35,7 @@ export const sampleCryptoConnections = (): CryptoConnection[] => [
     createdAt: NOW(),
     keyExpiresAt: null,
     historyCoverage: { level: 'full' },
+    mode: 'api',
   },
   {
     id: 2,
@@ -48,6 +49,7 @@ export const sampleCryptoConnections = (): CryptoConnection[] => [
     createdAt: NOW(),
     keyExpiresAt: null,
     historyCoverage: { level: 'full' },
+    mode: 'api',
   },
   {
     id: 3,
@@ -61,6 +63,7 @@ export const sampleCryptoConnections = (): CryptoConnection[] => [
     createdAt: NOW(),
     keyExpiresAt: null,
     historyCoverage: { level: 'full' },
+    mode: 'api',
   },
 ];
 

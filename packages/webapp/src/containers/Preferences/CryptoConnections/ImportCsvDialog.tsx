@@ -14,6 +14,7 @@ import { AppToaster } from '@/components';
 import { exchangeLabel } from '@/containers/Crypto/exchanges';
 import {
   CryptoApiError,
+  isCsvOnly,
   useCommitCryptoCsv,
   usePreviewCryptoCsv,
   type CryptoConnection,
@@ -286,9 +287,12 @@ function ImportCsvForm({
             <Callout icon="info-sign" className={styles.help}>
               <p>
                 Import a report you exported from{' '}
-                {exchangeLabel(connection.exchange)} to fill in history the API
-                cannot return. You will see a preview first; nothing is saved
-                until you confirm.
+                {exchangeLabel(connection.exchange)}
+                {isCsvOnly(connection)
+                  ? '. '
+                  : ' to fill in history the API cannot return. '}
+                You will see a preview first; nothing is saved until you
+                confirm.
               </p>
             </Callout>
 

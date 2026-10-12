@@ -47,7 +47,12 @@ export const needsPassphrase = (value: string): boolean =>
   !NO_PASSPHRASE.has(value);
 
 /** Exchanges that accept CSV report imports (history their API cannot return). */
-export const CSV_IMPORT_EXCHANGES: readonly string[] = ['pionex'];
+export const CSV_IMPORT_EXCHANGES: readonly string[] = ['pionex', 'nexo'];
+
+/** Exchanges with no usable API here: connections are created without a key and fed by CSV only. */
+export const CSV_ONLY_EXCHANGES = [
+  { value: 'nexo', label: 'Nexo (CSV)' },
+] as const;
 
 export const supportsCsvImport = (exchange: string): boolean =>
   CSV_IMPORT_EXCHANGES.includes(exchange);
@@ -59,7 +64,11 @@ const titleCase = (value: string) =>
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
     .join(' ');
 
+/** Names of CSV-only exchanges (they are not in the API-key list above). */
+const CSV_ONLY_LABELS: Record<string, string> = { nexo: 'Nexo' };
+
 /** Friendly exchange name; unknown ids fall back to a title-cased version. */
 export const exchangeLabel = (value: string): string =>
   CRYPTO_EXCHANGES.find((exchange) => exchange.value === value)?.label ??
+  CSV_ONLY_LABELS[value] ??
   titleCase(value);

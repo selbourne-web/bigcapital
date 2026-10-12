@@ -6,6 +6,7 @@ import {
   AddConnectionDialog,
   describeCryptoError,
 } from './AddConnectionDialog';
+import { AddCsvOnlyConnectionDialog } from './AddCsvOnlyConnectionDialog';
 import { ConnectionRow } from './ConnectionRow';
 import styles from './CryptoConnections.module.scss';
 import type { WithDashboardActionsProps } from '@/containers/Dashboard/withDashboardActions';
@@ -64,6 +65,7 @@ function CryptoConnectionsPreferences({
   const deleteMutation = useDeleteCryptoConnection();
 
   const [addOpen, setAddOpen] = useState(false);
+  const [addCsvOpen, setAddCsvOpen] = useState(false);
   const [rotateTarget, setRotateTarget] = useState<CryptoConnection | null>(
     null,
   );
@@ -175,13 +177,18 @@ function CryptoConnectionsPreferences({
             </p>
           </div>
           {canCreate && (
-            <Button
-              intent={Intent.PRIMARY}
-              icon="plus"
-              onClick={() => setAddOpen(true)}
-            >
-              Add connection
-            </Button>
+            <div className={styles.headActions}>
+              <Button
+                intent={Intent.PRIMARY}
+                icon="plus"
+                onClick={() => setAddOpen(true)}
+              >
+                Add connection
+              </Button>
+              <Button icon="document" onClick={() => setAddCsvOpen(true)}>
+                Add CSV-only connection
+              </Button>
+            </div>
           )}
         </div>
 
@@ -203,7 +210,9 @@ function CryptoConnectionsPreferences({
         {connections && connections.length === 0 && (
           <p className={styles.empty}>
             No exchanges connected yet.
-            {canCreate ? ' Use "Add connection" to link one.' : ''}
+            {canCreate
+              ? ' Use "Add connection" to link one, or "Add CSV-only connection" for an exchange you import reports from.'
+              : ''}
           </p>
         )}
 
@@ -242,6 +251,12 @@ function CryptoConnectionsPreferences({
       <AddConnectionDialog
         isOpen={addOpen}
         onClose={() => setAddOpen(false)}
+        accounts={pickable}
+        accountsLoading={accountsQuery.isLoading}
+      />
+      <AddCsvOnlyConnectionDialog
+        isOpen={addCsvOpen}
+        onClose={() => setAddCsvOpen(false)}
         accounts={pickable}
         accountsLoading={accountsQuery.isLoading}
       />

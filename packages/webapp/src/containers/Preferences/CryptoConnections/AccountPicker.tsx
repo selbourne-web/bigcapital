@@ -61,6 +61,8 @@ interface AccountPickerProps {
   onChange: (value: string) => void;
   disabled?: boolean;
   loading?: boolean;
+  /** Replaces the default help text (shown when not loading). */
+  helperText?: string;
 }
 
 /**
@@ -74,6 +76,7 @@ export function AccountPicker({
   onChange,
   disabled,
   loading,
+  helperText,
 }: AccountPickerProps) {
   const options = useMemo(
     () => [
@@ -97,7 +100,8 @@ export function AccountPicker({
       helperText={
         loading
           ? 'Loading your asset accounts...'
-          : 'Balances and transactions from this connection post to this asset account.'
+          : (helperText ??
+            'Balances and transactions from this connection post to this asset account.')
       }
     >
       <HTMLSelect

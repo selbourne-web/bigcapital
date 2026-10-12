@@ -51,6 +51,8 @@ export const describeCryptoError = (error: unknown): string => {
         : 'A sync was requested a moment ago. Try again shortly.';
     case 'ATTESTATION_REQUIRED':
       return 'The exchange cannot confirm this key is read-only. Confirm it below to continue.';
+    case 'CRYPTO_CONNECTION_CSV_ONLY':
+      return 'This connection has no API key. It is updated by importing CSV reports only.';
     case 'CSV_FORMAT_UNRECOGNIZED':
       return 'This is not a .csv report this import supports. Export the report again from the exchange and try again.';
     case 'CSV_DERIVED_EXPORT_REFUSED':

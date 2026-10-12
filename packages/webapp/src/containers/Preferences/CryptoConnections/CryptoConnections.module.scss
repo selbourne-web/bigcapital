@@ -22,6 +22,18 @@
   }
 }
 
+.headActions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-shrink: 0;
+
+  > :global(.bp4-button) {
+    white-space: nowrap;
+  }
+}
+
 .note {
   margin: 0 0 4px;
   font-size: 12px;

@@ -12,6 +12,7 @@ import {
 import {
   useSyncCryptoConnection,
   useUpdateCryptoConnection,
+  isCsvOnly,
   type CryptoConnection,
 } from '@/hooks/query/crypto';
 
@@ -78,7 +79,8 @@ export function ConnectionRow({
   const update = useUpdateCryptoConnection();
   const [importOpen, setImportOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
-  const csvCapable = supportsCsvImport(connection.exchange);
+  const csvOnly = isCsvOnly(connection);
+  const csvCapable = csvOnly || supportsCsvImport(connection.exchange);
 
   const status = STATUS_TAG[connection.status] ?? {
     text: String(connection.status),
@@ -121,6 +123,11 @@ export function ConnectionRow({
           <Tag minimal round intent={status.intent}>
             {status.text}
           </Tag>
+          {csvOnly && (
+            <Tag minimal round icon="document">
+              CSV only
+            </Tag>
+          )}
           {accountMissing && (
             <Tag minimal round intent={Intent.WARNING} icon="warning-sign">
               Account not mapped
@@ -128,14 +135,20 @@ export function ConnectionRow({
           )}
         </div>
         <p className={styles.rowMeta}>
-          {connection.keyHint
-            ? `Key ending ${connection.keyHint}`
-            : 'Key saved'}
-          {' · '}
-          {formatLastSync(connection.lastSyncAt)}
+          {csvOnly ? (
+            'Updated by CSV imports only'
+          ) : (
+            <>
+              {connection.keyHint
+                ? `Key ending ${connection.keyHint}`
+                : 'Key saved'}
+              {' · '}
+              {formatLastSync(connection.lastSyncAt)}
+            </>
+          )}
           {accountName ? ` · Posts to ${accountName}` : ''}
         </p>
-        {expiry && (
+        {!csvOnly && expiry && (
           <p
             className={expiry.warn ? styles.rowError : styles.rowMeta}
             role={expiry.warn ? 'status' : undefined}
@@ -147,7 +160,7 @@ export function ConnectionRow({
             {expiry.warn ? '. Rotate the key to keep syncing.' : ''}
           </p>
         )}
-        {connection.historyCoverage?.level === 'partial' && (
+        {!csvOnly && connection.historyCoverage?.level === 'partial' && (
           <p className={styles.rowMeta}>
             History limited
             {connection.historyCoverage.note
@@ -164,7 +177,7 @@ export function ConnectionRow({
       </div>
 
       <div className={styles.rowActions}>
-        {canEdit && isError && (
+        {!csvOnly && canEdit && isError && (
           <Button
             small
             intent={Intent.PRIMARY}
@@ -174,7 +187,7 @@ export function ConnectionRow({
             Reconnect
           </Button>
         )}
-        {canEdit && (
+        {!csvOnly && canEdit && (
           <>
             <Button
               small

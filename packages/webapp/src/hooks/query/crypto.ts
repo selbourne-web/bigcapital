@@ -60,6 +60,8 @@ export const CRYPTO_QUERY_KEYS = {
 
 export type CryptoConnectionStatus = 'active' | 'paused' | 'error' | string;
 
+export type CryptoConnectionMode = 'api' | 'csv_only';
+
 export interface CryptoConnection {
   id: number;
   exchange: string;
@@ -75,6 +77,8 @@ export interface CryptoConnection {
   keyExpiresAt: string | null;
   /** How much history the exchange API can return. */
   historyCoverage: CryptoHistoryCoverage;
+  /** 'csv_only' connections have no API key: they are fed by CSV imports only. */
+  mode: CryptoConnectionMode;
 }
 
 export interface CryptoHistoryCoverage {
@@ -193,6 +197,13 @@ export interface CreateCryptoConnectionInput {
   attestReadOnly?: boolean;
 }
 
+export interface CreateCsvOnlyConnectionInput {
+  exchange: string;
+  label: string;
+  accountId?: number;
+  createAccount?: boolean;
+}
+
 export interface UpdateCryptoConnectionInput {
   id: number;
   label?: string;
@@ -241,7 +252,12 @@ export const mapCryptoConnection = (raw: Raw): CryptoConnection => ({
   createdAt: raw.created_at,
   keyExpiresAt: raw.key_expires_at ?? null,
   historyCoverage: mapHistoryCoverage(raw.history_coverage),
+  mode: raw.mode === 'csv_only' ? 'csv_only' : 'api',
 });
+
+/** True for a connection with no API key, fed by CSV imports only. */
+export const isCsvOnly = (connection: { mode?: string }): boolean =>
+  connection.mode === 'csv_only';
 
 export const mapCryptoBalances = (raw: Raw): CryptoBalancesResponse => ({
   connections: ((raw?.connections ?? []) as Raw[]).map((c) => ({
@@ -616,6 +632,23 @@ export function useCreateCryptoConnection() {
         await cryptoRequest(auth, 'POST', '/connections', input),
       ),
     gcTime: 0, // never retain secret variables
+    onSuccess: invalidate,
+  });
+}
+
+/** Creates a CSV-only connection (no key, no sync): body carries no secrets. */
+export function useCreateCsvOnlyConnection() {
+  const auth = useCryptoAuth();
+  const invalidate = useInvalidateCrypto();
+  return useMutation<
+    CryptoConnection,
+    CryptoApiError,
+    CreateCsvOnlyConnectionInput
+  >({
+    mutationFn: async (input) =>
+      mapCryptoConnection(
+        await cryptoRequest(auth, 'POST', '/connections/csv-only', input),
+      ),
     onSuccess: invalidate,
   });
 }
