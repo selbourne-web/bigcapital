@@ -40,9 +40,13 @@ export function nexoCell(text: string | undefined): string | null {
   return t;
 }
 
-/** Plain signed decimal, at most 12 fractional digits, no exponent or separators. */
+/**
+ * Plain signed decimal, at most 20 fractional digits (the futures export
+ * carries float noise of up to 16), no exponent or separators. Values are
+ * stored as raw text and never calculated with, so the cap only rejects garbage.
+ */
 export const isNexoDecimal = (text: string): boolean =>
-  typeof text === 'string' && /^-?\d+(\.\d{1,12})?$/.test(text);
+  typeof text === 'string' && /^-?\d+(\.\d{1,20})?$/.test(text);
 
 /** `$` followed by a non-negative plain decimal. */
 export const isNexoUsd = (text: string): boolean =>

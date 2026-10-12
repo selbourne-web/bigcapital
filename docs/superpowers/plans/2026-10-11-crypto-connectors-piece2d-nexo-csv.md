@@ -54,7 +54,7 @@
   - `parseNexoUtc(text: string): Date | null` — strictly `YYYY-MM-DD HH:MM:SS`, valid calendar date, interpreted as UTC, else `null`.
   - `parseEpochMs(text: string): Date | null` — 13-digit integer string within 2015-01-01..2100-01-01, else `null`.
   - `nexoCell(text: string | undefined): string | null` — trims; returns `null` for `''`, `'-'` and case-insensitive `'null'`, else the trimmed text.
-  - `isNexoDecimal(text: string): boolean` — plain signed decimal, up to 12 fractional digits, no exponent, no separators.
+  - `isNexoDecimal(text: string): boolean` — plain signed decimal, up to 20 fractional digits (futures Price/Amount carry float noise), no exponent, no separators.
   - `isNexoUsd(text: string): boolean` — exactly `$` followed by a non-negative plain decimal (`$d+` or `$d+.d+`); no sign, no separators.
 - `CRYPTO_RECORD_TYPES` gains `'transfer'` and `'credit'`.
 

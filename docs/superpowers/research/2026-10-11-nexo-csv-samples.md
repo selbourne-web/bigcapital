@@ -11,7 +11,7 @@ Format facts
 - Header: `Transaction, Type, Credit Line, Input Currency, Input Amount, Output Currency, Output Amount, USD Equivalent, Fee, Fee Currency, Details, Date / Time (UTC)`.
 - `Transaction`: unique in all 13,042 rows, shape `NXT` + 22 alphanumeric chars (25 total). No duplicate ids.
 - `Date / Time (UTC)`: always `YYYY-MM-DD HH:MM:SS` (UTC, no timezone suffix, no fractional secs). File order is DESCENDING by time (newest first). Range: 2019-03 to 2026-10.
-- Amount columns (`Input Amount`, `Output Amount`): plain decimals only (no thousands separators, no scientific notation, no currency symbols, none empty). Max 8 decimal places. Input is negative in 1,817 rows, positive in 11,219, zero in 6. Output is never negative (0 in 1,575 rows, positive otherwise).
+- Amount columns (`Input Amount`, `Output Amount`): plain decimals only (no thousands separators, no scientific notation, no currency symbols, none empty). Max 8 decimal places for transactions amounts. Input is negative in 1,817 rows, positive in 11,219, zero in 6. Output is never negative (0 in 1,575 rows, positive otherwise).
 - `USD Equivalent`: NEVER a plain decimal - always a `$`-prefixed value (shapes seen: `$d.dd`, `$dd.dd`, `$ddd.dd`, i.e. every observed value looks like it is below $1,000; a thousands separator / larger magnitude has not been seen in this sample but should be tolerated). No negatives.
 - `Fee`: literal `-` in 13,025 rows; a plain decimal (positive, max 8 dp) in 17 rows. `Fee Currency`: literal `-` when no fee; else one of USDX/USDT/USD/USDC.
 - `Output Currency` is the literal `-` in 1,120 rows (rows that have no output leg). `Input Currency` is never `-`.
@@ -83,7 +83,7 @@ Format facts
 - `Timestamp`: epoch milliseconds, 13 digits, all rows. Range 2023-12 to 2026-09. File order is DESCENDING by timestamp (0 ascending steps, 4,670 descending).
 - `Id`: unique (4,671 distinct incl. all rows). Shapes by length: 8 digits numeric (4,088), 9 digits numeric (95), opaque alphanumeric 21 chars (73) or 22 chars (415). ORDER rows (MARKET_OPEN/CLOSE) have `Id == DealId` in all 488 rows.
 - `DealId`: never empty. 3,318 distinct values. 13-digit numeric (3,845 rows; the funding rows - looks epoch-ms-like, differs from the row Timestamp by < 1 hour, never equal) or 21/22-char alphanumeric opaque ids (for non-funding deals). Not unique per row: shared by rows of the same deal/funding event.
-- Numerics: plain decimals when present, max 16 dp for Price, 15 dp for Amount, 6 dp for TradingFeeAmount. No separators or symbols.
+- Numerics: plain decimals when present, Price and Amount cells can carry up to 16 dp (float noise from the exporter), TradingFeeAmount up to 6 dp. The decimal validator therefore allows up to 20. No separators or symbols.
 - `Side` casing is inconsistent: `LONG`/`SHORT` (funding rows) and `long`/`short` (order, pnl and liquidation rows) - normalise case.
 - Symbols: 46 distinct, all `<BASE>USDT` perpetuals (e.g. 1000BONKUSDT), plus `null`. `Asset` is `USDT` for TRANSACTION rows and the base ticker for ORDER rows. Fee asset is always USDT. Execution price asset is USDT.
 - No content duplicates (ignoring id: 0 duplicate rows). No lead/trail whitespace in cells (header aside).

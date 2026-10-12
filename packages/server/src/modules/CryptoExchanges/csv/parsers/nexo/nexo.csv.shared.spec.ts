@@ -43,10 +43,29 @@ describe('nexo value helpers', () => {
   });
 
   it('isNexoDecimal accepts plain signed decimals only', () => {
-    for (const ok of ['0', '-0.00000001', '12.5']) {
+    const frac = (n: number) => `1.${'1'.repeat(n)}`;
+    for (const ok of [
+      '0',
+      '-0.00000001',
+      '12.5',
+      frac(13),
+      frac(16),
+      frac(20),
+      `-${frac(20)}`,
+    ]) {
       expect(isNexoDecimal(ok)).toBe(true);
     }
-    for (const bad of ['1,000.5', '1e-8', '$5', '.5', '', '1.1234567890123']) {
+    for (const bad of [
+      '1,000.5',
+      '1e-8',
+      '$5',
+      '.5',
+      '',
+      '+1.5',
+      '1.',
+      frac(21),
+      `-${frac(21)}`,
+    ]) {
       expect(isNexoDecimal(bad)).toBe(false);
     }
   });

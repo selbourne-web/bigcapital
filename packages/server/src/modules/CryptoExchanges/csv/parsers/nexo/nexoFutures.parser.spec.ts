@@ -179,6 +179,22 @@ describe('Nexo futures CSV parser', () => {
       expect(reason).toContain(needle);
       if (value && value !== 'null') expect(reason).not.toContain(value);
     });
+    it('accepts float-noise Price/Amount up to 20 fractional digits', () => {
+      const price = '100.1234567890123456'; // 16 fractional digits (invented)
+      const amount = '2.0000000000000004'; // 16 fractional digits (invented)
+      const r = rec(withCells({ Price: price, Amount: amount }));
+      expect(r.recordType).toBe('trade');
+      expect(r.payload).toMatchObject({ Price: price, Amount: amount });
+    });
+    it('rejects 21 fractional digits naming only the column', () => {
+      const bad = '3.' + '7'.repeat(21);
+      for (const column of ['Price', 'Amount']) {
+        const reason = rejectReason(withCells({ [column]: bad }));
+        expect(reason).toContain(column);
+        expect(reason).not.toContain(bad);
+        expect(reason).not.toContain('7777');
+      }
+    });
     it('bad timestamp reason carries no value', () => {
       expect(
         JSON.stringify(withCells({ Timestamp: '1767225600' })),
