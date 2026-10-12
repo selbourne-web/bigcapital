@@ -28,7 +28,11 @@ import { exchangeLabel } from '@/containers/Crypto/exchanges';
 import { usePrices } from '@/containers/Crypto/priceStore';
 import { useCryptoLive } from '@/containers/Crypto/useCryptoLive';
 import { useUsdToBase, valueHoldings } from '@/containers/Crypto/valuation';
-import { useCryptoBalances, useCryptoConnections } from '@/hooks/query/crypto';
+import {
+  isCsvOnly,
+  useCryptoBalances,
+  useCryptoConnections,
+} from '@/hooks/query/crypto';
 
 const CONNECTIONS_PATH = '/preferences/crypto-connections';
 /** Screen readers hear the total at most this often, never once per tick. */
@@ -186,6 +190,7 @@ function StatusStrip({ connections }: { connections: CryptoConnection[] }) {
       {connections.map((connection) => {
         const isError = connection.status === 'error';
         const isPaused = connection.status === 'paused';
+        const csvOnly = isCsvOnly(connection);
         return (
           <li
             key={connection.id}
@@ -199,11 +204,25 @@ function StatusStrip({ connections }: { connections: CryptoConnection[] }) {
               className={`dash-crypto__badge${isError ? ' dash-crypto__badge--error' : ''}`}
             >
               <Icon
-                icon={isError ? 'error' : isPaused ? 'pause' : 'tick-circle'}
+                icon={
+                  isError
+                    ? 'error'
+                    : isPaused
+                      ? 'pause'
+                      : csvOnly
+                        ? 'document'
+                        : 'tick-circle'
+                }
                 size={12}
                 aria-hidden="true"
               />
-              {isError ? 'Needs attention' : isPaused ? 'Paused' : 'Connected'}
+              {isError
+                ? 'Needs attention'
+                : isPaused
+                  ? 'Paused'
+                  : csvOnly
+                    ? 'CSV only'
+                    : 'Connected'}
             </span>
             {isError && (
               <Link
@@ -323,6 +342,9 @@ function CryptoHoldings({
   const announced = useThrottled(summary, ANNOUNCE_EVERY_MS);
 
   const needsAttention = connections.filter((c) => c.status === 'error');
+  // CSV-only connections hold no balances, so they do not count here.
+  const balanceConnections = connections.filter((c) => !isCsvOnly(c));
+  const onlyCsv = connections.length > 0 && balanceConnections.length === 0;
 
   return (
     <>
@@ -354,7 +376,7 @@ function CryptoHoldings({
                   ? 'Waiting for live prices'
                   : rows.length === 0
                     ? 'No balances'
-                    : `${rows.length} ${rows.length === 1 ? 'asset' : 'assets'} across ${connections.length} ${connections.length === 1 ? 'connection' : 'connections'}`}
+                    : `${rows.length} ${rows.length === 1 ? 'asset' : 'assets'} across ${balanceConnections.length} ${balanceConnections.length === 1 ? 'connection' : 'connections'}`}
             </span>
           </div>
 
@@ -417,7 +439,9 @@ function CryptoHoldings({
 
       {rows.length === 0 ? (
         <p className="dash-card__message">
-          No balances yet. Use Sync now on the connections page to import them.
+          {onlyCsv
+            ? 'No balances. CSV-only connections hold no balances; import a CSV export on the connections page to add history.'
+            : 'No balances yet. Use Sync now on the connections page to import them.'}
         </p>
       ) : (
         <table className="dash-crypto__table">

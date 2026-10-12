@@ -155,7 +155,11 @@ function CsvOnlyForm({
           label="Name"
           labelFor={`${uid}-label`}
           intent={labelError ? Intent.DANGER : Intent.NONE}
-          helperText={labelError}
+          helperText={
+            labelError ? (
+              <span id={`${uid}-label-error`}>{labelError}</span>
+            ) : undefined
+          }
         >
           <InputGroup
             id={`${uid}-label`}
@@ -164,6 +168,7 @@ function CsvOnlyForm({
             placeholder={`${exchangeLabel(exchange)} - Reports`}
             intent={labelError ? Intent.DANGER : Intent.NONE}
             aria-invalid={!!labelError}
+            aria-describedby={labelError ? `${uid}-label-error` : undefined}
             aria-required
             onChange={(event) => setLabel(event.currentTarget.value)}
           />

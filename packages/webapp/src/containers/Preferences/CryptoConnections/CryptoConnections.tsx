@@ -21,6 +21,7 @@ import { useAccounts } from '@/hooks/query';
 import {
   useCryptoConnections,
   useDeleteCryptoConnection,
+  isCsvOnly,
   type CryptoConnection,
 } from '@/hooks/query/crypto';
 import { useAbilityContext } from '@/hooks/utils';
@@ -173,7 +174,8 @@ function CryptoConnectionsPreferences({
             <p className={styles.note}>
               Connect a read-only API key from your exchange. Selbourne
               Financial reads balances and history and never trades or
-              withdraws.
+              withdraws. Nexo (CSV) connections hold no API key; they are filled
+              by importing your exported transaction files.
             </p>
           </div>
           {canCreate && (
@@ -279,8 +281,19 @@ function CryptoConnectionsPreferences({
         onConfirm={handleConfirmDelete}
       >
         <p>
-          Delete <strong>{deleteTarget?.label}</strong>? Its stored API key is
-          erased and syncing stops. Transactions already imported are kept.
+          {deleteTarget && isCsvOnly(deleteTarget) ? (
+            <>
+              Delete <strong>{deleteTarget.label}</strong>? Records already
+              imported from CSV files stay stored, but the connection is removed
+              from this list and no new files can be imported into it.
+            </>
+          ) : (
+            <>
+              Delete <strong>{deleteTarget?.label}</strong>? Its stored API key
+              is erased and syncing stops. Transactions already imported are
+              kept.
+            </>
+          )}
         </p>
       </Alert>
     </div>
