@@ -221,6 +221,9 @@ describe('CSV-only exchange constants', () => {
 });
 
 describe('CreateCsvOnlyConnectionDto', () => {
+  // NOTE: `forbidNonWhitelisted` is stricter than the real app pipe, which only
+  // strips unknown fields (so extra credential fields are dropped, not a 400).
+  // It is used here to prove the DTO whitelists nothing beyond its own fields.
   const check = async (input: Record<string, unknown>, metatype: any) =>
     validate(plainToInstance(metatype, input), {
       whitelist: true,

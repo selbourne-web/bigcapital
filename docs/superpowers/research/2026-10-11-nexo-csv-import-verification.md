@@ -63,7 +63,7 @@ Ruling (coordinator, commit `56df87ee4`): `isNexoDecimal` accepts up to 20 fract
 | Interest, `Input Amount` > 0 | reward |
 | Interest, `Input Amount` negative or zero | adjustment |
 | Fixed Term Interest, Dividend, Exchange Cashback | reward |
-| Earn Adjustment (not seen in the samples) | adjustment |
+| Earn Adjustment as a `Type` (not present in the samples) | adjustment |
 | Exchange, Exchange Credit, Exchange Booster, Exchange Deposited On | trade |
 | Deposit To Exchange, Top up Crypto | deposit |
 | Withdrawal | withdrawal |
@@ -89,6 +89,31 @@ Row-level validation (rejects name the column only, never a value): timestamp (e
 
 Record types `transfer` and `credit` were added to `CRYPTO_RECORD_TYPES` (varchar(16), no migration).
 
+## Decisions before piece 3 / deployment
+
+**I-1. Record-id dedupe is content-hash based (decide before piece 3).**
+- Row ids are `csv:` plus a content hash that includes the record type, and that id sits in the unique key. Identical re-exports therefore dedupe.
+- If piece 3 changes a provisional `recordType` in a parser, a newer full export would insert the old rows again under new ids: a double count.
+- Any cell that Nexo renders differently in a later export of the same transaction (USD Equivalent, Details, float noise in amounts) also produces a new id, so the same transaction can be imported twice.
+- Piece 3 must EITHER re-classify at normalisation time from `payload.Type` and never change the recordType assigned by the parser, OR add a Nexo natural-key dedupe on `Transaction` / `Id` that ignores the record type.
+- Unverified: whether Nexo re-exports are byte-stable per row. The owner can export the same range twice and diff the files.
+
+**I-2. App-wide validation pipe echoes the request body (fix before deployment or ZAP).**
+- `packages/server/src/common/pipes/ClassValidation.pipe.ts` (lines 17-24, registered as `APP_PIPE` in `App.module.ts`) returns `target` / `value` in 400 responses. That includes the request body: `apiKey`, `apiSecret`, `passphrase` on a failed key-based connection create, and very likely auth passwords on other endpoints.
+- Pre-existing, not introduced by this piece. Smallest fix: `validationError: { target: false, value: false }`.
+
+**Decimal and USD parsing (piece 3 must handle).**
+- `isNexoDecimal` leaves the integer part unbounded and allows up to 20 fractional digits. Piece 3 must bound and round deliberately before anything goes into a DECIMAL column.
+- `isNexoUsd` rejects thousands separators. Unverified whether Nexo ever writes them; a file that does would be rejected.
+- A 4-byte character (for example an emoji) in `Details` makes the whole file refused (2c behaviour). Editing rows to work around it changes their content hash, so the edited rows get new ids.
+
+**`adjustment` is not one economic event.**
+- The 1,610 `adjustment` rows lump together `Interest` rows with negative or zero `Input Amount` (likely interest charged on credit lines; see the Credit Line breakdown in the sample note) with any Pionex-style adjustments.
+- Piece 3 must sub-classify `adjustment` by `Credit Line` and `Output Currency` (and the sign of the amounts) before posting.
+
+**`Earn Adjustment` wording.**
+- `Earn Adjustment` is not a `Type` value in the samples. However 4 `Interest` rows carry a Details family of `Earn Adjustment Flex Term`, and under the sign rule they import as `reward`. Piece 3 must not assume that family is absent or that it maps to `adjustment`; review those rows.
+
 ## Overlap note (ruling 5)
 
 The transactions file's `Transfer To Advanced` (43 rows) and the futures file's `TRANSFER_TO_WALLET` (43 rows) describe the same Savings-to-Futures transfers (matched 43/43 in the sample analysis). Both import as `transfer` records and are NOT de-duplicated. Piece 3 must treat each pair as one internal transfer.
@@ -96,7 +121,7 @@ The transactions file's `Transfer To Advanced` (43 rows) and the futures file's 
 ## Limitations
 
 - Imported records do not feed balances or the ledger. A csv_only connection shows no balances (balances come from snapshots only) until piece 3.
-- The mapping is provisional until piece 3. Not confirmed: the semantics of `Advanced Trading ... Bonus Funds` (mapped `transfer`; could be promotional income), loan / credit-line legs (`credit`: which leg is the economic amount), and `Earn Adjustment` (mapped but absent from the samples).
+- The mapping is provisional until piece 3. Not confirmed: the semantics of `Advanced Trading ... Bonus Funds` (mapped `transfer`; could be promotional income), loan / credit-line legs (`credit`: which leg is the economic amount), and `Earn Adjustment`: no row has it as a `Type` (the mapping is untested), but 4 `Interest` rows carry the Details family `Earn Adjustment Flex Term` and import as `reward` under the sign rule. `adjustment` (1,610 rows) also mixes negative or zero `Interest` with other adjustments: see Decisions below.
 - `Details` may contain a person's name (seen in a loan withdrawal family). It is kept in the stored raw payload only.
 - Futures order-state values beyond `PLACED` and `LIQUIDATED` are unknown and stored as `unparsed`; the position / deal structure (opens and closes do not share a `DealId`) is not reconstructed.
 - Production database settings (`max_allowed_packet`, `binlog_format`, `sql_mode`) are still unverified; only the scratch server values above are known.

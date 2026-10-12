@@ -77,10 +77,10 @@ Ordering: this export is newest-first (first row 2026-10, last row 2019-03). Sor
 ## File 2: futures export (`nexo_futures_transactions.csv`)
 
 Format facts
-- 4,670 data rows, 18 columns, no BOM, LF line endings, NO quoting at all (0 quoted fields), no wrong-width rows.
+- 4,671 data rows (verified; an earlier count of 4,670 was off by one because the file has no trailing newline), 18 columns, no BOM, LF line endings, NO quoting at all (0 quoted fields), no wrong-width rows.
 - Header has a LEADING SPACE on the first column name: `" Id"` (must trim header names). Header: ` Id, Timestamp, Symbol, Type, Position, Price, Amount, Status, Asset, Side, DealId, InternalTransactionType, TradingFeeAmount, TradingFeeAsset, ExecutionPriceAsset, ExchangeRate, SourceAsset, SourceAmount`.
 - Literal token `null` (string) is used for missing values: Position (3,894), Status (4,183), Price (4,183), TradingFeeAmount (4,183), ExchangeRate (all 4,671), SourceAsset (all), SourceAmount (all). `Symbol` is `null` in 49 rows. `ExecutionPriceAsset` is an EMPTY string in 49 rows (otherwise USDT). Side is `null` in 49 rows.
-- `Timestamp`: epoch milliseconds, 13 digits, all rows. Range 2023-12 to 2026-09. File order is DESCENDING by timestamp (0 ascending steps, 4,670 descending).
+- `Timestamp`: epoch milliseconds, 13 digits, all rows. Range 2023-12 to 2026-09. File order is DESCENDING by timestamp (0 ascending steps, 4,670 descending steps between the 4,671 rows).
 - `Id`: unique (4,671 distinct incl. all rows). Shapes by length: 8 digits numeric (4,088), 9 digits numeric (95), opaque alphanumeric 21 chars (73) or 22 chars (415). ORDER rows (MARKET_OPEN/CLOSE) have `Id == DealId` in all 488 rows.
 - `DealId`: never empty. 3,318 distinct values. 13-digit numeric (3,845 rows; the funding rows - looks epoch-ms-like, differs from the row Timestamp by < 1 hour, never equal) or 21/22-char alphanumeric opaque ids (for non-funding deals). Not unique per row: shared by rows of the same deal/funding event.
 - Numerics: plain decimals when present, Price and Amount cells can carry up to 16 dp (float noise from the exporter), TradingFeeAmount up to 6 dp. The decimal validator therefore allows up to 20. No separators or symbols.
