@@ -17,6 +17,9 @@ export class ValidationPipe implements PipeTransform<any> {
     const errors = await validate(object, {
       // Strip validated object of any properties that do not have any decorators.
       whitelist: true,
+      // Never echo the request body or offending values (apiKey, passwords,
+      // passphrases...) back in 400 responses; keep `property`/`constraints`.
+      validationError: { target: false, value: false },
     });
 
     if (errors.length > 0) {
