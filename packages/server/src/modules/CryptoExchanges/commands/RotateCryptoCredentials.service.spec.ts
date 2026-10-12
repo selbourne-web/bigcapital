@@ -55,6 +55,29 @@ const NEW = {
 };
 
 describe('RotateCryptoCredentialsService', () => {
+  it('refuses a csv_only connection (Rotate key / Reconnect) with 409 CRYPTO_CONNECTION_CSV_ONLY before any probe', async () => {
+    const t = setup();
+    const c = t.repo.seed({
+      exchange: 'nexo',
+      mode: 'csv_only',
+      apiKeyEncrypted: '',
+      apiSecretEncrypted: '',
+      keyHint: null,
+    });
+
+    const error = await t.service.execute(c.id, NEW).catch((e) => e);
+
+    expect(error).toMatchObject({ errorType: 'CRYPTO_CONNECTION_CSV_ONLY' });
+    expect(error.getStatus()).toBe(409);
+    expect(t.adapter.inspected).toHaveLength(0);
+    expect(t.limiter.acquire).not.toHaveBeenCalled();
+    expect(t.repo.calls).toEqual([]);
+    expect(t.repo.rows.get(c.id).apiKeyEncrypted).toBe('');
+    expect(t.audit.rows).toHaveLength(0);
+    expect(t.events.emitted).toHaveLength(0);
+    expectNoSecrets(error);
+  });
+
   it('persists the new key expiry, or clears it when the new key has none', async () => {
     const t = setup();
     const c = t.repo.seed({ keyExpiresAt: new Date('2026-12-01T00:00:00Z') });

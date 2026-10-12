@@ -134,6 +134,21 @@ describe('CryptoSyncRequestService.requestManualSync', () => {
     expect(redis.store.size).toBe(0);
   });
 
+  it('refuses a csv_only connection with 409 CRYPTO_CONNECTION_CSV_ONLY, schedules nothing and does not spend the throttle', async () => {
+    const { service, scheduler, redis } = setup(
+      connection({ exchange: 'nexo', mode: 'csv_only' }),
+    );
+
+    const error = await service.requestManualSync(7).catch((e) => e);
+
+    expect(error).toBeInstanceOf(ServiceError);
+    expect(error.errorType).toBe(ERRORS.CONNECTION_CSV_ONLY);
+    expect(error.getStatus()).toBe(409);
+    expect(scheduler.enqueue).not.toHaveBeenCalled();
+    expect(scheduler.schedule).not.toHaveBeenCalled();
+    expect(redis.store.size).toBe(0);
+  });
+
   it('allows a manual sync on an errored connection (a successful run reactivates it)', async () => {
     const { service, scheduler } = setup(connection({ status: 'error' }));
 
@@ -185,6 +200,26 @@ describe('CryptoSyncRequestService.selfHeal', () => {
       (scheduler.schedule as jest.Mock).mock.calls.map((c) => c[0].id),
     ).toEqual([1, 4]);
     expect((scheduler.schedule as jest.Mock).mock.calls[0][1]).toBe('org-1');
+  });
+
+  it('skips csv_only connections (no queue exists for them)', async () => {
+    const { service, scheduler } = setup();
+    const warn = jest.spyOn((service as any).logger, 'warn');
+
+    await service.selfHeal([
+      connection({
+        id: 1,
+        status: 'active',
+        exchange: 'nexo',
+        mode: 'csv_only',
+      }),
+      connection({ id: 2, status: 'active', mode: 'api' }),
+    ] as any);
+
+    expect(
+      (scheduler.schedule as jest.Mock).mock.calls.map((c) => c[0].id),
+    ).toEqual([2]);
+    expect(warn).not.toHaveBeenCalled();
   });
 
   it('never rejects when the scheduler fails, keeps going, and logs no secrets', async () => {

@@ -13,6 +13,7 @@ import { GetCryptoBalancesService } from './queries/GetCryptoBalances.service';
 import { GetCryptoConnectionsService } from './queries/GetCryptoConnections.service';
 import { GetCryptoSyncRunsService } from './queries/GetCryptoSyncRuns.service';
 import { CreateCryptoConnectionService } from './commands/CreateCryptoConnection.service';
+import { CreateCsvOnlyConnectionService } from './commands/CreateCsvOnlyConnection.service';
 import { UpdateCryptoConnectionService } from './commands/UpdateCryptoConnection.service';
 import { RotateCryptoCredentialsService } from './commands/RotateCryptoCredentials.service';
 import { DeleteCryptoConnectionService } from './commands/DeleteCryptoConnection.service';
@@ -45,6 +46,7 @@ describe('CSV endpoints in a booted Nest app', () => {
           GetCryptoBalancesService,
           GetCryptoSyncRunsService,
           CreateCryptoConnectionService,
+          CreateCsvOnlyConnectionService,
           UpdateCryptoConnectionService,
           RotateCryptoCredentialsService,
           DeleteCryptoConnectionService,

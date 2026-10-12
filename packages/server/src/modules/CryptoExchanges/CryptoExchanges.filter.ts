@@ -27,6 +27,7 @@ const CONFLICT_ERRORS: ReadonlySet<string> = new Set([
   ERRORS.ACCOUNT_MAPPING_CONFLICT,
   ERRORS.IN_ERROR,
   ERRORS.CONNECTION_PAUSED,
+  ERRORS.CONNECTION_CSV_ONLY,
 ]);
 
 /** HTTP status of every CSV import error code (exhaustive: a new code fails to compile). */

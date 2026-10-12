@@ -545,6 +545,32 @@ describe('CryptoSyncConnectionSubscriber', () => {
     }
   });
 
+  it('never schedules or enqueues a csv_only connection (created / resumed / credentials-rotated)', async () => {
+    const csvOnly = { ...active, exchange: 'nexo', mode: 'csv_only' };
+    for (const handler of [
+      'onCreated',
+      'onResumed',
+      'onCredentialsRotated',
+    ] as const) {
+      const { subscriber, scheduler } = makeSubscriber(csvOnly);
+      const error = jest.spyOn((subscriber as any).logger, 'error');
+      const { trx, commit } = makeTrx();
+      await subscriber[handler]({
+        connectionId: 7,
+        organizationId: 42,
+        trx,
+      } as any);
+      commit();
+      await flush();
+      expect([handler, scheduler.schedule.mock.calls.length]).toEqual([
+        handler,
+        0,
+      ]);
+      expect(scheduler.enqueue).not.toHaveBeenCalled();
+      expect(error).not.toHaveBeenCalled();
+    }
+  });
+
   it('a failure while scheduling is logged, never thrown out of the event loop', async () => {
     const { subscriber, scheduler } = makeSubscriber(active);
     scheduler.schedule.mockRejectedValue(new Error('redis down'));

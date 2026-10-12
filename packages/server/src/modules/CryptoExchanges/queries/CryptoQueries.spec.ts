@@ -2,6 +2,7 @@ import { FAKE_KEY, FAKE_SECRET, FAKE_PASSPHRASE } from '../commands/testFakes';
 import { GetCryptoBalancesService } from './GetCryptoBalances.service';
 import { GetCryptoConnectionsService } from './GetCryptoConnections.service';
 import { GetCryptoSyncRunsService } from './GetCryptoSyncRuns.service';
+import { AdapterRegistry } from '../adapters/AdapterRegistry';
 
 type Call = [string, unknown[]];
 
@@ -95,6 +96,38 @@ describe('GetCryptoConnectionsService', () => {
       expect(json).not.toContain(secret);
     }
     expect(calls[0]).toContainEqual(['whereNull', ['deletedAt']]);
+  });
+
+  it('lists a csv_only (nexo) row with historyCoverage null next to an api row, using the REAL adapter registry', async () => {
+    const nexo = {
+      id: 4,
+      exchange: 'nexo',
+      label: 'Nexo',
+      status: 'active',
+      mode: 'csv_only',
+      keyHint: null,
+      accountId: null,
+      apiKeyEncrypted: '',
+      apiSecretEncrypted: '',
+    };
+    const kraken = { id: 5, exchange: 'kraken', label: 'K', status: 'active' };
+    const { model } = fakeModel([nexo, kraken]);
+
+    const views = await new GetCryptoConnectionsService(
+      model,
+      new AdapterRegistry(),
+    ).execute();
+
+    expect(views[0]).toMatchObject({
+      id: 4,
+      exchange: 'nexo',
+      mode: 'csv_only',
+      historyCoverage: null,
+    });
+    expect(views[1]).toMatchObject({ id: 5, mode: 'api' });
+    expect(views[1].historyCoverage).toEqual(
+      new AdapterRegistry().get('kraken').historyCoverage,
+    );
   });
 });
 

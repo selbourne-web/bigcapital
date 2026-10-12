@@ -37,6 +37,7 @@ import {
   KeyHasExtraPermissionsError,
 } from './adapters/errors';
 import { CreateCryptoConnectionDto } from './dtos/CreateCryptoConnection.dto';
+import { CreateCsvOnlyConnectionDto } from './dtos/CreateCsvOnlyConnection.dto';
 import { DeleteCryptoConnectionQueryDto } from './dtos/DeleteCryptoConnectionQuery.dto';
 import { GetCryptoSyncRunsQueryDto } from './dtos/GetCryptoSyncRunsQuery.dto';
 import { RotateCredentialsDto } from './dtos/RotateCredentials.dto';
@@ -89,6 +90,14 @@ const makeMocks = () => ({
   csvRollback: { execute: jest.fn(async () => ({ id: 5 })) },
   csvList: { execute: jest.fn(async () => [{ id: 5 }]) },
   cls: { get: jest.fn((key: string) => (key === 'userId' ? 42 : undefined)) },
+  csvOnly: {
+    execute: jest.fn(async () => ({
+      ...view(),
+      exchange: 'nexo',
+      mode: 'csv_only',
+      keyHint: null,
+    })),
+  },
 });
 
 const makeController = (mocks = makeMocks()) => ({
@@ -107,6 +116,7 @@ const makeController = (mocks = makeMocks()) => ({
     mocks.csvRollback as any,
     mocks.csvList as any,
     mocks.cls as any,
+    mocks.csvOnly as any,
   ),
 });
 
@@ -151,6 +161,12 @@ describe('CryptoExchangesController routing and permissions', () => {
   const routes: Array<[string, RequestMethod, string, string]> = [
     ['listConnections', RequestMethod.GET, 'connections', 'View'],
     ['createCryptoConnection', RequestMethod.POST, 'connections', 'Create'],
+    [
+      'createCsvOnlyConnection',
+      RequestMethod.POST,
+      'connections/csv-only',
+      'Create',
+    ],
     ['updateCryptoConnection', RequestMethod.PATCH, 'connections/:id', 'Edit'],
     [
       'deleteCryptoConnection',
@@ -201,7 +217,7 @@ describe('CryptoExchangesController routing and permissions', () => {
       getClass: () => CryptoExchangesController,
     }) as any;
 
-  it('lives under /crypto and has exactly the twelve documented handlers', () => {
+  it('lives under /crypto and has exactly the thirteen documented handlers', () => {
     expect(Reflect.getMetadata(PATH_METADATA, CryptoExchangesController)).toBe(
       'crypto',
     );
@@ -438,6 +454,58 @@ describe('CryptoExchangesController delegation', () => {
       await controller.createCryptoConnection(plain as any, noAccount);
       expect(mocks.create.execute).toHaveBeenCalledTimes(2);
     });
+
+    it('the CSV-only create applies the same Account Create rule', async () => {
+      const { controller, mocks } = makeController();
+      const body = { exchange: 'nexo', label: 'Nexo', createAccount: true };
+      expect(() =>
+        controller.createCsvOnlyConnection(body as any, noAccount),
+      ).toThrow(ForbiddenException);
+      expect(() => controller.createCsvOnlyConnection(body as any)).toThrow(
+        ForbiddenException,
+      );
+      expect(mocks.csvOnly.execute).not.toHaveBeenCalled();
+      await controller.createCsvOnlyConnection(body as any, withAccount);
+      await controller.createCsvOnlyConnection(
+        { exchange: 'nexo', label: 'Nexo' } as any,
+        noAccount,
+      );
+      expect(mocks.csvOnly.execute).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  it('CSV-only create delegates the validated DTO (unknown fields stripped) and returns the view', async () => {
+    const { controller, mocks } = makeController();
+    const dto = (await validate(CreateCsvOnlyConnectionDto, {
+      exchange: 'nexo',
+      label: ' Nexo ',
+      apiKey: FAKE_KEY,
+    })) as CreateCsvOnlyConnectionDto;
+
+    const result = await controller.createCsvOnlyConnection(dto, withAccount);
+
+    expect(dto).not.toHaveProperty('apiKey');
+    expect(dto).toEqual(
+      expect.objectContaining({ exchange: 'nexo', label: 'Nexo' }),
+    );
+    expect(mocks.csvOnly.execute).toHaveBeenCalledWith(dto);
+    expect(result).toMatchObject({ mode: 'csv_only', exchange: 'nexo' });
+    expect(JSON.stringify(result)).not.toContain('CIPHER');
+  });
+
+  it('rejects a CSV-only body for an API exchange before it reaches the command', async () => {
+    await expect(
+      validate(CreateCsvOnlyConnectionDto, { exchange: 'pionex', label: 'P' }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('the CSV-only create answers 201 (default POST status)', () => {
+    expect(
+      Reflect.getMetadata(
+        HTTP_CODE_METADATA,
+        (CryptoExchangesController.prototype as any).createCsvOnlyConnection,
+      ),
+    ).toBeUndefined();
   });
 });
 
@@ -463,6 +531,7 @@ describe('CryptoExchangeExceptionFilter', () => {
     [ERRORS.ACCOUNT_MAPPING_CONFLICT, 409],
     [ERRORS.IN_ERROR, 409],
     [ERRORS.CONNECTION_PAUSED, 409],
+    [ERRORS.CONNECTION_CSV_ONLY, 409],
     [ERRORS.ACCOUNT_NOT_ASSET, 400],
     [ERRORS.ACCOUNT_CURRENCY_MISMATCH, 400],
     [ERRORS.ACCOUNT_NOT_FOUND, 400],

@@ -110,6 +110,7 @@ describe('CSV import endpoints over HTTP (real multer interceptor)', () => {
       new RollbackCryptoCsvImportService(r, audit, events, fakeCls()),
       new GetCryptoCsvImportsService(conns, r),
       { get: (k: string) => (k === 'userId' ? 1 : undefined) } as any,
+      {} as any,
     );
     const interceptor = new Upload();
 

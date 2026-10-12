@@ -20,6 +20,45 @@ import { CryptoConnectionValidators } from './CryptoConnectionValidators.service
 import { CryptoConnectionView, toConnectionView } from './CryptoConnectionView';
 import { emitConnectionEvent } from './emitConnectionEvent';
 
+type AccountChoice = { accountId?: number | null; createAccount?: boolean };
+
+/** Refuses a body that both maps an existing account and asks for a new one. */
+export const assertSingleAccountChoice = (choice: AccountChoice): void => {
+  if (choice.accountId != null && choice.createAccount === true) {
+    throw new ServiceError(
+      ERRORS.ACCOUNT_MAPPING_CONFLICT,
+      'Choose either an existing account or create a new one, not both.',
+    );
+  }
+};
+
+/**
+ * Account of a new connection, shared by the key-based and the CSV-only
+ * create: validates an existing account, or creates one named after the label
+ * in the caller's transaction (so a later failure rolls it back), or none.
+ */
+export const resolveConnectionAccount = async (
+  validators: CryptoConnectionValidators,
+  createAccountService: CreateAccountService,
+  choice: AccountChoice,
+  label: string,
+  trx: Knex.Transaction,
+): Promise<number | null> => {
+  if (choice.accountId != null) {
+    await validators.validateAccountMapping(choice.accountId, trx);
+    return choice.accountId;
+  }
+  if (choice.createAccount === true) {
+    // Account type is the generic current asset ("Other Current Asset").
+    const account = await createAccountService.createAccount(
+      { name: label, accountType: CRYPTO_ACCOUNT_TYPE },
+      trx,
+    );
+    return account.id;
+  }
+  return null;
+};
+
 @Injectable()
 export class CreateCryptoConnectionService {
   constructor(
@@ -48,12 +87,7 @@ export class CreateCryptoConnectionService {
     this.validators.assertSupportedExchange(dto.exchange);
     const exchange: CryptoExchangeId = dto.exchange;
 
-    if (dto.accountId != null && dto.createAccount === true) {
-      throw new ServiceError(
-        ERRORS.ACCOUNT_MAPPING_CONFLICT,
-        'Choose either an existing account or create a new one, not both.',
-      );
-    }
+    assertSingleAccountChoice(dto);
 
     // Network call to the exchange happens before any transaction is opened.
     const { credentials, inspection } =
@@ -71,19 +105,14 @@ export class CreateCryptoConnectionService {
 
     return this.uow
       .withTransaction(async (trx: Knex.Transaction) => {
-        let accountId: number | null = null;
-        if (dto.accountId != null) {
-          await this.validators.validateAccountMapping(dto.accountId, trx);
-          accountId = dto.accountId;
-        } else if (dto.createAccount === true) {
-          // Same trx: if anything below fails the new account rolls back too.
-          // Account type is the generic current asset ("Other Current Asset").
-          const account = await this.createAccountService.createAccount(
-            { name: label, accountType: CRYPTO_ACCOUNT_TYPE },
-            trx,
-          );
-          accountId = account.id;
-        }
+        // Same trx: if anything below fails a new account rolls back too.
+        const accountId = await resolveConnectionAccount(
+          this.validators,
+          this.createAccountService,
+          dto,
+          label,
+          trx,
+        );
 
         const connection = await this.connections.insert(
           {

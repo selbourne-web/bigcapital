@@ -39,7 +39,9 @@ import { UpdateCryptoConnectionDto } from './dtos/UpdateCryptoConnection.dto';
 import { RotateCredentialsDto } from './dtos/RotateCredentials.dto';
 import { GetCryptoSyncRunsQueryDto } from './dtos/GetCryptoSyncRunsQuery.dto';
 import { DeleteCryptoConnectionQueryDto } from './dtos/DeleteCryptoConnectionQuery.dto';
+import { CreateCsvOnlyConnectionDto } from './dtos/CreateCsvOnlyConnection.dto';
 import { CreateCryptoConnectionService } from './commands/CreateCryptoConnection.service';
+import { CreateCsvOnlyConnectionService } from './commands/CreateCsvOnlyConnection.service';
 import { UpdateCryptoConnectionService } from './commands/UpdateCryptoConnection.service';
 import { RotateCryptoCredentialsService } from './commands/RotateCryptoCredentials.service';
 import { DeleteCryptoConnectionService } from './commands/DeleteCryptoConnection.service';
@@ -76,7 +78,7 @@ const csvUploadBody = {
  * REST API of the crypto exchange connectors (`/api/crypto`).
  *
  * Permissions (subject `CryptoExchange`): reading = View, creating a
- * connection = Create, changing one (rename, pause/resume, account mapping,
+ * connection (key-based or CSV-only) = Create, changing one (rename, pause/resume, account mapping,
  * credential rotation) and requesting a manual sync = Edit, removing = Delete.
  * A manual sync is Edit rather than Create because it triggers work on an
  * existing connection and creates no record the user owns.
@@ -104,6 +106,7 @@ export class CryptoExchangesController {
     private readonly rollbackCsv: RollbackCryptoCsvImportService,
     private readonly listCsvImports: GetCryptoCsvImportsService,
     private readonly cls: ClsService,
+    private readonly createCsvOnly: CreateCsvOnlyConnectionService,
   ) {}
 
   @Get('connections')
@@ -193,6 +196,60 @@ export class CryptoExchangesController {
     return this.createConnection.execute(dto);
   }
 
+  @Post('connections/csv-only')
+  @RequirePermission(Action.Create, AbilitySubject.CryptoExchange)
+  @ApiOperation({
+    summary:
+      'Add a CSV-only connection (no API key; fed by CSV imports only, e.g. Nexo).',
+    description:
+      'Needs Create on CryptoExchange; with `createAccount: true` it also needs Create on Account (403 otherwise). ' +
+      'No key is probed or stored and nothing is synced or scheduled: Sync now, Pause/Resume and Rotate key/Reconnect answer 409 CRYPTO_CONNECTION_CSV_ONLY; Delete and the CSV import endpoints work.',
+  })
+  @ApiResponse(
+    res(
+      201,
+      'The created connection (mode csv_only); snake_case keys.',
+      EXAMPLES.csvOnlyConnection,
+    ),
+  )
+  @ApiResponse(
+    res(
+      400,
+      'Validation failure (exchange not CSV-only, bad label, account type/currency/not found).' +
+        ERROR_NOTE,
+      EXAMPLES.serviceError(
+        'CRYPTO_ACCOUNT_NOT_ASSET',
+        'Only an asset account can hold a crypto connection.',
+        400,
+      ),
+    ),
+  )
+  @ApiResponse(
+    res(
+      409,
+      'The account is already mapped to another connection.',
+      EXAMPLES.serviceError(
+        'CRYPTO_ACCOUNT_ALREADY_MAPPED',
+        'This account is already mapped to crypto connection Kraken - Trading.',
+        409,
+      ),
+    ),
+  )
+  createCsvOnlyConnection(
+    @Body() dto: CreateCsvOnlyConnectionDto,
+    @Req() request?: { ability?: { can: (a: string, s: string) => boolean } },
+  ) {
+    if (
+      dto.createAccount === true &&
+      !request?.ability?.can(AccountAction.CREATE, AbilitySubject.Account)
+    ) {
+      throw new ForbiddenException(
+        'You do not have permission to Create Account',
+      );
+    }
+    return this.createCsvOnly.execute(dto);
+  }
+
   @Patch('connections/:id')
   @RequirePermission(Action.Edit, AbilitySubject.CryptoExchange)
   @ApiOperation({
@@ -215,7 +272,7 @@ export class CryptoExchangesController {
   @ApiResponse(
     res(
       409,
-      'Conflict: account already mapped, or the connection is in error (rotate credentials).',
+      'Conflict: account already mapped, the connection is in error (rotate credentials), or a pause/resume of a CSV-only connection (CRYPTO_CONNECTION_CSV_ONLY).',
       EXAMPLES.serviceError(
         'CRYPTO_CONNECTION_IN_ERROR',
         'This connection has an error. Replace its credentials to reconnect.',
@@ -284,6 +341,17 @@ export class CryptoExchangesController {
   )
   @ApiResponse(
     res(
+      409,
+      'A CSV-only connection has no API key to replace or reconnect.',
+      EXAMPLES.serviceError(
+        'CRYPTO_CONNECTION_CSV_ONLY',
+        'This connection is fed by CSV imports only and has no API key, so it cannot be synced, paused, resumed or reconnected.',
+        409,
+      ),
+    ),
+  )
+  @ApiResponse(
+    res(
       422,
       'The new key is rejected (EXCHANGE_AUTH_FAILED), has extra permissions (KEY_HAS_EXTRA_PERMISSIONS) or needs attestation (ATTESTATION_REQUIRED).' +
         ERROR_NOTE,
@@ -320,7 +388,7 @@ export class CryptoExchangesController {
   @ApiResponse(
     res(
       409,
-      'The connection is paused.',
+      'The connection is paused (CRYPTO_CONNECTION_PAUSED) or CSV-only (CRYPTO_CONNECTION_CSV_ONLY).',
       EXAMPLES.serviceError(
         'CRYPTO_CONNECTION_PAUSED',
         'This connection is paused. Resume it to sync.',

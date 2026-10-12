@@ -24,8 +24,24 @@ const connection = {
   history_coverage: { level: 'full' },
 };
 
+/** A connection fed only by CSV imports (no key, no adapter, no sync). */
+const csvOnlyConnection = {
+  id: 3,
+  exchange: 'nexo',
+  label: 'Nexo',
+  status: 'active',
+  mode: 'csv_only',
+  key_hint: null,
+  account_id: null,
+  last_sync_at: null,
+  last_error: null,
+  created_at: '2026-10-11T09:00:00.000Z',
+  key_expires_at: null,
+};
+
 export const EXAMPLES = {
   connection,
+  csvOnlyConnection,
   connections: [
     connection,
     {
@@ -35,6 +51,7 @@ export const EXAMPLES = {
       label: 'Binance',
       account_id: null,
     },
+    { ...csvOnlyConnection, history_coverage: null },
   ],
   balances: {
     connections: [

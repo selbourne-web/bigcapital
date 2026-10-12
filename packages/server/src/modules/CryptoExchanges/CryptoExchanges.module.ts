@@ -35,6 +35,7 @@ import { CryptoSyncRequestService } from './sync/CryptoSyncRequest.service';
 import { CryptoConnectionRepository } from './commands/CryptoConnection.repository';
 import { CryptoConnectionValidators } from './commands/CryptoConnectionValidators.service';
 import { CreateCryptoConnectionService } from './commands/CreateCryptoConnection.service';
+import { CreateCsvOnlyConnectionService } from './commands/CreateCsvOnlyConnection.service';
 import { UpdateCryptoConnectionService } from './commands/UpdateCryptoConnection.service';
 import { RotateCryptoCredentialsService } from './commands/RotateCryptoCredentials.service';
 import { DeleteCryptoConnectionService } from './commands/DeleteCryptoConnection.service';
@@ -93,6 +94,7 @@ export const cryptoExchangesProviders: Provider[] = [
   CryptoConnectionRepository,
   CryptoConnectionValidators,
   CreateCryptoConnectionService,
+  CreateCsvOnlyConnectionService,
   UpdateCryptoConnectionService,
   RotateCryptoCredentialsService,
   DeleteCryptoConnectionService,

@@ -14,6 +14,7 @@ import { CryptoConnectionRepository } from './CryptoConnection.repository';
 import { CryptoConnectionValidators } from './CryptoConnectionValidators.service';
 import { CryptoConnectionView, toConnectionView } from './CryptoConnectionView';
 import { emitConnectionEvent } from './emitConnectionEvent';
+import { assertApiMode } from './assertApiMode';
 
 @Injectable()
 export class RotateCryptoCredentialsService {
@@ -46,6 +47,8 @@ export class RotateCryptoCredentialsService {
         404,
       );
     }
+    // Also the Reconnect action (the webapp reconnects through this endpoint).
+    assertApiMode(connection);
     const { credentials, inspection } =
       await this.validators.verifyCredentialsDetailed(
         connection.exchange,

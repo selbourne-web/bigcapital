@@ -8,6 +8,7 @@ import { CryptoSyncKind, cryptoStartJobId } from '../CryptoExchanges.constants';
 import { CryptoConnectionRepository } from '../commands/CryptoConnection.repository';
 import { CryptoConnection } from '../models/CryptoConnection';
 import { runAfterTransaction } from '@/modules/Tenancy/TenancyDB/TransactionsHooks';
+import { isCsvOnly } from '../commands/assertApiMode';
 import { CryptoSyncScheduler } from './CryptoSync.scheduler';
 
 /**
@@ -99,12 +100,20 @@ export class CryptoSyncConnectionSubscriber {
     if (!organizationId) throw new Error('event has no organization id');
   }
 
-  /** The row as committed, only if it may sync (not archived, status active). */
+  /**
+   * The row as committed, only if it may sync (not archived, status active,
+   * not CSV-only: those have no adapter or queue).
+   */
   private async activeConnection(
     connectionId: number,
   ): Promise<CryptoConnection | undefined> {
     const connection = await this.connections.findById(connectionId);
-    if (!connection || connection.deletedAt || connection.status !== 'active') {
+    if (
+      !connection ||
+      connection.deletedAt ||
+      connection.status !== 'active' ||
+      isCsvOnly(connection)
+    ) {
       return undefined;
     }
     return connection;

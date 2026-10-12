@@ -14,6 +14,7 @@ import { CryptoConnectionRepository } from './CryptoConnection.repository';
 import { CryptoConnectionValidators } from './CryptoConnectionValidators.service';
 import { CryptoConnectionView, toConnectionView } from './CryptoConnectionView';
 import { emitConnectionEvent } from './emitConnectionEvent';
+import { assertApiMode } from './assertApiMode';
 
 @Injectable()
 export class UpdateCryptoConnectionService {
@@ -50,6 +51,12 @@ export class UpdateCryptoConnectionService {
         undefined,
         404,
       );
+    }
+
+    // Pause/resume only exist for API syncing; a CSV-only connection is
+    // refused as a whole (nothing renamed either) so the 409 is unambiguous.
+    if (dto.status !== undefined) {
+      assertApiMode(connection);
     }
 
     const patch: Partial<CryptoConnection> = {};

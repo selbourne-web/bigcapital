@@ -6,6 +6,7 @@ import {
   CryptoConnectionView,
   toConnectionView,
 } from '../commands/CryptoConnectionView';
+import { isCsvOnly } from '../commands/assertApiMode';
 
 @Injectable()
 export class GetCryptoConnectionsService {
@@ -24,9 +25,12 @@ export class GetCryptoConnectionsService {
       .query()
       .whereNull('deletedAt')
       .orderBy('id');
+    // CSV-only exchanges have no adapter (the registry would throw).
     return rows.map((row) => ({
       ...toConnectionView(row),
-      historyCoverage: this.registry.get(row.exchange).historyCoverage,
+      historyCoverage: isCsvOnly(row)
+        ? null
+        : this.registry.get(row.exchange).historyCoverage,
     }));
   }
 }

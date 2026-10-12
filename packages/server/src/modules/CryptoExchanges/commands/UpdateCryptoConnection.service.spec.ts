@@ -205,6 +205,42 @@ describe('UpdateCryptoConnectionService', () => {
     });
   });
 
+  describe('CSV-only connections', () => {
+    it.each(['paused', 'active'] as const)(
+      'refuses status %s (pause/resume) with 409 CRYPTO_CONNECTION_CSV_ONLY and changes nothing',
+      async (status) => {
+        const t = setup();
+        const c = t.repo.seed({
+          exchange: 'nexo',
+          mode: 'csv_only',
+          apiKeyEncrypted: '',
+          apiSecretEncrypted: '',
+        });
+
+        const error = await t.service
+          .execute(c.id, { status, label: 'Renamed too' })
+          .catch((e) => e);
+
+        expect(error).toMatchObject({
+          errorType: 'CRYPTO_CONNECTION_CSV_ONLY',
+        });
+        expect(error.getStatus()).toBe(409);
+        expect(t.repo.calls).toEqual([]);
+        expect(t.audit.rows).toHaveLength(0);
+        expect(t.events.emitted).toHaveLength(0);
+        expect(t.repo.rows.get(c.id).label).toBe('Kraken - Trading');
+      },
+    );
+
+    it('still renames a csv_only connection (no event)', async () => {
+      const t = setup();
+      const c = t.repo.seed({ exchange: 'nexo', mode: 'csv_only' });
+      const view = await t.service.execute(c.id, { label: 'Nexo' });
+      expect(view).toMatchObject({ label: 'Nexo', mode: 'csv_only' });
+      expect(t.events.emitted).toHaveLength(0);
+    });
+  });
+
   it('never exposes secrets in views or audit metadata', async () => {
     const t = setup();
     const c = t.repo.seed({ apiKeyEncrypted: 'ciphertext-only' });

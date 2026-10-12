@@ -19,8 +19,11 @@ export interface CryptoConnectionView {
   lastError: string | null;
   createdAt: Date | null;
   keyExpiresAt: Date | null;
-  /** Added by `GetCryptoConnections` from the adapter; absent on create/update responses. */
-  historyCoverage?: HistoryCoverage;
+  /**
+   * Added by `GetCryptoConnections` from the adapter (null for a CSV-only
+   * connection, which has none); absent on create/update responses.
+   */
+  historyCoverage?: HistoryCoverage | null;
 }
 
 /** Explicit allow-list copy so a new column can never leak by accident. */

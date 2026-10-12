@@ -260,9 +260,10 @@ describe('crypto Swagger documentation', () => {
   it.each([
     ['listConnections', ['200']],
     ['createCryptoConnection', ['201', '400', '409', '422', '429']],
+    ['createCsvOnlyConnection', ['201', '400', '409']],
     ['updateCryptoConnection', ['200', '404', '409']],
     ['deleteCryptoConnection', ['200', '404']],
-    ['rotateCryptoCredentials', ['200', '404', '422']],
+    ['rotateCryptoCredentials', ['200', '404', '409', '422']],
     ['syncCryptoConnection', ['202', '404', '409', '429']],
     ['cryptoBalances', ['200']],
     ['cryptoSyncRuns', ['200']],

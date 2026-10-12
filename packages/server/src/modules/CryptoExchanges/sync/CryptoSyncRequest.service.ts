@@ -9,6 +9,7 @@ import {
 } from '../CryptoExchanges.constants';
 import { CryptoConnection } from '../models/CryptoConnection';
 import { CryptoConnectionRepository } from '../commands/CryptoConnection.repository';
+import { assertApiMode, isCsvOnly } from '../commands/assertApiMode';
 import { CryptoSyncScheduler } from './CryptoSync.scheduler';
 
 /** One manual sync per connection per minute. */
@@ -24,7 +25,9 @@ export class CryptoManualSyncThrottledException extends HttpException {
   }
 }
 
-type ConnectionRef = Pick<CryptoConnection, 'id' | 'exchange' | 'status'>;
+type ConnectionRef = Pick<CryptoConnection, 'id' | 'exchange' | 'status'> & {
+  mode?: CryptoConnection['mode'];
+};
 
 /**
  * What the REST API asks of the sync machinery on behalf of a user: a manual
@@ -53,7 +56,8 @@ export class CryptoSyncRequestService {
     const organizationId = this.cls.get<string>('organizationId');
     if (!organizationId) return;
     for (const connection of connections) {
-      if (connection.status !== 'active') continue;
+      // CSV-only connections have no sync queue (nothing to re-register).
+      if (connection.status !== 'active' || isCsvOnly(connection)) continue;
       try {
         await this.scheduler.schedule(connection, String(organizationId));
       } catch (error) {
@@ -73,8 +77,8 @@ export class CryptoSyncRequestService {
    * 60 s with a Redis key (`SET NX PX`), the same Redis the queues use: the
    * app's `@Throttle` decorator limits per client and route, not per tenant
    * connection, so it cannot express this.
-   * Paused and archived connections are refused; an `error` connection may be
-   * synced manually (a successful run reactivates it).
+   * Paused, archived and CSV-only connections are refused; an `error`
+   * connection may be synced manually (a successful run reactivates it).
    */
   async requestManualSync(connectionId: number): Promise<void> {
     const connection = await this.connections.findById(connectionId);
@@ -86,6 +90,7 @@ export class CryptoSyncRequestService {
         HttpStatus.NOT_FOUND,
       );
     }
+    assertApiMode(connection);
     if (connection.status === 'paused') {
       throw new ServiceError(
         ERRORS.CONNECTION_PAUSED,

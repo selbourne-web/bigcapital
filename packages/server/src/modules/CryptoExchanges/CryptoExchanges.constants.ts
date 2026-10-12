@@ -66,6 +66,15 @@ export const SUPPORTED_CRYPTO_EXCHANGES: readonly CryptoExchangeId[] = [
   'pionex',
 ];
 
+/**
+ * Exchanges without an adapter, fed only by CSV imports (`mode = 'csv_only'`,
+ * created through `POST /crypto/connections/csv-only`). Deliberately absent
+ * from SUPPORTED_CRYPTO_EXCHANGES and CRYPTO_SYNC_QUEUES.
+ */
+export const CSV_ONLY_EXCHANGES = ['nexo'] as const;
+
+export type CsvOnlyExchangeId = (typeof CSV_ONLY_EXCHANGES)[number];
+
 export const CRYPTO_CONNECTION_STATUSES: readonly CryptoConnectionStatus[] = [
   'active',
   'paused',
@@ -93,6 +102,8 @@ export const CRYPTO_CONNECTION_ERRORS = {
   EXCHANGE_NOT_SUPPORTED: 'CRYPTO_EXCHANGE_NOT_SUPPORTED',
   IN_ERROR: 'CRYPTO_CONNECTION_IN_ERROR',
   CONNECTION_PAUSED: 'CRYPTO_CONNECTION_PAUSED',
+  /** An API-only action (sync, pause/resume, rotate/reconnect) on a CSV-only connection. */
+  CONNECTION_CSV_ONLY: 'CRYPTO_CONNECTION_CSV_ONLY',
   CREDENTIALS_REQUIRED: 'CRYPTO_CREDENTIALS_REQUIRED',
   ACCOUNT_NOT_FOUND: 'CRYPTO_ACCOUNT_NOT_FOUND',
   ACCOUNT_NOT_ASSET: 'CRYPTO_ACCOUNT_NOT_ASSET',
