@@ -198,9 +198,6 @@ importers:
       '@types/multer':
         specifier: ^2.3.0
         version: 2.3.0
-      '@types/nodemailer':
-        specifier: ^6.4.17
-        version: 6.4.17
       '@types/passport-google-oauth20':
         specifier: ^2.0.16
         version: 2.0.16
@@ -334,8 +331,8 @@ importers:
         specifier: ^10.4.9
         version: 10.5.0(@nestjs/common@10.4.22(class-transformer@0.5.1)(class-validator@0.14.4)(reflect-metadata@0.2.2)(rxjs@7.8.1))(@nestjs/core@10.4.22)(class-validator@0.14.4)(rxjs@7.8.1)
       nodemailer:
-        specifier: ^6.3.0
-        version: 6.9.13
+        specifier: ^10.0.12
+        version: 10.0.12
       object-hash:
         specifier: ^2.0.3
         version: 2.2.0
@@ -5625,9 +5622,6 @@ packages:
   '@types/node@20.5.1':
     resolution: {integrity: sha512-4tT2UrL5LBqDwoed9wZ6N3umC4Yhz3W3FloMmiiG4JwmUJWpie0c7lcnUNd4gtMKuDEO4wRVS8B6Xa0uMRsMKg==}
 
-  '@types/nodemailer@6.4.17':
-    resolution: {integrity: sha512-I9CCaIp6DTldEg7vyUTZi8+9Vo0hi1/T8gv3C89yk1rSAAzoKQ8H8ki/jBYJSFoH/BisgLP8tkZMlQ91CIquww==}
-
   '@types/normalize-package-data@2.4.4':
     resolution: {integrity: sha512-37i+OaWTh9qeK4LSHPsyRC7NahnGotNuZvjLSgcPzblpHB3rrCJxAOgI5gCdKm7coonsaX1Of0ILiTcnZjbfxA==}
 
@@ -10462,9 +10456,9 @@ packages:
     resolution: {integrity: sha512-kQK9LGGFiHtrWiNhZtA7Qbw17AQz+dmsEKODRIVTXA9+e5MS/2gZEBhYJt13GrAz5/IOZKddH/0Z3TP/Zgo+yw==}
     engines: {node: '>=18'}
 
-  nodemailer@6.9.13:
-    resolution: {integrity: sha512-7o38Yogx6krdoBf3jCAqnIN4oSQFx+fMa0I7dK1D+me9kBxx12D+/33wSb+fhOCtIxvYJ+4x4IMEhmhCKfAiOA==}
-    engines: {node: '>=6.0.0'}
+  nodemailer@10.0.12:
+    resolution: {integrity: sha512-PQ46oNbNMuH/Sno7B5IWIU9etytwrO0xdTFvWXpIQFRXhBAXtzD48243AS+BCbQQTPD8y3fqUrgLn0tSo77gvg==}
+    engines: {node: '>=20.0.0'}
 
   nopt@5.0.0:
     resolution: {integrity: sha512-Tbj67rffqceeLpcRXrT7vKAN8CwfPeIBgM7E6iBkmKLV7bEMwpGgYLGv0jACUsECaa/vuxP0IjEont6umdMgtQ==}
@@ -19314,10 +19308,6 @@ snapshots:
 
   '@types/node@20.5.1': {}
 
-  '@types/nodemailer@6.4.17':
-    dependencies:
-      '@types/node': 20.5.1
-
   '@types/normalize-package-data@2.4.4': {}
 
   '@types/oauth@0.9.6':
@@ -25374,7 +25364,7 @@ snapshots:
 
   node-releases@2.0.57: {}
 
-  nodemailer@6.9.13: {}
+  nodemailer@10.0.12: {}
 
   nopt@5.0.0:
     dependencies:
