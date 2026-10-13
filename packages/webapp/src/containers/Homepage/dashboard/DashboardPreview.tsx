@@ -5,7 +5,7 @@
  * sign-out) and relies on sample report data. Registered in `App.tsx` under
  * `import.meta.env.DEV`, so it is not part of production builds.
  */
-import { Ability } from '@casl/ability';
+import { createMongoAbility } from '@casl/ability';
 import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { seedCryptoSample } from './cryptoSampleData';
@@ -17,7 +17,9 @@ import { usersKeys } from '@/hooks/query/users/query-keys';
 import { useAuthOrganizationId } from '@/hooks/state';
 
 // Everything permitted, so every shortcut section shows in the preview.
-const PREVIEW_ABILITY = new Ability([{ action: 'manage', subject: 'all' }]);
+const PREVIEW_ABILITY = createMongoAbility([
+  { action: 'manage', subject: 'all' },
+]);
 
 export default function DashboardPreview() {
   const queryClient = useQueryClient();

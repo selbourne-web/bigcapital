@@ -1,4 +1,4 @@
-import { Ability } from '@casl/ability';
+import { PureAbility } from '@casl/ability';
 import { AuthorizationGuard } from './Authorization.guard';
 import { getCachedAbility, purgeTenantAbilities } from './TenantAbilities';
 
@@ -110,7 +110,7 @@ describe('AuthorizationGuard', () => {
       switchToHttp: () => ({ getRequest: () => requestB }),
     } as any);
 
-    expect(requestB.ability).toBeInstanceOf(Ability);
+    expect(requestB.ability).toBeInstanceOf(PureAbility);
     expect(requestB.ability).toBe(requestA.ability);
   });
 });

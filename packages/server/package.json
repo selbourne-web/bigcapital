@@ -43,7 +43,7 @@
     "@bull-board/api": "^5.22.0",
     "@bull-board/express": "^5.22.0",
     "@bull-board/nestjs": "^5.22.0",
-    "@casl/ability": "^5.4.3",
+    "@casl/ability": "^6.8.1",
     "@clickhouse/client": "^1.23.1",
     "@lemonsqueezy/lemonsqueezy.js": "^2.2.0",
     "@liaoliaots/nestjs-redis": "^10.0.0",

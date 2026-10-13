@@ -1,4 +1,4 @@
-import { Ability, AnyAbility } from '@casl/ability';
+import { createMongoAbility, AnyAbility } from '@casl/ability';
 import { createContextualCan } from '@casl/react';
 import React from 'react';
 import { useDashboardMetaBoot } from './DashboardBoot';
@@ -36,7 +36,7 @@ export function DashboardAbilityProvider({
   const { meta } = useDashboardMetaBoot();
 
   // Ability instance.
-  const ability = new Ability(meta?.abilities ?? []);
+  const ability = createMongoAbility(meta?.abilities ?? []);
 
   return (
     <AbilityContext.Provider value={ability}>

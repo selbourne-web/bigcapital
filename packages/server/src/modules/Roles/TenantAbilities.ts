@@ -1,11 +1,11 @@
-import { Ability } from '@casl/ability';
+import { createMongoAbility, MongoAbility } from '@casl/ability';
 import * as LruCache from 'lru-cache';
 import { Role } from './models/Role.model';
 import { RolePermission } from './models/RolePermission.model';
 
 interface AbilityCache {
-  get: (userId: number) => Ability | undefined;
-  set: (userId: number, ability: Ability) => void;
+  get: (userId: number) => MongoAbility | undefined;
+  set: (userId: number, ability: MongoAbility) => void;
   del: (userId: number) => void;
 }
 
@@ -39,12 +39,12 @@ function getTenantAbilitiesCache(organizationId: string): AbilityCache {
  * Retrieves the cached ability of the given tenant user.
  * @param {string} organizationId - Tenant organization id.
  * @param {number} userId - System user id.
- * @returns {Ability | undefined}
+ * @returns {MongoAbility | undefined}
  */
 export function getCachedAbility(
   organizationId: string,
   userId: number,
-): Ability | undefined {
+): MongoAbility | undefined {
   return getTenantAbilitiesCache(organizationId).get(userId);
 }
 
@@ -57,7 +57,7 @@ export function getCachedAbility(
 export function cacheAbility(
   organizationId: string,
   userId: number,
-  ability: Ability,
+  ability: MongoAbility,
 ): void {
   getTenantAbilitiesCache(organizationId).set(userId, ability);
 }
@@ -86,7 +86,7 @@ export function purgeTenantAbilities(organizationId: string): void {
  */
 export function getAbilityForRole(role) {
   const rules = getAbilitiesRolesConds(role);
-  return new Ability(rules);
+  return createMongoAbility(rules);
 }
 
 /**
