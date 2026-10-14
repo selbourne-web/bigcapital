@@ -17,6 +17,13 @@ async function bootstrap() {
     rawBody: true,
   });
   app.set('query parser', 'extended');
+  // Behind a reverse proxy (Caddy) the socket peer is the proxy, so trust its
+  // X-Forwarded-For for req.ip (used by the throttler). Hops = trusted proxies
+  // in front of the API; 0 (default) disables it.
+  const trustProxyHops = parseInt(process.env.TRUST_PROXY_HOPS ?? '0', 10);
+  if (trustProxyHops > 0) {
+    app.set('trust proxy', trustProxyHops);
+  }
   app.disable('x-powered-by');
   app.use(securityHeaders);
   app.setGlobalPrefix('/api');
