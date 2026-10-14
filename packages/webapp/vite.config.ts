@@ -55,6 +55,8 @@ export default defineConfig(({ mode }) => {
     server: {
       host: true,
       port,
+      // Served through Caddy at financial.selbourneglobal.com
+      allowedHosts: ['.selbourneglobal.com'],
       proxy: {
         '/api': {
           target: env.VITE_API_PROXY_TARGET || 'http://localhost:3000',
